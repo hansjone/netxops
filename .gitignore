@@ -3,6 +3,7 @@ dist/
 # keep published host + client artifacts
 lib/*
 !lib/index.js
+!lib/agent-tools.js
 !lib/client.js
 *.log
 .DS_Store
