@@ -4,9 +4,12 @@
 
 ```powershell
 cd D:\project\chatgpt\netxops
+powershell -File .\scripts\link-dsh-peers.ps1
 powershell -File .\scripts\link-preset.ps1
 powershell -File .\scripts\set-netx-token.ps1 -Token (Get-Content D:\project\chatgpt\netx\data\auth\mcp_token -Raw).Trim()
 ```
+
+`link-dsh-peers.ps1` is required for path/`link:` installs: Node resolves peers from the checkout realpath, not from the profile `node_modules`. Run it after the first successful `dsh` boot (so `~/.dsh/profiles/node_modules` exists).
 
 From DeepSeekHarness (source):
 

@@ -60,12 +60,16 @@ Open `dsh web`, new session → preset **Netx Ops**.
 
 See [TOOL_MAP.md](TOOL_MAP.md).
 
-## Local debug (DeepSeekHarness checkout)
+## Local `link:` / path install
 
-See [examples/local-debug/README.md](../examples/local-debug/README.md).
-
-Rebuild the Plugins card after editing `src/client/`:
+When you `dsh plugin add D:\path\to\netxops`, pnpm junctions the checkout **outside** the profile tree. Node then resolves imports from that checkout, so DSH peer packages (`@deepseek-ai/schemastery`, …) are invisible unless you link them once:
 
 ```powershell
-bun run bundle
+powershell -File .\scripts\link-dsh-peers.ps1
 ```
+
+Unix: `./scripts/link-dsh-peers.sh`
+
+(Requires a prior `dsh web` / profile boot so `~/.dsh/profiles/node_modules` exists.)
+
+npm / GitHub installs place the package under the profile `node_modules` and do **not** need this step.
