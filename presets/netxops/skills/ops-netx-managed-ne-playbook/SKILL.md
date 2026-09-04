@@ -15,7 +15,7 @@ Differs from UME inventory (`ops-netx-ume-playbook`): this is **SSH/Telnet** (ZT
 
 ## Tool order
 
-Use `mcp__netx__*`.
+Use `netx__*`.
 
 1. **Locate**
    - `listManagedNe`: `keyword`, `connect_status=pass` (preferred)
@@ -27,7 +27,7 @@ Use `mcp__netx__*`.
    - **Multi-NE = batch-first (one tool call; server concurrency default 4, max 20)**:
      - Same commands: `ne_ids` / `ume_ne_ids` + shared `commands`
      - Different commands per NE: `targets=[{ume_ne_id|ne_id, commands:[…]}, …]`
-   - Many single-NE calls in one turn are **serial** on stdio — forbidden for multi-NE work
+   - Many single-NE calls in one turn are **serial** — forbidden for multi-NE work
    - Per session: call `listCliTargets` at most once; merge shows into each target's `commands[]`
    - Timeouts: raise `read_timeout_sec` (default 60; slow 90–120) or fewer commands — no blind retry
 

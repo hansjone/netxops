@@ -1,5 +1,5 @@
 /**
- * Netx Ops Plugins settings card — apiUrl / lang / python + credential token.
+ * Netx Ops Plugins settings card — apiUrl / lang + credential token.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -146,18 +146,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
               disabled={disabled}
               onEdit={(text) => { props.edit('lang', text) }}
               onReset={() => { props.resetField('lang') }}
-            />
-            <ValueField
-              id="netxops-python"
-              label={t('pythonCommand')}
-              hint={t('pythonCommandHint')}
-              field={state.pythonCommand}
-              overriddenLabel={t('overridden')}
-              resetLabel={t('reset')}
-              invalidLabel={t('invalid')}
-              disabled={disabled}
-              onEdit={(text) => { props.edit('pythonCommand', text) }}
-              onReset={() => { props.resetField('pythonCommand') }}
             />
             <div className="dsh-nx-footer">
               {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}

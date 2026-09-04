@@ -6,8 +6,8 @@ One install wires **all of**:
 
 | Piece | How you use it |
 |-------|----------------|
-| Host bridge | spawns `mcp__netx__*` via `python -m netx_mcp` |
-| Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / python) |
+| Host tools | native `netx__*` tools → netx REST (Bearer token) |
+| Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / token) |
 | Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot) |
 
 You do **not** run `link-preset.ps1` for normal use. That script is only a manual fallback.
@@ -15,14 +15,9 @@ You do **not** run `link-preset.ps1` for normal use. That script is only a manua
 ## Still required outside the npm package
 
 1. **netx API** reachable (default `http://127.0.0.1:8890`) — the data plane.
-2. **Python `netx_mcp`** on the same machine as `dsh`:
+2. **API token** with scopes matching the tools you use (`alarms:read`, `ne:read`, `ne:exec`, `sql:query`, …).
 
-```powershell
-pip install "git+https://github.com/hansjone/netx.git#subdirectory=packages/netx-mcp"
-python -c "import netx_mcp; print('ok')"
-```
-
-v1 keeps the Python MCP as the execution plane (shared with OpenClaw / `python -m netx_mcp`). The DSH plugin owns orchestration, settings, persona, and skills — not a second MCP install in the agent preset.
+No local Python / `netx_mcp` install is required for DSH. (OpenClaw and other MCP hosts can still use `python -m netx_mcp` separately.)
 
 ## Install
 
@@ -42,7 +37,7 @@ dsh web   # or: pnpm dsh web
 
 1. Plugins card **Netx Ops** visible.
 2. Agent presets → Custom → **Netx Ops**.
-3. Tools include `mcp__netx__queryUmeAlarms`.
+3. Tools include `netx__queryUmeAlarms`.
 
 See [TOOL_MAP.md](TOOL_MAP.md).
 

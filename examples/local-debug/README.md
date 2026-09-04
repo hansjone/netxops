@@ -33,5 +33,5 @@ Adjust paths if your checkout differs.
 
 1. Settings → Plugins → **Netx Ops** card shows URL / token fields (after `bun run bundle` if you edited `src/client/`)
 2. New session → preset **Netx Ops**
-3. Tools include `mcp__netx__aggregateUmeAlarms`
+3. Tools include `netx__aggregateUmeAlarms`
 4. Ask Critical Top / single host alarms

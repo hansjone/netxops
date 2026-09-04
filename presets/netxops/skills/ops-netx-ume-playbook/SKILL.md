@@ -14,7 +14,7 @@ For any Netx Ops request about UME **alarms** or **NE inventory**, load this ski
 
 ## Tool names
 
-Host tool names are `mcp__netx__<camelCase>` (`serverName=netx`):
+Host tool names are `netx__<camelCase>`:
 
 | Purpose | Tool |
 |---------|------|

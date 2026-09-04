@@ -18,7 +18,6 @@ const API_TOKEN_FIELD = 'apiToken'
 export interface NetxopsSettings {
   apiUrl?: string
   lang?: string
-  pythonCommand?: string
   tokenCredentialRef?: string
 }
 
@@ -32,7 +31,6 @@ interface CredentialState {
 export interface NetxopsCardState extends CardShell {
   apiUrl: CardFieldState
   lang: CardFieldState
-  pythonCommand: CardFieldState
   apiToken: CardFieldState
   apiTokenConfigured: boolean
   apiTokenWritable: boolean
@@ -66,7 +64,7 @@ export class NetxopsCardController {
   ) {
     this.form = new CardForm(
       scope,
-      [textField('apiUrl'), textField('lang'), textField('pythonCommand')],
+      [textField('apiUrl'), textField('lang')],
       [{ field: API_TOKEN_FIELD, write: text => this.writeToken(text) }],
     )
     this.store = this.form.bind(() => this.projection())
@@ -91,7 +89,6 @@ export class NetxopsCardController {
       ...this.form.shell(),
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
-      pythonCommand: this.form.field('pythonCommand'),
       apiToken: this.form.field(API_TOKEN_FIELD),
       apiTokenConfigured: this.credential.configured,
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,

@@ -1,4 +1,4 @@
-# Host-plane Netx Ops bridge: settings + credentials → mcp__netx__* tools.
+# Host-plane Netx Ops bridge: settings + credentials → netx__* REST tools.
 #
 # After `dsh plugin add` / link, open Settings → Plugins to edit apiUrl / lang
 # (settings card client half; see docs/INSTALL.md). Token: credential NETX_API_TOKEN.
@@ -9,7 +9,6 @@
       config:
         apiUrl: http://127.0.0.1:8890
         lang: zh
-        pythonCommand: python
         tokenCredentialRef: NETX_API_TOKEN
         toolCallTimeoutMs: 120000
         installAgentPreset: true

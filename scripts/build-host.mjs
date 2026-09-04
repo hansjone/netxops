@@ -16,7 +16,6 @@ const external = [
   '@deepseek-ai/schemastery',
   '@deepseek-ai/dsh-credentials',
   '@deepseek-ai/dsh-settings',
-  '@deepseek-ai/dsh-mcp-client',
   '@deepseek-ai/dsh-tools',
 ]
 

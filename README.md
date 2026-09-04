@@ -1,6 +1,6 @@
 # netxops — Netx Ops for DeepSeek Harness
 
-Public **DeepSeek Harness** package: host bridge + Plugins card + **agent preset (skills included)**.
+Public **DeepSeek Harness** package: native `netx__*` REST tools + Plugins card + **agent preset (skills included)**.
 
 - GitHub: https://github.com/hansjone/netxops  
 - Package: `dsh-netxops`  
@@ -19,15 +19,17 @@ Then:
 2. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
 3. New session → choose **Netx Ops**
 
-Also need: running **netx API**, and `pip install` of `netx_mcp` (Python execution plane). Details: [docs/INSTALL.md](docs/INSTALL.md).
+Also need: a reachable **netx API** (no local `pip install netx_mcp`). Details: [docs/INSTALL.md](docs/INSTALL.md).
 
 ## What is coupled
 
 | In the plugin | Outside (data / runtime) |
 |---------------|---------------------------|
-| MCP spawn + settings + credentials | netx HTTP API |
-| Persona + UME / managed-NE skills | `python -m netx_mcp` on PATH |
+| `netx__*` REST tools + settings + credentials | netx HTTP API (URL + token) |
+| Persona + UME / managed-NE skills | |
 | Agent preset auto-install to `~/.dsh/.agent-presets` | |
+
+MCP (`python -m netx_mcp`) remains available for OpenClaw / other hosts — not required for DSH.
 
 ## License
 

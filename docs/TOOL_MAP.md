@@ -1,8 +1,8 @@
-# Netx MCP tool map (v1)
+# Netx Ops tool map
 
-Tools are registered by `@deepseek-ai/dsh-mcp-client` with `serverName: netx`.
+Tools are registered by the host plugin (`dsh-netxops`) via `@deepseek-ai/dsh-tools`.
 
-Model-facing name: `mcp__netx__<tool>`.
+Model-facing name: `netx__<tool>`.
 
 | Tool | Role |
 |------|------|
@@ -21,8 +21,8 @@ Model-facing name: `mcp__netx__<tool>`.
 | `execManagedNe` | Read-only CLI (batch-first) |
 | `listCliTargets` | CLI target index (managed + ume) |
 
-stdio entry: `python -m netx_mcp` → HTTP `NETX_API_URL`.
+Execution: browser/`fetch` from the DSH host → HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.
 
-Upstream package: [netx `packages/netx-mcp`](https://github.com/hansjone/netx/tree/main/packages/netx-mcp).
+Handler/paths mirror [netx `packages/netx-mcp`](https://github.com/hansjone/netx/tree/main/packages/netx-mcp) (`http_tools.py` / `http_client.py`).
 
 **Out of v1:** `netx-topology` MCP / topology canvas skills.

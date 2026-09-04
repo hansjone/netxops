@@ -1,6 +1,6 @@
 /**
- * Host-plane Netx Ops bridge: settings (apiUrl / lang / python) + credentials
- * (NETX_API_TOKEN) drive a dynamically mounted `@deepseek-ai/dsh-mcp-client`.
+ * Host-plane Netx Ops: settings (apiUrl / lang) + credentials (NETX_API_TOKEN)
+ * drive native `netx__*` tools that call the netx REST API directly.
  *
  * On activate, the agent preset + skills are copied into
  * `$DSH_HOME/.agent-presets/netxops` so `dsh plugin add` alone is enough
@@ -13,18 +13,19 @@ import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Context, Fiber } from '@deepseek-ai/cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
 import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
-import * as McpClient from '@deepseek-ai/dsh-mcp-client'
+import type {} from '@deepseek-ai/dsh-tools'
+import { registerNetxTools } from './netx/tools.ts'
 
 /** Cordis plugin name. */
 export const name = 'netxops'
 
-/** MCP tools registry must exist to mount the child client. */
+/** Tool registry must exist to register `netx__*` tools. */
 export const inject = ['tools']
 
 /** Settings / composition namespace (Plugins page join key). */
@@ -40,16 +41,12 @@ export const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
 export interface Config {
   /** netx REST root (no trailing slash required). */
   apiUrl: string
-  /** Passed to MCP as `NETX_LANG`. */
+  /** Passed as `lang` query when starting with `en`. */
   lang: string
-  /** Executable that can run `python -m netx_mcp`. */
-  pythonCommand: string
   /** Credential reference for the bearer token (never store the secret here). */
   tokenCredentialRef: string
-  /** Per MCP tool-call timeout (ms). */
+  /** Per tool-call timeout (ms). */
   toolCallTimeoutMs: number
-  /** Fail activation when MCP cannot connect / sync tools. */
-  failOnStartupError: boolean
   /**
    * Copy bundled agent preset + skills into `$DSH_HOME/.agent-presets/netxops`
    * on every activate (required for Settings → Agent presets).
@@ -60,10 +57,8 @@ export interface Config {
 export const Config: z<Config> = z.object({
   apiUrl: z.string().default('http://127.0.0.1:8890'),
   lang: z.string().default('zh'),
-  pythonCommand: z.string().default('python'),
   tokenCredentialRef: z.string().role('credential-ref').default(DEFAULT_TOKEN_REF),
   toolCallTimeoutMs: z.number().step(1).min(1000).default(120_000),
-  failOnStartupError: z.boolean().default(false),
   installAgentPreset: z.boolean().default(true),
 })
 
@@ -154,7 +149,7 @@ function installNetxopsSettings(
  */
 export function apply(ctx: Context, config: Config = Config({})): void {
   let source: () => Config = () => config
-  let mcpFiber: Fiber | undefined
+  let unregister: (() => void) | undefined
   let remounting: Promise<void> = Promise.resolve()
   let generation = 0
 
@@ -165,41 +160,21 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   const remount = (): void => {
     remounting = remounting.then(async () => {
       const gen = ++generation
-      const previous = mcpFiber
-      mcpFiber = undefined
-      if (previous !== undefined) {
-        try {
-          await previous.dispose()
-        } catch (error) {
-          ctx.logger.warn('netxops: disposing previous mcp-client failed: %s', error)
-        }
-      }
+      unregister?.()
+      unregister = undefined
       if (gen !== generation) return
 
       const current = source()
       const token = await resolveToken(ctx, current.tokenCredentialRef)
       if (gen !== generation) return
 
-      const mcpConfig = McpClient.Config({
-        transport: 'stdio',
-        serverName: 'netx',
-        command: current.pythonCommand,
-        args: ['-m', 'netx_mcp'],
-        env: {
-          NETX_API_URL: current.apiUrl.replace(/\/$/, ''),
-          NETX_API_TOKEN: token,
-          NETX_LANG: current.lang,
-        },
+      unregister = registerNetxTools(ctx, {
+        apiUrl: current.apiUrl.replace(/\/$/, ''),
+        token,
+        lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
-        failOnStartupError: current.failOnStartupError,
       })
-
-      try {
-        mcpFiber = await ctx.plugin(McpClient, mcpConfig)
-      } catch (error) {
-        ctx.logger.error('netxops: failed to mount mcp-client: %s', error)
-        if (current.failOnStartupError) throw error
-      }
+      ctx.logger.info('netxops: registered netx__* REST tools → %s', current.apiUrl.replace(/\/$/, ''))
     }).catch((error) => {
       ctx.logger.error('netxops: remount error: %s', error)
     })
@@ -222,8 +197,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   ctx.effect(() => () => {
     generation += 1
-    const fiber = mcpFiber
-    mcpFiber = undefined
-    void fiber?.dispose()
-  }, 'netxops: dispose mcp-client')
+    unregister?.()
+    unregister = undefined
+  }, 'netxops: dispose netx tools')
 }

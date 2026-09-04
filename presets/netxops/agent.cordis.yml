@@ -1,5 +1,6 @@
 # Netx Ops agent preset — UME alarms / NE inventory / managed CLI.
-# Host keeps registries, sandbox, model route; this file owns persona, skills, netx MCP.
+# Host keeps registries, sandbox, model route; this file owns persona + skills.
+# netx__* tools are registered on the HOST by package `dsh-netxops`.
 
 # ── identity ────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@
       - Managed SSH/Telnet CLI → `ops-netx-managed-ne-playbook`
 
       ## Tools
-      Call netx MCP as `mcp__netx__*` (camelCase tool names). See skill bodies for decision trees.
+      Call netx as `netx__*` (camelCase tool names). See skill bodies for decision trees.
       Batch multi-NE CLI in **one** `execManagedNe` call (`ne_ids` / `ume_ne_ids` / `targets`).
 
 - id: agent-instructions
@@ -63,7 +64,6 @@
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
-# netx MCP is mounted on the HOST by package `dsh-netxops` (cordis.patch.yml).
+# netx__* tools are mounted on the HOST by package `dsh-netxops` (cordis.patch.yml).
 # The same package copies this preset into `$DSH_HOME/.agent-presets/netxops`
 # on activate — no manual link-preset script for normal installs.
-# Tools appear as mcp__netx__* on the host tool registry.
