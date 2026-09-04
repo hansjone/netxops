@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "DeepSeek Harness Netx Ops: host bridge + Plugins settings card + agent preset",
   "license": "MIT",
   "type": "module",

@@ -119,7 +119,9 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 disabled={!state.apiTokenWritable}
                 onChange={(event) => { props.edit('apiToken', event.target.value) }}
               />
-              <p className="dsh-nx-hint">{t('apiTokenHint')}</p>
+              <p className="dsh-nx-hint">
+                {state.apiTokenRemoteReady ? t('apiTokenHint') : t('apiTokenUnavailable')}
+              </p>
             </div>
             <ValueField
               id="netxops-api-url"

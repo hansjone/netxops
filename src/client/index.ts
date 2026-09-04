@@ -1,5 +1,9 @@
 /**
  * Browser half — Settings → Plugins → Netx Ops card.
+ *
+ * Do not hard-inject `remote.credentials`: shipped `@deepseek-ai/dsh` 0.1.1-rc.2
+ * remotes assembly does not mount that namespace (Models/Plugins cards only
+ * inject `remote`). Soft-inject when a newer Host provides it.
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -20,11 +24,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const LOCALE_NS = 'settings.netxops'
 
+/** Match shipped ui-settings-plugins inject (no remote.credentials). */
 export const inject = [
   'slots',
   'locale',
   'remote',
-  'remote.credentials',
   'settingsScope',
 ]
 
@@ -36,10 +40,19 @@ export function apply(ctx: ClientContext): void {
     ctx,
   )
 
-  ctx.effect(
-    () => ctx.remote.$on('credentials/reference-updated', (ref) => { card.refreshCredential(ref) }),
-    'netxops: credential invalidations',
-  )
+  // Optional: newer remotes that mount credentials unlock the token field.
+  ctx.inject(['remote.credentials'], (credCtx) => {
+    card.setCredentialsAvailable(true)
+    credCtx.effect(() => {
+      const off = credCtx.remote.$on('credentials/reference-updated', (ref) => {
+        card.refreshCredential(String(ref))
+      })
+      return () => {
+        off()
+        card.setCredentialsAvailable(false)
+      }
+    }, 'netxops: credential invalidations')
+  })
 
   ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
     name: 'settings.plugin.item',

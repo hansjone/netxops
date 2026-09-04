@@ -11,6 +11,7 @@ export type NetxopsLocaleKey =
   | 'pythonCommandHint'
   | 'apiToken'
   | 'apiTokenHint'
+  | 'apiTokenUnavailable'
   | 'apiTokenSet'
   | 'apiTokenUnset'
   | 'overridden'
@@ -36,6 +37,7 @@ export const en: Record<NetxopsLocaleKey, string> = {
   pythonCommandHint: 'Executable that can run `python -m netx_mcp`.',
   apiToken: 'API token',
   apiTokenHint: 'Stored as credential NETX_API_TOKEN (never written into settings). Leave blank to keep the current token.',
+  apiTokenUnavailable: 'This DSH build does not expose remote.credentials. Set the token with scripts/set-netx-token.ps1 (or .sh), then restart is not required if credentials are watched.',
   apiTokenSet: 'Configured',
   apiTokenUnset: 'Not set',
   overridden: 'Overridden',
@@ -62,6 +64,7 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   pythonCommandHint: '能执行 `python -m netx_mcp` 的解释器。',
   apiToken: 'API Token',
   apiTokenHint: '写入凭据 NETX_API_TOKEN（不会进 settings）。留空表示保留已有 token。',
+  apiTokenUnavailable: '当前 DSH 未提供 remote.credentials。请用 scripts/set-netx-token.ps1（或 .sh）写入 token；若 harness 在监视凭据文件则无需重启。',
   apiTokenSet: '已配置',
   apiTokenUnset: '未设置',
   overridden: '已覆盖',

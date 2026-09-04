@@ -1,5 +1,5 @@
 /**
- * Staged form over settings namespace `netxops` + credential NETX_API_TOKEN.
+ * Staged form over settings namespace `netxops` + optional credential NETX_API_TOKEN.
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -26,6 +26,7 @@ interface CredentialState {
   ref: string
   configured: boolean
   writable: boolean
+  remoteReady: boolean
 }
 
 export interface NetxopsCardState extends CardShell {
@@ -35,6 +36,7 @@ export interface NetxopsCardState extends CardShell {
   apiToken: CardFieldState
   apiTokenConfigured: boolean
   apiTokenWritable: boolean
+  apiTokenRemoteReady: boolean
 }
 
 export interface NetxopsCardFace extends CardActions {
@@ -43,10 +45,20 @@ export interface NetxopsCardFace extends CardActions {
   }
 }
 
+type CredentialsRemote = {
+  describe: (refs: string[]) => Promise<{ ok: boolean; value?: Record<string, { configured?: boolean; writable?: boolean } | undefined> }>
+  set: (ref: string, value: string) => Promise<unknown>
+}
+
 export class NetxopsCardController {
   private readonly form: CardForm<NetxopsSettings>
   private readonly store: SnapshotStore<NetxopsCardState>
-  private credential: CredentialState = { ref: '', configured: false, writable: true }
+  private credential: CredentialState = {
+    ref: '',
+    configured: false,
+    writable: false,
+    remoteReady: false,
+  }
 
   constructor(
     private readonly scope: SettingsScope<NetxopsSettings>,
@@ -62,6 +74,18 @@ export class NetxopsCardController {
     void this.readCredential()
   }
 
+  /** Toggle when soft-injected `remote.credentials` arrives / leaves. */
+  setCredentialsAvailable(ready: boolean): void {
+    if (this.credential.remoteReady === ready) return
+    this.credential = {
+      ...this.credential,
+      remoteReady: ready,
+      writable: ready,
+    }
+    this.store.set(this.projection())
+    if (ready) void this.readCredential()
+  }
+
   private projection(): NetxopsCardState {
     return {
       ...this.form.shell(),
@@ -70,25 +94,48 @@ export class NetxopsCardController {
       pythonCommand: this.form.field('pythonCommand'),
       apiToken: this.form.field(API_TOKEN_FIELD),
       apiTokenConfigured: this.credential.configured,
-      apiTokenWritable: this.credential.writable,
+      apiTokenWritable: this.credential.remoteReady && this.credential.writable,
+      apiTokenRemoteReady: this.credential.remoteReady,
     }
+  }
+
+  private credentials(): CredentialsRemote | undefined {
+    return this.ctx.get('remote.credentials') as CredentialsRemote | undefined
   }
 
   private async readCredential(): Promise<void> {
     const ref = refOf(this.scope.getSnapshot())
+    const api = this.credentials()
+    if (api === undefined) {
+      if (ref !== this.credential.ref || this.credential.remoteReady) {
+        this.credential = {
+          ref,
+          configured: false,
+          writable: false,
+          remoteReady: false,
+        }
+        this.store.set(this.projection())
+      }
+      return
+    }
     if (ref !== this.credential.ref) {
-      this.credential = { ref, configured: false, writable: true }
+      this.credential = { ref, configured: false, writable: true, remoteReady: true }
       this.store.set(this.projection())
     }
-    const response = await this.ctx.remote.credentials.describe([ref])
+    const response = await api.describe([ref])
     if (!response.ok || ref !== refOf(this.scope.getSnapshot())) return
-    const view = response.value[ref]
+    const view = response.value?.[ref]
     const next: CredentialState = {
       ref,
       configured: view?.configured ?? false,
       writable: view?.writable ?? true,
+      remoteReady: true,
     }
-    if (next.configured === this.credential.configured && next.writable === this.credential.writable) return
+    if (
+      next.configured === this.credential.configured
+      && next.writable === this.credential.writable
+      && next.remoteReady === this.credential.remoteReady
+    ) return
     this.credential = next
     this.store.set(this.projection())
   }
@@ -103,7 +150,9 @@ export class NetxopsCardController {
   }
 
   private async writeToken(value: string): Promise<boolean> {
-    await this.ctx.remote.credentials.set(refOf(this.scope.getSnapshot()), value)
+    const api = this.credentials()
+    if (api === undefined) return false
+    await api.set(refOf(this.scope.getSnapshot()), value)
     await this.readCredential()
     return this.credential.configured
   }
