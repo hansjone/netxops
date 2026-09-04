@@ -13,7 +13,7 @@ import type { Context, Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
-import { installSettingsSection } from '@deepseek-ai/dsh-settings'
+import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
 import * as McpClient from '@deepseek-ai/dsh-mcp-client'
 
@@ -62,6 +62,38 @@ async function resolveToken(ctx: Context, refName: string): Promise<string> {
   if (credentials === undefined) return ''
   const hit = await credentials.resolve(credentialRef(refName))
   return hit?.value ?? ''
+}
+
+/**
+ * Register the settings namespace on both dsh generations:
+ * - 0.1.1-rc.2: standalone `installSettingsSection`
+ * - ≥0.1.2-rc.1: `settings.installSection` on the provider
+ */
+function installNetxopsSettings(
+  ctx: Context,
+  entry: Config,
+  hooks: {
+    setSource: (current: () => Config) => void
+    onChange: () => void
+  },
+): void {
+  const legacy = (DshSettings as {
+    installSettingsSection?: (
+      context: Context,
+      ns: string,
+      schema: z<Config>,
+      base: Config,
+      sectionHooks: typeof hooks,
+    ) => void
+  }).installSettingsSection
+  if (typeof legacy === 'function') {
+    legacy(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, entry, hooks)
+    return
+  }
+
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, entry, hooks)
+  })
 }
 
 /**
@@ -119,10 +151,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   // Composition defaults first (works even when settings provider is absent).
   remount()
 
-  // Shipped dsh 0.1.1-rc.2 exports the standalone helper; SettingsProvider has
-  // no `.installSection` method there. Newer cookbooks moved it onto the
-  // provider — keep the helper call so the Plugins tab can see `netxops`.
-  installSettingsSection(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, config, {
+  installNetxopsSettings(ctx, config, {
     setSource: (current) => {
       source = current
     },
