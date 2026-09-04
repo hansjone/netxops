@@ -13,6 +13,7 @@ import type { Context, Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
+import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
 import * as McpClient from '@deepseek-ai/dsh-mcp-client'
 
@@ -118,15 +119,16 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   // Composition defaults first (works even when settings provider is absent).
   remount()
 
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, config, {
-      setSource: (current) => {
-        source = current
-      },
-      onChange: () => {
-        remount()
-      },
-    })
+  // Shipped dsh 0.1.1-rc.2 exports the standalone helper; SettingsProvider has
+  // no `.installSection` method there. Newer cookbooks moved it onto the
+  // provider — keep the helper call so the Plugins tab can see `netxops`.
+  installSettingsSection(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, config, {
+    setSource: (current) => {
+      source = current
+    },
+    onChange: () => {
+      remount()
+    },
   })
 
   ctx.on('credentials/reference-updated', (ref) => {
