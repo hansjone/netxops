@@ -1,4 +1,5 @@
-# Host-plane Netx Ops bridge: settings + credentials → netx__* REST tools.
+# Host-plane Netx Ops bridge: settings + credentials → connection publish.
+# Ops-scoped `netx__*` tools mount from the agent preset (`dsh-netxops/tools`).
 #
 # After `dsh plugin add` / link, open Settings → Plugins to edit apiUrl / lang
 # (settings card client half; see docs/INSTALL.md). Token: credential NETX_API_TOKEN.

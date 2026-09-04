@@ -25,7 +25,7 @@ Also need: a reachable **netx API** (no local `pip install netx_mcp`). Details: 
 
 | In the plugin | Outside (data / runtime) |
 |---------------|---------------------------|
-| `netx__*` REST tools + settings + credentials | netx HTTP API (URL + token) |
+| `netx__*` REST tools (Ops preset only) + settings + credentials | netx HTTP API (URL + token) |
 | Persona + UME / managed-NE skills | |
 | Agent preset auto-install to `~/.dsh/.agent-presets` | |
 

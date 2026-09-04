@@ -1,6 +1,7 @@
 /**
  * Host-plane Netx Ops: settings (apiUrl / lang) + credentials (NETX_API_TOKEN)
- * drive native `netx__*` tools that call the netx REST API directly.
+ * publish a connection snapshot; the Ops preset mounts `netx__*` into its own
+ * tool scope (`dsh-netxops/tools`) so other agents do not see them.
  *
  * On activate, the agent preset + skills are copied into
  * `$DSH_HOME/.agent-presets/netxops` so `dsh plugin add` alone is enough
@@ -19,14 +20,10 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
 import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
-import type {} from '@deepseek-ai/dsh-tools'
-import { registerNetxTools } from './netx/tools.ts'
+import { publishNetxConnection } from './netx/runtime.ts'
 
 /** Cordis plugin name. */
 export const name = 'netxops'
-
-/** Tool registry must exist to register `netx__*` tools. */
-export const inject = ['tools']
 
 /** Settings / composition namespace (Plugins page join key). */
 export const NETXOPS_SETTINGS_NAMESPACE = 'netxops'
@@ -145,59 +142,52 @@ function installNetxopsSettings(
 }
 
 /**
- * Apply the Netx Ops host bridge.
+ * Apply the Netx Ops host bridge (settings + connection publish; tools live on the preset).
  */
 export function apply(ctx: Context, config: Config = Config({})): void {
   let source: () => Config = () => config
-  let unregister: (() => void) | undefined
-  let remounting: Promise<void> = Promise.resolve()
+  let publishing: Promise<void> = Promise.resolve()
   let generation = 0
 
   if (config.installAgentPreset) {
     ensureAgentPresetInstalled(ctx.logger)
   }
 
-  const remount = (): void => {
-    remounting = remounting.then(async () => {
+  const publish = (): void => {
+    publishing = publishing.then(async () => {
       const gen = ++generation
-      unregister?.()
-      unregister = undefined
-      if (gen !== generation) return
-
       const current = source()
       const token = await resolveToken(ctx, current.tokenCredentialRef)
       if (gen !== generation) return
 
-      unregister = registerNetxTools(ctx, {
+      publishNetxConnection({
         apiUrl: current.apiUrl.replace(/\/$/, ''),
         token,
         lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
       })
-      ctx.logger.info('netxops: registered netx__* REST tools → %s', current.apiUrl.replace(/\/$/, ''))
+      ctx.logger.info('netxops: published connection → %s', current.apiUrl.replace(/\/$/, ''))
     }).catch((error) => {
-      ctx.logger.error('netxops: remount error: %s', error)
+      ctx.logger.error('netxops: connection publish error: %s', error)
     })
   }
 
-  remount()
+  publish()
 
   installNetxopsSettings(ctx, config, {
     setSource: (current) => {
       source = current
     },
     onChange: () => {
-      remount()
+      publish()
     },
   })
 
   ctx.on('credentials/reference-updated', (ref) => {
-    if (String(ref) === source().tokenCredentialRef) remount()
+    if (String(ref) === source().tokenCredentialRef) publish()
   })
 
   ctx.effect(() => () => {
     generation += 1
-    unregister?.()
-    unregister = undefined
-  }, 'netxops: dispose netx tools')
+  }, 'netxops: dispose host bridge')
 }

@@ -1,6 +1,6 @@
 # Netx Ops tool map
 
-Tools are registered by the host plugin (`dsh-netxops`) via `@deepseek-ai/dsh-tools`.
+Tools are registered by the Ops agent preset (`dsh-netxops/tools`) into that preset's tool scope — not the host global layer — so other agent presets do not see them.
 
 Model-facing name: `netx__<tool>`.
 

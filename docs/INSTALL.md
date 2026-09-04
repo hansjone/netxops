@@ -6,7 +6,7 @@ One install wires **all of**:
 
 | Piece | How you use it |
 |-------|----------------|
-| Host tools | native `netx__*` tools → netx REST (Bearer token) |
+| Host tools | Ops-preset-scoped `netx__*` → netx REST (Bearer token); other presets do not see them |
 | Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / token) |
 | Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot) |
 

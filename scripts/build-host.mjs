@@ -1,15 +1,14 @@
 /**
- * Build lib/index.js (host Cordis plugin) for installs under node_modules.
+ * Build lib/index.js (host) and lib/agent-tools.js (Ops preset tool mount).
  * Node refuses to strip TypeScript inside node_modules, so GitHub/npm installs
  * must ship prebuilt JS. Usage: bun run scripts/build-host.mjs
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const entry = join(root, 'src/index.ts')
-const outFile = join(root, 'lib', 'index.js')
+const outDir = join(root, 'lib')
 
 const external = [
   '@deepseek-ai/cordis',
@@ -19,21 +18,29 @@ const external = [
   '@deepseek-ai/dsh-tools',
 ]
 
-const result = await Bun.build({
-  entrypoints: [entry],
-  target: 'node',
-  format: 'esm',
-  sourcemap: 'none',
-  minify: false,
-  external,
-})
+const entries = [
+  { entry: join(root, 'src/index.ts'), out: join(outDir, 'index.js') },
+  { entry: join(root, 'src/agent-tools.ts'), out: join(outDir, 'agent-tools.js') },
+]
 
-if (!result.success) {
-  console.error(result.logs)
-  throw new Error('Bun.build host failed')
+mkdirSync(outDir, { recursive: true })
+
+for (const { entry, out } of entries) {
+  const result = await Bun.build({
+    entrypoints: [entry],
+    target: 'node',
+    format: 'esm',
+    sourcemap: 'none',
+    minify: false,
+    external,
+  })
+
+  if (!result.success) {
+    console.error(result.logs)
+    throw new Error(`Bun.build host failed for ${basename(entry)}`)
+  }
+
+  const text = await result.outputs[0].text()
+  writeFileSync(out, text, 'utf8')
+  console.log(`wrote ${out} (${text.length} bytes)`)
 }
-
-const text = await result.outputs[0].text()
-mkdirSync(dirname(outFile), { recursive: true })
-writeFileSync(outFile, text, 'utf8')
-console.log(`wrote ${outFile} (${text.length} bytes)`)
