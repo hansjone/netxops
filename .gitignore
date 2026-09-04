@@ -1,0 +1,14 @@
+node_modules/
+dist/
+lib/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.dsh/
+*.tgz
+.pnpm-store/

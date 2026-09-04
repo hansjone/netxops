@@ -1,0 +1,9 @@
+# dsh-netxops host bundle (v1)
+#
+# Agent composition lives in presets/netxops/ (install into ~/.dsh/.agent-presets).
+# This host-plane patch is intentionally empty: MCP and persona are scoped to the
+# netxops agent preset so other agents are not flooded with mcp__netx__* tools.
+#
+# Install: see README.md / docs/INSTALL.md
+# Optional: dsh plugin add github:hansjone/netxops  (registers this bundle; still link the preset)
+[]

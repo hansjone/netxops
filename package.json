@@ -1,0 +1,47 @@
+{
+  "name": "dsh-netxops",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness agent preset for Netx Ops (UME alarms, NE inventory, managed CLI)",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "files": [
+    "presets/",
+    "cordis.patch.yml",
+    "docs/",
+    "examples/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "netx",
+    "ops",
+    "ume",
+    "agent-preset"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hansjone/netxops.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hansjone/netxops/issues"
+  },
+  "homepage": "https://github.com/hansjone/netxops#readme",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-mcp-client": "*",
+    "@deepseek-ai/dsh-persona": "*",
+    "@deepseek-ai/dsh-skill-filesystem": "*",
+    "@deepseek-ai/dsh-tool-skill": "*",
+    "@deepseek-ai/dsh-tool-fs": "*",
+    "@deepseek-ai/dsh-tool-jobs": "*",
+    "@deepseek-ai/dsh-agent-instructions": "*"
+  }
+}

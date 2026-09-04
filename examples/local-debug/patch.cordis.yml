@@ -1,0 +1,18 @@
+# Local DeepSeekHarness overlay: discover netxops preset from this checkout.
+#
+# Usage (from DeepSeekHarness root):
+#   pnpm dsh web --patch D:/project/chatgpt/netxops/examples/local-debug/patch.cordis.yml
+#
+# Prefer scripts/link-preset.ps1 when possible — it uses the default user preset root
+# and does not replace host agent-presets config.
+
+- replace:
+    - id: agent-presets
+      name: '@deepseek-ai/dsh-agent-presets'
+      config:
+        default: standard
+        includeShippedRoot: true
+        includeUserRoot: true
+        roots:
+          - path: D:/project/chatgpt/netxops/presets
+            trust: user
