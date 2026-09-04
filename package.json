@@ -1,18 +1,19 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "DeepSeek Harness Netx Ops: host bridge + Plugins settings card + agent preset",
   "license": "MIT",
   "type": "module",
   "private": false,
-  "main": "./src/index.ts",
+  "main": "./lib/index.js",
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./lib/index.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
   "files": [
     "src/",
+    "lib/index.js",
     "lib/client.js",
     "presets/",
     "cordis.patch.yml",
@@ -39,9 +40,10 @@
   },
   "homepage": "https://github.com/hansjone/netxops#readme",
   "scripts": {
-    "bundle": "bun run scripts/build-client.mjs"
-  },
-  "dsh": {
+    "bundle": "bun run scripts/build-host.mjs && bun run scripts/build-client.mjs",
+    "bundle:host": "bun run scripts/build-host.mjs",
+    "bundle:client": "bun run scripts/build-client.mjs"
+  },  "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     },

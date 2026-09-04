@@ -1,7 +1,8 @@
 node_modules/
 dist/
-# keep published client artifact; ignore other build junk under lib/
+# keep published host + client artifacts
 lib/*
+!lib/index.js
 !lib/client.js
 *.log
 .DS_Store
