@@ -25,6 +25,9 @@ import { publishNetxConnection } from './netx/runtime.ts'
 /** Cordis plugin name. */
 export const name = 'netxops'
 
+/** Wait for the credentials store before publishing a Bearer snapshot. */
+export const inject = ['credentials']
+
 /** Settings / composition namespace (Plugins page join key). */
 export const NETXOPS_SETTINGS_NAMESPACE = 'netxops'
 
@@ -101,11 +104,10 @@ export function ensureAgentPresetInstalled(logger: Context['logger']): void {
 
 /**
  * Resolve bearer token from the credentials seam (or empty when unset).
+ * Requires `inject: ['credentials']` so the store is live before apply.
  */
 async function resolveToken(ctx: Context, refName: string): Promise<string> {
-  const credentials = ctx.get('credentials')
-  if (credentials === undefined) return ''
-  const hit = await credentials.resolve(credentialRef(refName))
+  const hit = await ctx.credentials.resolve(credentialRef(refName))
   return hit?.value ?? ''
 }
 
@@ -160,13 +162,23 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       const token = await resolveToken(ctx, current.tokenCredentialRef)
       if (gen !== generation) return
 
+      const apiUrl = current.apiUrl.replace(/\/$/, '')
+      const tokenConfigured = token.trim().length > 0
       publishNetxConnection({
-        apiUrl: current.apiUrl.replace(/\/$/, ''),
+        apiUrl,
         token,
         lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
       })
-      ctx.logger.info('netxops: published connection → %s', current.apiUrl.replace(/\/$/, ''))
+      if (!tokenConfigured) {
+        ctx.logger.warn(
+          'netxops: published connection → %s tokenConfigured=false (set credential %s)',
+          apiUrl,
+          current.tokenCredentialRef,
+        )
+      } else {
+        ctx.logger.info('netxops: published connection → %s tokenConfigured=true', apiUrl)
+      }
     }).catch((error) => {
       ctx.logger.error('netxops: connection publish error: %s', error)
     })

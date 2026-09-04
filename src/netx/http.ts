@@ -4,9 +4,10 @@
 
 export interface NetxConnection {
   apiUrl: string
-  token: string
   lang: string
   timeoutMs: number
+  /** Read the latest bearer on each request (do not freeze at client creation). */
+  getToken: () => string
 }
 
 export type NetxJson = Record<string, unknown>
@@ -43,18 +44,12 @@ function encodeQuery(params: Record<string, string | number | boolean>): string 
 }
 
 /**
- * Build a client bound to the current settings/credentials snapshot.
- * @param connection - apiUrl / token / lang / default timeout.
+ * Build a client bound to apiUrl / lang / timeout; Bearer is resolved per request.
+ * @param connection - apiUrl / lang / timeout / getToken.
  * @returns get/post helpers that return `{ ok, data }` or `{ ok: false, error }`.
  */
 export function createNetxClient(connection: NetxConnection) {
   const base = connection.apiUrl.replace(/\/$/, '')
-  const headers: Record<string, string> = {
-    accept: 'application/json',
-  }
-  if (connection.token.trim().length > 0) {
-    headers.authorization = `Bearer ${connection.token.trim()}`
-  }
 
   const langParams = (): Record<string, string> => {
     const lang = connection.lang.trim().toLowerCase()
@@ -72,6 +67,15 @@ export function createNetxClient(connection: NetxConnection) {
       signal?: AbortSignal
     } = {},
   ): Promise<NetxJson> {
+    const token = connection.getToken().trim()
+    if (token.length === 0) {
+      return {
+        ok: false,
+        error: 'netx_token_missing',
+        detail: 'Set credential NETX_API_TOKEN (Plugins → Netx Ops or scripts/set-netx-token).',
+      }
+    }
+
     const merged: Record<string, string | number | boolean> = { ...langParams(), ...options.params }
     const url = `${base}${path}${encodeQuery(merged)}`
     const timeoutMs = options.timeoutMs ?? connection.timeoutMs
@@ -80,11 +84,14 @@ export function createNetxClient(connection: NetxConnection) {
     const onOuterAbort = () => { controller.abort() }
     options.signal?.addEventListener('abort', onOuterAbort, { once: true })
     try {
+      const headers: Record<string, string> = {
+        accept: 'application/json',
+        authorization: `Bearer ${token}`,
+      }
+      if (options.body !== undefined) headers['content-type'] = 'application/json'
       const init: RequestInit = {
         method,
-        headers: options.body === undefined
-          ? headers
-          : { ...headers, 'content-type': 'application/json' },
+        headers,
         signal: controller.signal,
       }
       if (options.body !== undefined) init.body = JSON.stringify(options.body)

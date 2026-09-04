@@ -31,7 +31,12 @@ export function apply(ctx: Context): void {
       return
     }
     unregister = registerNetxTools(ctx, connection)
-    ctx.logger.info('netxops-tools: registered netx__* for Ops preset → %s', connection.apiUrl)
+    const tokenConfigured = connection.token.trim().length > 0
+    ctx.logger.info(
+      'netxops-tools: registered netx__* for Ops preset → %s tokenConfigured=%s',
+      connection.apiUrl,
+      tokenConfigured,
+    )
   }
 
   remount()

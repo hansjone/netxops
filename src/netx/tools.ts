@@ -5,6 +5,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createNetxClient, type NetxClient, type NetxJson } from './http.ts'
+import { getNetxConnection } from './runtime.ts'
 import * as H from './handlers.ts'
 
 export interface NetxToolConnection {
@@ -61,16 +62,17 @@ function tool(
 
 /**
  * Register all Netx Ops tools against the current connection snapshot.
+ * Bearer is read from the live process store on each request (not frozen here).
  * @param ctx - host context with `tools`.
- * @param connection - apiUrl / token / lang / timeout.
+ * @param connection - apiUrl / token / lang / timeout (apiUrl/lang/timeout used for client base).
  * @returns disposer that unregisters every tool.
  */
 export function registerNetxTools(ctx: Context, connection: NetxToolConnection): () => void {
   const client = createNetxClient({
     apiUrl: connection.apiUrl,
-    token: connection.token,
     lang: connection.lang,
     timeoutMs: Math.min(connection.toolCallTimeoutMs, 45_000),
+    getToken: () => getNetxConnection()?.token ?? '',
   })
   const getClient = () => client
   const t = connection.toolCallTimeoutMs
