@@ -23,17 +23,11 @@ Public **DeepSeek Harness** package: host bridge + **Plugins settings card** + o
 
 ```powershell
 dsh plugin --profile web add github:hansjone/netxops
-powershell -File .\scripts\link-preset.ps1
-# Then: Settings → Plugins → Netx Ops → paste token + API URL → Save
+dsh web
+# Settings → Plugins → Netx Ops → token + API URL → Save
 ```
 
-## Local debug
-
-[examples/local-debug/README.md](examples/local-debug/README.md)
-
-```powershell
-bun run bundle   # rebuild Plugins card after src/client changes
-```
+Agent preset (skills): clone once and run `scripts/link-preset.ps1` (or `.sh`).
 
 ## Related
 
