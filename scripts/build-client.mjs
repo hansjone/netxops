@@ -1,6 +1,9 @@
 /**
  * Build lib/client.js as a DSH ModuleLoader factory artifact using Bun's bundler.
  * Usage: bun run scripts/build-client.mjs
+ *
+ * Must emit production JSX (`react/jsx-runtime`). The web shell seeds only that
+ * specifier — `react/jsx-dev-runtime` is not in PLATFORM_MODULES and fails load.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -11,10 +14,12 @@ const entry = join(root, 'src/client/index.ts')
 const outFile = join(root, 'lib', 'client.js')
 const id = 'dsh-netxops'
 
+/** Align with @deepseek-ai/dsh-client-web PLATFORM_MODULES + dsh.client.inject. */
 const external = [
   'react',
   'react/jsx-runtime',
-  'react/jsx-dev-runtime',
+  'react-dom',
+  'react-dom/client',
   '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-locale',
@@ -39,6 +44,10 @@ const result = await Bun.build({
   format: 'cjs',
   sourcemap: 'none',
   minify: false,
+  // Force production JSX transform (jsx-runtime, not jsx-dev-runtime).
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+  },
   external,
 })
 
@@ -47,7 +56,11 @@ if (!result.success) {
   throw new Error('Bun.build failed')
 }
 
-const raw = await result.outputs[0].text()
+let raw = await result.outputs[0].text()
+if (raw.includes('react/jsx-dev-runtime')) {
+  throw new Error('client bundle still references react/jsx-dev-runtime; refuse to ship')
+}
+
 const body = raw
   .replace(/^"use strict";\s*/m, '')
   .replace(/Object\.defineProperty\(exports,\s*"__esModule"[\s\S]*?;\s*/m, '')
