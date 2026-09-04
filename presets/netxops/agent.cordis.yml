@@ -63,20 +63,6 @@
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
-# ── netx MCP (UME + managed CLI; no topology canvas in v1) ──────────────────
-
-- id: mcp-netx
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: netx
-    transport: stdio
-    command: python
-    args:
-      - -m
-      - netx_mcp
-    env:
-      NETX_API_URL: !!js process.env.NETX_API_URL || 'http://127.0.0.1:8890'
-      NETX_API_TOKEN: !!js process.env.NETX_API_TOKEN || ''
-      NETX_LANG: !!js process.env.NETX_LANG || 'zh'
-    toolCallTimeoutMs: 120000
-    failOnStartupError: false
+# netx MCP is mounted on the HOST by package `dsh-netxops` (cordis.patch.yml):
+# Settings → Plugins / credentials NETX_API_TOKEN — not OS env, not this preset.
+# Tools appear as mcp__netx__* for sessions that can see the host tool registry.

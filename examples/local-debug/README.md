@@ -1,31 +1,33 @@
 # Local debug against DeepSeekHarness
 
-## Link the preset
-
-From this repo root:
+## A. Link preset + install host bridge
 
 ```powershell
+cd D:\project\chatgpt\netxops
 powershell -File .\scripts\link-preset.ps1
+powershell -File .\scripts\set-netx-token.ps1 -Token (Get-Content D:\project\chatgpt\netx\data\auth\mcp_token -Raw).Trim()
 ```
 
-This junctions `presets\netxops` → `%USERPROFILE%\.dsh\.agent-presets\netxops` so DSH’s default `includeUserRoot` discovers it.
-
-## Optional patch (extra preset root)
-
-If you prefer not to touch `~/.dsh/.agent-presets`, start DSH with:
+From DeepSeekHarness (source):
 
 ```powershell
 cd D:\project\DeepSeekHarness
+pnpm dsh plugin --profile web add D:\project\chatgpt\netxops
+# or one-shot overlay:
 pnpm dsh web --patch D:\project\chatgpt\netxops\examples\local-debug\patch.cordis.yml
 ```
 
-`patch.cordis.yml` replaces the `agent-presets` row to keep shipped + user roots and add this repo’s `presets/` directory. Adjust the path if your checkout differs.
+## B. What the debug patch does
 
-## Env
+[`patch.cordis.yml`](patch.cordis.yml):
 
-```powershell
-$env:NETX_API_URL = "http://127.0.0.1:8890"
-# $env:NETX_API_TOKEN = "nxt_..."
-```
+1. Ensures agent-presets can see `D:/project/chatgpt/netxops/presets`
+2. Inserts host plugin `dsh-netxops` via **absolute path** to `src/index.ts` (no npm link required)
 
-Ensure `python -m netx_mcp` works in the same environment PATH that DSH will spawn.
+Adjust paths if your checkout differs.
+
+## C. Verify
+
+1. New session → preset **Netx Ops**
+2. Tools include `mcp__netx__aggregateUmeAlarms`
+3. Ask Critical Top / single host alarms

@@ -1,55 +1,46 @@
 # netxops — Netx Ops for DeepSeek Harness
 
-Public **DeepSeek Harness agent preset** for network operations against [netx](https://github.com/hansjone/netx) (ZTE UME alarms, NE inventory, managed read-only CLI).
+Public **DeepSeek Harness** package: host bridge (settings + credentials → netx MCP) and an **ops agent preset** (persona + playbooks).
 
-- GitHub topic: [`dsh-plugin`](https://github.com/topics/dsh-plugin)
-- npm package name: `dsh-netxops`
-- Brand: **Netx Ops** (not oclaw)
+- GitHub: https://github.com/hansjone/netxops  
+- Topic: [`dsh-plugin`](https://github.com/topics/dsh-plugin)  
+- npm name: `dsh-netxops`  
+- Brand: **Netx Ops**
 
-## What you get (v1)
+## What you get
 
-| Piece | Location |
-|-------|----------|
-| Agent preset | [`presets/netxops/`](presets/netxops/) |
-| Persona | `PERSONA.md` + `agent.cordis.yml` |
-| Skills | `ops-netx-ume-playbook`, `ops-netx-managed-ne-playbook` |
-| Tools | `@deepseek-ai/dsh-mcp-client` → `python -m netx_mcp` (`mcp__netx__*`) |
+| Piece | Where | Purpose |
+|-------|--------|---------|
+| Host plugin `dsh-netxops` | `src/index.ts` + `cordis.patch.yml` | `apiUrl` / `lang` in settings; token as credential `NETX_API_TOKEN`; mounts `mcp__netx__*` |
+| Agent preset | `presets/netxops/` | Persona + UME / managed-NE skills |
 
-**Not in v1:** topology canvas MCP, Excel one-shot report plugin, oclaw channels/Admin.
+**Not OS env:** do not put `NETX_API_URL` / `NETX_API_TOKEN` in system environment for day-to-day use — configure inside DSH (settings + credentials). See [docs/INSTALL.md](docs/INSTALL.md).
 
-## Quick install
+**Not in v1:** topology canvas MCP, Excel report plugin, Plugins settings **card** UI (Host namespace is ready; browser card follows DSH cookbook).
+
+## Quick start
 
 ```powershell
-git clone https://github.com/hansjone/netxops.git
-cd netxops
+# 1) Host bridge + MCP tools
+dsh plugin --profile web add github:hansjone/netxops
+
+# 2) Token (credentials store, same family as model keys)
+powershell -File .\scripts\set-netx-token.ps1 -Token "nxt_…"
+
+# 3) Ops preset (persona + skills)
 powershell -File .\scripts\link-preset.ps1
 ```
 
-Set `NETX_API_URL` if needed, ensure `pip install` of `netx-mcp`, then in DeepSeek Harness pick preset **Netx Ops**.
+Then open DSH → session preset **Netx Ops**.
 
-Full steps: [docs/INSTALL.md](docs/INSTALL.md) · Tool list: [docs/TOOL_MAP.md](docs/TOOL_MAP.md)
+## Local debug
 
-## Local debug (DeepSeekHarness checkout)
-
-```powershell
-powershell -File .\scripts\link-preset.ps1
-# or:
-# cd D:\project\DeepSeekHarness
-# pnpm dsh web --patch D:\project\chatgpt\netxops\examples\local-debug\patch.cordis.yml
-```
-
-See [examples/local-debug/README.md](examples/local-debug/README.md).
-
-## Smoke checks
-
-1. Tools visible: `mcp__netx__aggregateUmeAlarms`, `mcp__netx__queryUmeAlarms`, …
-2. “Critical Top by host” → aggregate + Result/Evidence reply shell
-3. “Alarms on `<host_name>`” → host-scoped query only
+Against [`DeepSeekHarness`](https://github.com/deepseek-ai/deepseek-harness) checkout: [examples/local-debug/README.md](examples/local-debug/README.md).
 
 ## Related
 
 - Data plane: [hansjone/netx](https://github.com/hansjone/netx)
-- Porting from oclaw ops: [docs/PORTING.md](docs/PORTING.md)
+- Porting from oclaw: [docs/PORTING.md](docs/PORTING.md)
 
 ## License
 
