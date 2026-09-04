@@ -2,13 +2,17 @@
  * Host-plane Netx Ops bridge: settings (apiUrl / lang / python) + credentials
  * (NETX_API_TOKEN) drive a dynamically mounted `@deepseek-ai/dsh-mcp-client`.
  *
- * Configure in DSH Settings → Plugins → Netx Ops (settings card when client
- * half is installed). Token is stored as credential `NETX_API_TOKEN` (same
- * store as model API keys). Helper: `scripts/set-netx-token.ps1`.
+ * On activate, the agent preset + skills are copied into
+ * `$DSH_HOME/.agent-presets/netxops` so `dsh plugin add` alone is enough
+ * (Windows junctions are invisible to DSH's `Dirent.isDirectory()` scan).
  *
  * @module dsh-netxops
  */
 
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -25,6 +29,9 @@ export const inject = ['tools']
 
 /** Settings / composition namespace (Plugins page join key). */
 export const NETXOPS_SETTINGS_NAMESPACE = 'netxops'
+
+/** Agent preset id under `$DSH_HOME/.agent-presets/`. */
+export const NETXOPS_PRESET_ID = 'netxops'
 
 /** Default credential reference for the netx API bearer token. */
 export const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
@@ -43,6 +50,11 @@ export interface Config {
   toolCallTimeoutMs: number
   /** Fail activation when MCP cannot connect / sync tools. */
   failOnStartupError: boolean
+  /**
+   * Copy bundled agent preset + skills into `$DSH_HOME/.agent-presets/netxops`
+   * on every activate (required for Settings → Agent presets).
+   */
+  installAgentPreset: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -52,7 +64,48 @@ export const Config: z<Config> = z.object({
   tokenCredentialRef: z.string().role('credential-ref').default(DEFAULT_TOKEN_REF),
   toolCallTimeoutMs: z.number().step(1).min(1000).default(120_000),
   failOnStartupError: z.boolean().default(false),
+  installAgentPreset: z.boolean().default(true),
 })
+
+/** Package root (parent of `lib/` or `src/` depending on launch). */
+function packageRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), '..')
+}
+
+/** Harness home used by agent-presets' user root. */
+function resolveDshHome(): string {
+  const fromEnv = process.env.DSH_HOME?.trim()
+  if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv
+  return join(homedir(), '.dsh')
+}
+
+/**
+ * Install the bundled Netx Ops preset as a real directory under the user
+ * preset root. DSH discovery skips Windows junctions (`Dirent.isDirectory()`
+ * is false for reparse points), so a copy is required — not `mklink /J`.
+ * @param logger - cordis logger for non-fatal install failures.
+ */
+export function ensureAgentPresetInstalled(logger: Context['logger']): void {
+  const src = join(packageRoot(), 'presets', NETXOPS_PRESET_ID)
+  const composition = join(src, 'agent.cordis.yml')
+  if (!existsSync(composition)) {
+    logger.warn('netxops: bundled preset missing at %s — skip user-preset install', src)
+    return
+  }
+  const destParent = join(resolveDshHome(), '.agent-presets')
+  const dest = join(destParent, NETXOPS_PRESET_ID)
+  try {
+    mkdirSync(destParent, { recursive: true })
+    if (existsSync(dest)) {
+      rmSync(dest, { recursive: true, force: true })
+    }
+    cpSync(src, dest, { recursive: true })
+    writeFileSync(join(dest, '.dsh-netxops-managed'), `${new Date().toISOString()}\n`, 'utf8')
+    logger.info('netxops: agent preset installed at %s', dest)
+  } catch (error) {
+    logger.error('netxops: failed to install agent preset: %s', error)
+  }
+}
 
 /**
  * Resolve bearer token from the credentials seam (or empty when unset).
@@ -105,6 +158,10 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   let remounting: Promise<void> = Promise.resolve()
   let generation = 0
 
+  if (config.installAgentPreset) {
+    ensureAgentPresetInstalled(ctx.logger)
+  }
+
   const remount = (): void => {
     remounting = remounting.then(async () => {
       const gen = ++generation
@@ -148,7 +205,6 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     })
   }
 
-  // Composition defaults first (works even when settings provider is absent).
   remount()
 
   installNetxopsSettings(ctx, config, {

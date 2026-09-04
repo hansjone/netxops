@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
+# Install presets/netxops into $DSH_HOME/.agent-presets (copy, not symlink).
 set -euo pipefail
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SOURCE="$REPO_ROOT/presets/netxops"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SRC="$ROOT/presets/netxops"
 DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
-TARGET_PARENT="$DSH_HOME/.agent-presets"
-TARGET="$TARGET_PARENT/netxops"
+DEST_PARENT="$DSH_HOME/.agent-presets"
+DEST="$DEST_PARENT/netxops"
 
-if [[ ! -d "$SOURCE" ]]; then
-  echo "Missing preset dir: $SOURCE" >&2
+if [[ ! -f "$SRC/agent.cordis.yml" ]]; then
+  echo "Missing preset dir: $SRC" >&2
   exit 1
 fi
-mkdir -p "$TARGET_PARENT"
-if [[ -e "$TARGET" || -L "$TARGET" ]]; then
-  rm -rf "$TARGET"
-fi
-ln -s "$SOURCE" "$TARGET"
-echo "Linked $TARGET -> $SOURCE"
-echo "Restart dsh / open a new session and select preset 'netxops' (Netx Ops)."
+mkdir -p "$DEST_PARENT"
+rm -rf "$DEST"
+cp -R "$SRC" "$DEST"
+date -u +%Y-%m-%dT%H:%M:%SZ > "$DEST/.dsh-netxops-managed"
+echo "Installed $DEST"
+echo "Open Settings → Agent presets → Custom → Netx Ops"

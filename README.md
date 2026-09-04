@@ -1,38 +1,33 @@
 # netxops — Netx Ops for DeepSeek Harness
 
-Public **DeepSeek Harness** package: host bridge + **Plugins settings card** + ops agent preset.
+Public **DeepSeek Harness** package: host bridge + Plugins card + **agent preset (skills included)**.
 
 - GitHub: https://github.com/hansjone/netxops  
-- Topic: [`dsh-plugin`](https://github.com/topics/dsh-plugin)  
 - Package: `dsh-netxops`  
 - Brand: **Netx Ops**
 
-## What you get
-
-| Piece | Where | Purpose |
-|-------|--------|---------|
-| Host plugin | `src/index.ts` + `cordis.patch.yml` | settings `netxops` + credential `NETX_API_TOKEN` → `mcp__netx__*` |
-| Plugins card | `src/client/` → `lib/client.js` | Settings → Plugins → fill URL / token in UI |
-| Agent preset | `presets/netxops/` | Persona + UME / managed-NE skills |
-
-**No OS env required** for day-to-day use. See [docs/INSTALL.md](docs/INSTALL.md).
-
-**Not in v1:** topology canvas MCP, Excel report plugin.
-
-## Quick start
+## Install (one command)
 
 ```powershell
 dsh plugin --profile web add github:hansjone/netxops
 dsh web
-# Settings → Plugins → Netx Ops → token + API URL → Save
 ```
 
-Agent preset (skills): clone once and run `scripts/link-preset.ps1` (or `.sh`).
+Then:
 
-## Related
+1. Settings → **Plugins** → **Netx Ops** → API URL / token  
+2. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
+3. New session → choose **Netx Ops**
 
-- Data plane: [hansjone/netx](https://github.com/hansjone/netx)
-- Porting: [docs/PORTING.md](docs/PORTING.md)
+Also need: running **netx API**, and `pip install` of `netx_mcp` (Python execution plane). Details: [docs/INSTALL.md](docs/INSTALL.md).
+
+## What is coupled
+
+| In the plugin | Outside (data / runtime) |
+|---------------|---------------------------|
+| MCP spawn + settings + credentials | netx HTTP API |
+| Persona + UME / managed-NE skills | `python -m netx_mcp` on PATH |
+| Agent preset auto-install to `~/.dsh/.agent-presets` | |
 
 ## License
 

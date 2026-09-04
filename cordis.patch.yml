@@ -12,4 +12,4 @@
         pythonCommand: python
         tokenCredentialRef: NETX_API_TOKEN
         toolCallTimeoutMs: 120000
-        failOnStartupError: false
+        installAgentPreset: true

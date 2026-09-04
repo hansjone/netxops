@@ -1,52 +1,52 @@
 # Install Netx Ops on DeepSeek Harness
 
-## Prerequisites
+## What `dsh plugin add` gives you
 
-1. **DeepSeek Harness** (`dsh`) installed.
-2. **netx API** reachable (default `http://127.0.0.1:8890`).
-3. **Python 3.11+** with `netx_mcp` importable:
+One install wires **all of**:
+
+| Piece | How you use it |
+|-------|----------------|
+| Host bridge | spawns `mcp__netx__*` via `python -m netx_mcp` |
+| Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / python) |
+| Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot) |
+
+You do **not** run `link-preset.ps1` for normal use. That script is only a manual fallback.
+
+## Still required outside the npm package
+
+1. **netx API** reachable (default `http://127.0.0.1:8890`) — the data plane.
+2. **Python `netx_mcp`** on the same machine as `dsh`:
 
 ```powershell
 pip install "git+https://github.com/hansjone/netx.git#subdirectory=packages/netx-mcp"
 python -c "import netx_mcp; print('ok')"
 ```
 
-No OS env vars needed for URL / token.
+v1 keeps the Python MCP as the execution plane (shared with OpenClaw / `python -m netx_mcp`). The DSH plugin owns orchestration, settings, persona, and skills — not a second MCP install in the agent preset.
 
-## Install (GitHub — recommended)
+## Install
 
 ```powershell
 dsh plugin --profile web add github:hansjone/netxops
-dsh web
+# or from DeepSeekHarness source:
+# pnpm dsh plugin --profile web add github:hansjone/netxops
+dsh web   # or: pnpm dsh web
 ```
 
-Then: **Settings → Plugins → Netx Ops** → paste API token + URL → Save.
-
-That is the whole host install. You do **not** run any `link-dsh-peers` script for GitHub installs.
-
-### Agent preset (persona + skills)
-
-One-time (or after pull):
-
-```powershell
-git clone https://github.com/hansjone/netxops.git
-cd netxops
-powershell -File .\scripts\link-preset.ps1
-```
-
-Unix: `./scripts/link-preset.sh`
-
-New session → preset **Netx Ops**.
+1. **Settings → Plugins → Netx Ops** → API URL (+ token if the field is enabled).  
+   Token fallback: `scripts/set-netx-token.ps1` / `.sh`.
+2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
+3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms.
 
 ## Verify
 
-1. Settings → Plugins shows **Netx Ops**; token badge “Configured” after save.
-2. Tools include `mcp__netx__queryUmeAlarms`.
-3. Critical Top / single-host alarm queries work.
+1. Plugins card **Netx Ops** visible.
+2. Agent presets → Custom → **Netx Ops**.
+3. Tools include `mcp__netx__queryUmeAlarms`.
 
 See [TOOL_MAP.md](TOOL_MAP.md).
 
-## Path / local checkout (developers only)
+## Path / local checkout (developers)
 
 ```powershell
 dsh plugin --profile web add D:\path\to\netxops
