@@ -3,8 +3,8 @@
  * Self-contained (cannot value-import ui-settings-plugins — client bundle purity).
  */
 
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { createSnapshotStore, type SnapshotStore } from './snapshot-store.ts'
 
 export type FieldWrite = { kind: 'set'; value: unknown } | { kind: 'clear' }
 
