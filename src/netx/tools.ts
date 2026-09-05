@@ -34,6 +34,12 @@ const strArr = (description?: string) => ({
   items: { type: 'string' as const },
   ...(description ? { description } : {}),
 })
+/** Free-form JSON object — DSH requires an explicit additionalProperties boolean. */
+const anyObj = (description?: string) => ({
+  type: 'object' as const,
+  additionalProperties: true as const,
+  ...(description ? { description } : {}),
+})
 
 function renderJson(_args: unknown, value: unknown) {
   return [{ type: 'text' as const, text: JSON.stringify(value, null, 0) }]
@@ -262,6 +268,7 @@ export function registerNetxTools(
             additionalProperties: false,
             properties: {
               ne_id: str(),
+              nms_ne_id: str(),
               ume_ne_id: str(),
               commands: strArr(),
             },
@@ -380,7 +387,19 @@ export function registerNetxTools(
       'Move nodes on a view via positions[] or layout=grid|offset|stack + filters.',
       {
         view_id: { type: 'string' as const, required: true as const },
-        positions: { type: 'array' as const, items: { type: 'object' as const } },
+        positions: {
+          type: 'array' as const,
+          description: 'Manual placements: [{ fabric_node_id, x, y }, …]',
+          items: {
+            type: 'object' as const,
+            additionalProperties: false,
+            properties: {
+              fabric_node_id: str(),
+              x: num(),
+              y: num(),
+            },
+          },
+        },
         layout: str('grid | offset | stack'),
         keyword: str(),
         role: str(),
@@ -530,7 +549,7 @@ export function registerNetxTools(
         preset: str(),
         mode: str('preview | apply'),
         tune: bool(),
-        params: { type: 'object' as const },
+        params: anyObj('Action-specific options (move_nodes / recipes / polish).'),
         catalog: bool(),
         fabric_node_ids: strArr(),
         park: bool(),
