@@ -9,11 +9,14 @@ Public **DeepSeek Harness** package: native `netx__*` REST tools + Plugins card 
 ## Install (one command)
 
 ```powershell
-dsh plugin --profile web add github:hansjone/netxops
+dsh plugin --profile web add `
+  github:hansjone/netxops `
+  github:hansjone/dsh-im-ops `
+  github:hansjone/dsh-ops-cron
 dsh web
 ```
 
-Pulls **dsh-im-ops** + **dsh-ops-cron** automatically (dependencies + patch mounts). Details: [docs/INSTALL.md](docs/INSTALL.md).
+IM + cron must be **direct** profile deps (same `add` line). Nesting `github:` under netxops hits `blockExoticSubdeps` / `ERR_PNPM_EXOTIC_SUBDEP`. Details: [docs/INSTALL.md](docs/INSTALL.md).
 
 Then:
 

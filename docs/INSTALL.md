@@ -7,7 +7,7 @@ One install wires **all of**:
 | Piece | How you use it |
 |-------|----------------|
 | Host tools | Capability groups **ops / topology** (one group ↔ one skill). Default ops in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-ops|topology` |
-| Companion plugins | **dsh-im-ops** + **dsh-ops-cron** (npm deps of this package; mounted from this patch — no separate `dsh plugin add`) |
+| Companion plugins | **dsh-im-ops** + **dsh-ops-cron** — add as **direct** profile deps in the same command (DSH/pnpm blocks `github:` as transitive deps) |
 | Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / token / capability groups) |
 | Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot); playbooks follow the same group toggles |
 
@@ -23,13 +23,16 @@ No local Python / `netx_mcp` install is required for DSH. (OpenClaw and other MC
 ## Install
 
 ```powershell
-dsh plugin --profile web add github:hansjone/netxops
+dsh plugin --profile web add `
+  github:hansjone/netxops `
+  github:hansjone/dsh-im-ops `
+  github:hansjone/dsh-ops-cron
 # or from DeepSeekHarness source:
-# pnpm dsh plugin --profile web add github:hansjone/netxops
+# pnpm dsh plugin --profile web add github:hansjone/netxops github:hansjone/dsh-im-ops github:hansjone/dsh-ops-cron
 dsh web   # or: pnpm dsh web
 ```
 
-One add is enough: pnpm pulls **dsh-im-ops** and **dsh-ops-cron** as dependencies of `dsh-netxops`, and this package’s patch mounts them. If pnpm blocks a git `prepare` script, allowlist the printed package keys under `allowBuilds` in the profile’s `pnpm-workspace.yaml`, then re-run. You may still `add` IM/cron separately (same row ids); not required.
+One command, three **direct** profile bundles. Do **not** nest IM/cron under netxops — profile pnpm enables `blockExoticSubdeps`, so `github:` subdependencies fail with `ERR_PNPM_EXOTIC_SUBDEP`. If pnpm blocks a git `prepare` script, allowlist the printed package keys under `allowBuilds` in the profile’s `pnpm-workspace.yaml`, then re-run.
 
 1. **Settings → Plugins → Netx Ops** → API URL (+ token if the field is enabled).  
    Token fallback: `scripts/set-netx-token.ps1` / `.sh`.  
