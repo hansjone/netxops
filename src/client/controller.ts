@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SnapshotStore } from './snapshot-store.ts'
 import {
-  CardForm, textField, booleanField,
+  CardForm, textField, booleanField, booleanFieldPersistFalse,
   type CardActions, type CardFieldState, type CardShell,
 } from './card-form.ts'
 import {
@@ -26,6 +26,10 @@ export interface NetxopsSettings {
   lang?: string
   tokenCredentialRef?: string
   alarmPushEnabled?: boolean
+  alarmDeliverDsh?: boolean
+  alarmDeliverIm?: boolean
+  imBotId?: string
+  imTargetId?: string
 }
 
 interface CredentialState {
@@ -39,6 +43,10 @@ export interface NetxopsCardState extends CardShell {
   apiUrl: CardFieldState
   lang: CardFieldState
   alarmPushEnabled: CardFieldState
+  alarmDeliverDsh: CardFieldState
+  alarmDeliverIm: CardFieldState
+  imBotId: CardFieldState
+  imTargetId: CardFieldState
   apiToken: CardFieldState
   apiTokenConfigured: boolean
   apiTokenWritable: boolean
@@ -78,7 +86,15 @@ export class NetxopsCardController {
   ) {
     this.form = new CardForm(
       scope,
-      [textField('apiUrl'), textField('lang'), booleanField('alarmPushEnabled')],
+      [
+        textField('apiUrl'),
+        textField('lang'),
+        booleanField('alarmPushEnabled'),
+        booleanFieldPersistFalse('alarmDeliverDsh'),
+        booleanField('alarmDeliverIm'),
+        textField('imBotId'),
+        textField('imTargetId'),
+      ],
       [{ field: API_TOKEN_FIELD, write: text => this.writeToken(text) }],
     )
     this.store = this.form.bind(() => this.projection())
@@ -158,6 +174,10 @@ export class NetxopsCardController {
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
       alarmPushEnabled: this.form.field('alarmPushEnabled'),
+      alarmDeliverDsh: this.form.field('alarmDeliverDsh'),
+      alarmDeliverIm: this.form.field('alarmDeliverIm'),
+      imBotId: this.form.field('imBotId'),
+      imTargetId: this.form.field('imTargetId'),
       apiToken: this.form.field(API_TOKEN_FIELD),
       apiTokenConfigured: this.credential.configured,
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,

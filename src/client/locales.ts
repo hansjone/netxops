@@ -18,6 +18,14 @@ export type NetxopsLocaleKey =
   | 'alarmPushPhaseReconnecting'
   | 'alarmPushPhaseAuthFailed'
   | 'alarmPushPhaseError'
+  | 'alarmDeliverDsh'
+  | 'alarmDeliverDshHint'
+  | 'alarmDeliverIm'
+  | 'alarmDeliverImHint'
+  | 'imBotId'
+  | 'imBotIdHint'
+  | 'imTargetId'
+  | 'imTargetIdHint'
   | 'apiToken'
   | 'apiTokenHint'
   | 'apiTokenUnavailable'
@@ -43,7 +51,7 @@ export const en: Record<NetxopsLocaleKey, string> = {
   lang: 'Language',
   langHint: 'Response language hint (zh / en).',
   alarmPushEnabled: 'Key-alarm push',
-  alarmPushEnabledHint: 'Dial out to netx and open/follow a DSH session when a matched key alarm arrives. WhatsApp/im is optional and not required.',
+  alarmPushEnabledHint: 'Dial out to netx when a matched key alarm arrives. Choose DSH and/or IM sinks below.',
   alarmPushStatus: 'Push link',
   alarmPushPhaseDisabled: 'Off',
   alarmPushPhaseIdle: 'Idle',
@@ -53,6 +61,14 @@ export const en: Record<NetxopsLocaleKey, string> = {
   alarmPushPhaseReconnecting: 'Reconnecting…',
   alarmPushPhaseAuthFailed: 'Auth failed',
   alarmPushPhaseError: 'Error',
+  alarmDeliverDsh: 'Deliver to DSH session',
+  alarmDeliverDshHint: 'Open/follow the sticky「Netx 关键告警」session on this Host.',
+  alarmDeliverIm: 'Deliver to WhatsApp / IM',
+  alarmDeliverImHint: 'Requires dsh-im-ops. Paste botId + targetId from IM → 投递设置 → 复制调用参数.',
+  imBotId: 'IM Bot ID',
+  imBotIdHint: 'Opaque botId from IM delivery settings (not a phone number).',
+  imTargetId: 'IM Target ID',
+  imTargetIdHint: 'Opaque targetId alias (e.g. release-alerts). Create the target in IM first.',
   apiToken: 'API token',
   apiTokenHint: 'Stored as credential NETX_API_TOKEN (never written into settings). Leave blank to keep the current token.',
   apiTokenUnavailable: 'This DSH build does not expose remote.credentials. Set the token with scripts/set-netx-token.ps1 (or .sh), then restart is not required if credentials are watched.',
@@ -79,7 +95,7 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   lang: '语言',
   langHint: '响应语言提示（zh / en）。',
   alarmPushEnabled: '关键告警推送',
-  alarmPushEnabledHint: '主动连接 netx；匹配到关键告警后在本机打开/续写一条 DSH 会话。不必安装 WhatsApp / im。',
+  alarmPushEnabledHint: '主动连接 netx；匹配到关键告警后按下述开关投递。可只开 DSH、只开 IM，或两者都开。',
   alarmPushStatus: '推送链路',
   alarmPushPhaseDisabled: '未开启',
   alarmPushPhaseIdle: '空闲',
@@ -89,6 +105,14 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   alarmPushPhaseReconnecting: '重连中…',
   alarmPushPhaseAuthFailed: '鉴权失败',
   alarmPushPhaseError: '异常',
+  alarmDeliverDsh: '投递到 DSH 会话',
+  alarmDeliverDshHint: '在本机打开/续写 sticky「Netx 关键告警」会话。',
+  alarmDeliverIm: '投递到 WhatsApp / IM',
+  alarmDeliverImHint: '需要已安装 dsh-im-ops。请先在 IM「投递设置」新建目标，再粘贴「复制调用参数」里的 botId / targetId。',
+  imBotId: 'IM Bot ID',
+  imBotIdHint: '来自 IM 投递设置的不透明 botId（不是手机号）。',
+  imTargetId: 'IM Target ID',
+  imTargetIdHint: '投递目标别名（如 release-alerts）。请先在 IM 侧创建目标。',
   apiToken: 'API Token',
   apiTokenHint: '写入凭据 NETX_API_TOKEN（不会进 settings）。留空表示保留已有 token。',
   apiTokenUnavailable: '当前 DSH 未提供 remote.credentials。请用 scripts/set-netx-token.ps1（或 .sh）写入 token；若 harness 在监视凭据文件则无需重启。',

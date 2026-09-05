@@ -80,6 +80,27 @@ export function booleanField(field: string): CardFieldSpec {
   }
 }
 
+/**
+ * Boolean that persists `false` explicitly (use when schema default is `true`).
+ * Clearing would restore the default and make "off" impossible.
+ */
+export function booleanFieldPersistFalse(field: string): CardFieldSpec {
+  return {
+    field,
+    format: value => (value === true ? 'true' : 'false'),
+    parse: (text) => {
+      const normalized = text.trim().toLowerCase()
+      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+        return { kind: 'set', value: true }
+      }
+      if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === '') {
+        return { kind: 'set', value: false }
+      }
+      return undefined
+    },
+  }
+}
+
 export class CardForm<T> {
   private readonly specs: Map<string, CardFieldSpec>
   private readonly secretSpecs: Map<string, CardSecretSpec>

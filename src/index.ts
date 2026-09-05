@@ -25,6 +25,7 @@ import {
   publishAlarmPushStatus,
   resetAlarmPushStatus,
 } from './netx/alarm-push-status.ts'
+import { deliverAlarmToIm } from './netx/alarm-im.ts'
 import { deliverAlarmToSession, resetAlarmSession } from './netx/alarm-session.ts'
 import { publishNetxConnection } from './netx/runtime.ts'
 
@@ -66,6 +67,17 @@ export interface Config {
    * alarms into a sticky DSH session.
    */
   alarmPushEnabled: boolean
+  /** When push is on, also followup the sticky Netx Ops DSH session (default). */
+  alarmDeliverDsh: boolean
+  /**
+   * When push is on, also send via `ctx.dshIm.send(imBotId, imTargetId, …)`.
+   * Requires dsh-im-ops and a saved delivery target.
+   */
+  alarmDeliverIm: boolean
+  /** Opaque bot id from IM「投递设置」→ 复制调用参数. */
+  imBotId: string
+  /** Opaque target id from the same copy payload. */
+  imTargetId: string
 }
 
 export const Config: z<Config> = z.object({
@@ -75,6 +87,10 @@ export const Config: z<Config> = z.object({
   toolCallTimeoutMs: z.number().step(1).min(1000).default(120_000),
   installAgentPreset: z.boolean().default(true),
   alarmPushEnabled: z.boolean().default(false),
+  alarmDeliverDsh: z.boolean().default(true),
+  alarmDeliverIm: z.boolean().default(false),
+  imBotId: z.string().default(''),
+  imTargetId: z.string().default(''),
 })
 
 /** Package root (parent of `lib/` or `src/` depending on launch). */
@@ -171,11 +187,11 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     ensureAgentPresetInstalled(ctx.logger)
   }
 
-  const restartAlarmPush = (apiUrl: string, token: string, enabled: boolean, lang: string): void => {
+  const restartAlarmPush = (current: Config, apiUrl: string, token: string): void => {
     stopAlarmPush?.()
     stopAlarmPush = undefined
     resetAlarmSession()
-    if (!enabled) {
+    if (!current.alarmPushEnabled) {
       resetAlarmPushStatus()
       return
     }
@@ -190,11 +206,26 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       })
       return
     }
+    const lang = current.lang
+    const deliverDsh = current.alarmDeliverDsh !== false
+    const deliverIm = current.alarmDeliverIm === true
+    const imBotId = current.imBotId ?? ''
+    const imTargetId = current.imTargetId ?? ''
     stopAlarmPush = startAlarmPushClient({
       apiUrl,
       token,
       logger: ctx.logger,
-      onAlarm: (payload) => deliverAlarmToSession(ctx, payload, lang),
+      onAlarm: async (payload) => {
+        if (deliverDsh) {
+          await deliverAlarmToSession(ctx, payload, lang)
+        }
+        await deliverAlarmToIm(ctx, payload, {
+          enabled: deliverIm,
+          botId: imBotId,
+          targetId: imTargetId,
+          lang,
+        })
+      },
     })
   }
 
@@ -213,7 +244,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
       })
-      restartAlarmPush(apiUrl, token, current.alarmPushEnabled === true, current.lang)
+      restartAlarmPush(current, apiUrl, token)
       if (!tokenConfigured) {
         ctx.logger.warn(
           'netxops: published connection → %s tokenConfigured=false (set credential %s)',
@@ -222,9 +253,11 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         )
       } else {
         ctx.logger.info(
-          'netxops: published connection → %s tokenConfigured=true alarmPush=%s',
+          'netxops: published connection → %s tokenConfigured=true alarmPush=%s dsh=%s im=%s',
           apiUrl,
           current.alarmPushEnabled === true,
+          current.alarmDeliverDsh !== false,
+          current.alarmDeliverIm === true,
         )
       }
     }).catch((error) => {

@@ -30,16 +30,16 @@ dsh web   # or: pnpm dsh web
 
 1. **Settings → Plugins → Netx Ops** → API URL (+ token if the field is enabled).  
    Token fallback: `scripts/set-netx-token.ps1` / `.sh`.  
-   Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws` and follows a sticky session when netx matches a key alert. The card header shows live WSS status (`Connected` / `Reconnecting` / `Auth failed`).
+   Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws`. Choose **投递到 DSH 会话** and/or **投递到 WhatsApp / IM**. For IM, install `dsh-im-ops`, create a delivery target, then paste `imBotId` / `imTargetId`. The card header shows live WSS status.
 2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
 3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms.
 
 ## Key-alarm push
 
 - **netx** (fixed IP) hosts the subscribe hub and fans out matched key alerts.
-- **netxops** (each DSH) reuses the same URL/token, connects outbound, and delivers into a DSH session.
+- **netxops** (each DSH) reuses the same URL/token, connects outbound, and delivers into a DSH session and/or IM via `ctx.dshIm.send`.
 - Live status is exposed on the Plugins card via Connection RPC (`/netxops` → `alarm-push.status`); no curl required for day-to-day checks.
-- WhatsApp / `dsh-im` is **not** required for this path.
+- WhatsApp / `dsh-im` is **optional** for the DSH session path; required only when IM delivery is checked.
 
 ## Verify
 

@@ -236,6 +236,84 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 ? <p className="dsh-nx-invalid" role="status">{pushStatus.lastError}</p>
                 : null}
             </div>
+            <div className="dsh-nx-field">
+              <div className="dsh-nx-fieldHead">
+                <label className="dsh-nx-label" htmlFor="netxops-alarm-dsh">{t('alarmDeliverDsh')}</label>
+                {state.alarmDeliverDsh.overridden
+                  ? (
+                    <span className="dsh-nx-badges">
+                      <span className="dsh-nx-badge">{t('overridden')}</span>
+                      <button type="button" className="dsh-nx-reset" disabled={disabled} onClick={() => { props.resetField('alarmDeliverDsh') }}>
+                        {t('reset')}
+                      </button>
+                    </span>
+                  )
+                  : null}
+              </div>
+              <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-dsh">
+                <input
+                  id="netxops-alarm-dsh"
+                  type="checkbox"
+                  checked={state.alarmDeliverDsh.text === 'true'}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    props.edit('alarmDeliverDsh', event.target.checked ? 'true' : 'false')
+                  }}
+                />
+                <span>{t('alarmDeliverDshHint')}</span>
+              </label>
+            </div>
+            <div className="dsh-nx-field">
+              <div className="dsh-nx-fieldHead">
+                <label className="dsh-nx-label" htmlFor="netxops-alarm-im">{t('alarmDeliverIm')}</label>
+                {state.alarmDeliverIm.overridden
+                  ? (
+                    <span className="dsh-nx-badges">
+                      <span className="dsh-nx-badge">{t('overridden')}</span>
+                      <button type="button" className="dsh-nx-reset" disabled={disabled} onClick={() => { props.resetField('alarmDeliverIm') }}>
+                        {t('reset')}
+                      </button>
+                    </span>
+                  )
+                  : null}
+              </div>
+              <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-im">
+                <input
+                  id="netxops-alarm-im"
+                  type="checkbox"
+                  checked={state.alarmDeliverIm.text === 'true'}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    props.edit('alarmDeliverIm', event.target.checked ? 'true' : 'false')
+                  }}
+                />
+                <span>{t('alarmDeliverImHint')}</span>
+              </label>
+            </div>
+            <ValueField
+              id="netxops-im-bot-id"
+              label={t('imBotId')}
+              hint={t('imBotIdHint')}
+              field={state.imBotId}
+              overriddenLabel={t('overridden')}
+              resetLabel={t('reset')}
+              invalidLabel={t('invalid')}
+              disabled={disabled}
+              onEdit={(text) => { props.edit('imBotId', text) }}
+              onReset={() => { props.resetField('imBotId') }}
+            />
+            <ValueField
+              id="netxops-im-target-id"
+              label={t('imTargetId')}
+              hint={t('imTargetIdHint')}
+              field={state.imTargetId}
+              overriddenLabel={t('overridden')}
+              resetLabel={t('reset')}
+              invalidLabel={t('invalid')}
+              disabled={disabled}
+              onEdit={(text) => { props.edit('imTargetId', text) }}
+              onReset={() => { props.resetField('imTargetId') }}
+            />
             <div className="dsh-nx-footer">
               {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}
               <button

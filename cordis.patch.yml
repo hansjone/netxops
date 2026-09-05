@@ -14,3 +14,7 @@
         toolCallTimeoutMs: 120000
         installAgentPreset: true
         alarmPushEnabled: false
+        alarmDeliverDsh: true
+        alarmDeliverIm: false
+        imBotId: ''
+        imTargetId: ''
