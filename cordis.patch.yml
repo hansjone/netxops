@@ -3,10 +3,19 @@
 # Capability groups: ops in preset; topology / public off.
 # Rule: one group ↔ one skill (netx-ops / netx-topology).
 #
-# After `dsh plugin add` / link, open Settings → Plugins to edit apiUrl / lang / groups
+# Companion bundles: `dsh-im-ops` + `dsh-ops-cron` are npm dependencies of this
+# package and are inserted here so a single `dsh plugin add …/netxops` mounts
+# IM delivery + scheduled tasks without separate profile adds. Same row ids as
+# their own patches — safe if those packages are also listed as profile bundles.
+#
+# After install, open Settings → Plugins to edit apiUrl / lang / groups
 # (settings card client half; see docs/INSTALL.md). Token: credential NETX_API_TOKEN.
 
 - insert:
+    - id: dsh-im-ops
+      name: dsh-im-ops
+    - id: dsh-ops-cron
+      name: dsh-ops-cron
     - id: netxops
       name: dsh-netxops
       config:

@@ -1,7 +1,7 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.22",
-  "description": "DeepSeek Harness Netx Ops: capability groups ops/topology (one group ↔ one skill)",
+  "version": "0.1.23",
+  "description": "DeepSeek Harness Netx Ops: ops/topology tools + pulls dsh-im-ops and dsh-ops-cron",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -89,7 +89,9 @@
     "react": "^18.2.0 || ^19.0.0"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "*"
+    "@deepseek-ai/schemastery": "*",
+    "dsh-im-ops": "github:hansjone/dsh-im-ops",
+    "dsh-ops-cron": "github:hansjone/dsh-ops-cron"
   },
   "devDependencies": {
     "@types/react": "~18.3.1",

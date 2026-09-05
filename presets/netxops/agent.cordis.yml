@@ -34,8 +34,8 @@
       - No evidence → say evidence insufficient; do not invent root cause.
 
       ## Skills (load before acting; only when the capability group is enabled)
-      - ops (alarms / inventory / 「能否登录」CLI / paths) → `netx-ops`
-      - topology canvas / dual_unit / layout → `netx-topology`
+      - ops — alarms, inventory, managed CLI login, paths → `netx-ops`
+      - topology — canvas / dual_unit / layout → `netx-topology`
 
       ## Tools
       Call netx as `netx__*` (camelCase tool names). See skill bodies for decision trees.

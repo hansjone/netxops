@@ -13,6 +13,8 @@ dsh plugin --profile web add github:hansjone/netxops
 dsh web
 ```
 
+Pulls **dsh-im-ops** + **dsh-ops-cron** automatically (dependencies + patch mounts). Details: [docs/INSTALL.md](docs/INSTALL.md).
+
 Then:
 
 1. Settings → **Plugins** → **Netx Ops** → API URL / token / capability groups  
@@ -20,7 +22,7 @@ Then:
 3. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
 4. New session → choose **Netx Ops**
 
-Also need: a reachable **netx API** (no local `pip install netx_mcp`). Details: [docs/INSTALL.md](docs/INSTALL.md).
+Also need: a reachable **netx API** (no local `pip install netx_mcp`).
 
 **Skills:** edit only in the sibling **netx** repo `skills/` tree, then `powershell -File .\scripts\sync-skills-from-netx.ps1` before publish. Linked local installs prefer `../netx/skills` or `NETX_SKILLS_ROOT` at runtime.
 
