@@ -31,6 +31,7 @@ test('formatAlarmPrompt keeps human fields without raw sockets', () => {
     ne: { host_name: 'PE1', ip_address: '10.0.0.1' },
   }, 'zh')
   assert.match(text, /告警产生/)
+  assert.match(text, /\[NMS /)
   assert.match(text, /PE1 \(10\.0\.0\.1\)/)
   assert.match(text, /请分析这条关键告警/)
 })

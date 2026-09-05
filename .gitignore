@@ -4,6 +4,9 @@ dist/
 lib/*
 !lib/index.js
 !lib/agent-tools.js
+!lib/agent-tools-nms.js
+!lib/agent-tools-common.js
+!lib/agent-tools-topology.js
 !lib/client.js
 *.log
 .DS_Store

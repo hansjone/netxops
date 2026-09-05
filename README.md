@@ -15,20 +15,22 @@ dsh web
 
 Then:
 
-1. Settings → **Plugins** → **Netx Ops** → API URL / token  
+1. Settings → **Plugins** → **Netx Ops** → API URL / token / capability groups  
 2. Optional: enable **关键告警推送** — DSH dials out to netx; choose **Deliver to DSH session** and/or **Deliver to WhatsApp / IM** (paste `botId`+`targetId` from IM 投递设置). The card shows live WSS status.  
 3. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
 4. New session → choose **Netx Ops**
 
 Also need: a reachable **netx API** (no local `pip install netx_mcp`). Details: [docs/INSTALL.md](docs/INSTALL.md).
 
+**Skills:** edit only in the sibling **netx** repo `skills/` tree, then `powershell -File .\scripts\sync-skills-from-netx.ps1` before publish. Linked local installs prefer `../netx/skills` or `NETX_SKILLS_ROOT` at runtime.
+
 ## What is coupled
 
 | In the plugin | Outside (data / runtime) |
 |---------------|---------------------------|
-| `netx__*` REST tools (Ops preset only) + settings + credentials | netx HTTP API (URL + token) |
+| `netx__*` REST tools (groups: nms / common / topology; one group ↔ one skill; optional host publish + `tools-*`) + settings + credentials | netx HTTP API (URL + token) |
 | Optional key-alarm push (WSS client → sticky DSH session) | netx `/v1/integrations/dsh-alarm/ws` hub |
-| Persona + UME / managed-NE skills | |
+| Persona + skills (`netx-nms` / `netx-common` / `netx-topology`) | |
 | Agent preset auto-install to `~/.dsh/.agent-presets` | |
 
 MCP (`python -m netx_mcp`) remains available for OpenClaw / other hosts — not required for DSH.

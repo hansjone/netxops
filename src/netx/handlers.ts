@@ -38,6 +38,16 @@ function str(args: NetxJson, key: string, fallback = ''): string {
   return fallback
 }
 
+/** Prefer generic `nms_*` aliases; fall back to historical `ume_*` wire names. */
+function nmsOrUme(args: NetxJson, nmsKey: string, umeKey: string): string {
+  return str(args, nmsKey).trim() || str(args, umeKey).trim()
+}
+
+function nmsOrUmeList(args: NetxJson, nmsKey: string, umeKey: string): string[] {
+  const primary = strList(args, nmsKey)
+  return primary.length > 0 ? primary : strList(args, umeKey)
+}
+
 function num(args: NetxJson, key: string): number | undefined {
   const v = args[key]
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined
@@ -189,7 +199,7 @@ export async function getManagedNe(client: NetxClient, args: NetxJson, signal?: 
       ok: false,
       error: 'ne_id_required',
       error_code: 'ne_id_required',
-      hint: 'Pass managed NE id from listManagedNe/listCliTargets (source=managed). For UME inventory UUIDs use execManagedNe(ume_ne_id=...) or getUmeNe, not getManagedNe.',
+      hint: 'Pass managed NE id from listManagedNe/listCliTargets (source=managed). For NMS inventory UUIDs use execManagedNe(nms_ne_id=...) or getNmsNe, not getManagedNe.',
       example: { ne_id: '<managed-ne-uuid-from-listManagedNe>' },
     }
   }
@@ -199,7 +209,7 @@ export async function getManagedNe(client: NetxClient, args: NetxJson, signal?: 
     if (detail.includes('404') || detail.includes('not_found') || detail.includes('not found') || out.error === 'netx_http_404') {
       return {
         ...out,
-        hint: 'Managed NE not found for this ne_id. Call listManagedNe(keyword=...) or listCliTargets(source=managed) first. If this is a UME ne_id, use execManagedNe(ume_ne_id=...) / getUmeNe instead of getManagedNe.',
+        hint: 'Managed NE not found for this ne_id. Call listManagedNe(keyword=...) or listCliTargets(source=managed) first. If this is an NMS inventory id, use execManagedNe(nms_ne_id=...) / getNmsNe instead of getManagedNe.',
       }
     }
   }
@@ -209,7 +219,7 @@ export async function getManagedNe(client: NetxClient, args: NetxJson, signal?: 
 export async function execManagedNe(client: NetxClient, args: NetxJson, signal?: AbortSignal): Promise<NetxJson> {
   const targetsRaw = args.targets
   const neIds = strList(args, 'ne_ids')
-  const umeNeIds = strList(args, 'ume_ne_ids')
+  const umeNeIds = nmsOrUmeList(args, 'nms_ne_ids', 'ume_ne_ids')
   const sharedCommands = strList(args, 'commands')
   const multi = (Array.isArray(targetsRaw) && targetsRaw.length > 0)
     || neIds.length > 0
@@ -224,7 +234,7 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
         const row = t as NetxJson
         const item: NetxJson = {}
         const neId = str(row, 'ne_id').trim()
-        const umeNeId = str(row, 'ume_ne_id').trim()
+        const umeNeId = nmsOrUme(row, 'nms_ne_id', 'ume_ne_id')
         if (neId) item.ne_id = neId
         if (umeNeId) item.ume_ne_id = umeNeId
         const cmds = Array.isArray(row.commands)
@@ -256,13 +266,13 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
   }
 
   const neId = str(args, 'ne_id').trim()
-  const umeNeId = str(args, 'ume_ne_id').trim()
+  const umeNeId = nmsOrUme(args, 'nms_ne_id', 'ume_ne_id')
   if (Boolean(neId) === Boolean(umeNeId)) {
     return {
       ok: false,
-      error: 'exactly_one_of_ne_id_or_ume_ne_id_required',
-      error_code: 'exactly_one_of_ne_id_or_ume_ne_id_required',
-      hint: 'For one NE pass ne_id OR ume_ne_id. For many NEs pass ne_ids / ume_ne_ids with shared commands, or targets[] with per-NE commands — one call, concurrent on server.',
+      error: 'exactly_one_of_ne_id_or_nms_ne_id_required',
+      error_code: 'exactly_one_of_ne_id_or_nms_ne_id_required',
+      hint: 'For one NE pass ne_id OR nms_ne_id (alias ume_ne_id). For many NEs pass ne_ids / nms_ne_ids with shared commands, or targets[] — one call, concurrent on server.',
     }
   }
   if (sharedCommands.length === 0) {
@@ -296,15 +306,15 @@ export async function listCliTargets(client: NetxClient, args: NetxJson, signal?
 }
 
 export async function findTopologyPaths(client: NetxClient, args: NetxJson, signal?: AbortSignal): Promise<NetxJson> {
-  const fromUid = str(args, 'from_ume_ne_id').trim()
+  const fromUid = nmsOrUme(args, 'from_nms_ne_id', 'from_ume_ne_id')
   const fromMid = str(args, 'from_managed_ne_id').trim()
-  const toUid = str(args, 'to_ume_ne_id').trim()
+  const toUid = nmsOrUme(args, 'to_nms_ne_id', 'to_ume_ne_id')
   const toMid = str(args, 'to_managed_ne_id').trim()
   if (Boolean(fromUid) === Boolean(fromMid)) {
-    return { ok: false, error: 'exactly_one_of_from_ume_ne_id_or_from_managed_ne_id_required' }
+    return { ok: false, error: 'exactly_one_of_from_nms_ne_id_or_from_managed_ne_id_required' }
   }
   if (Boolean(toUid) === Boolean(toMid)) {
-    return { ok: false, error: 'exactly_one_of_to_ume_ne_id_or_to_managed_ne_id_required' }
+    return { ok: false, error: 'exactly_one_of_to_nms_ne_id_or_to_managed_ne_id_required' }
   }
   let detail = str(args, 'detail', 'summary').trim().toLowerCase() || 'summary'
   if (detail !== 'summary' && detail !== 'full') detail = 'summary'

@@ -1,14 +1,11 @@
 /**
- * Agent-plane Netx Ops tools: register `netx__*` into the calling context's
- * tool scope (the Netx Ops preset standing mount), so other presets do not see them.
+ * Agent-plane aggregate mount: all capability groups gated by Settings inPreset.
  *
  * @module dsh-netxops/tools
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-tools'
-import { getNetxConnection, watchNetxConnection } from './netx/runtime.ts'
-import { registerNetxTools } from './netx/tools.ts'
+import { applyGroupToolsPlugin } from './netx/group-tools-plugin.ts'
 
 /** Cordis plugin name. */
 export const name = 'netxops-tools'
@@ -16,35 +13,7 @@ export const name = 'netxops-tools'
 /** Tool registry must exist in this (preset-scoped) context. */
 export const inject = ['tools']
 
-/**
- * Mount netx REST tools for the Netx Ops agent preset only.
- */
+/** Mount enabled groups for the Netx Ops preset. */
 export function apply(ctx: Context): void {
-  let unregister: (() => void) | undefined
-
-  const remount = (): void => {
-    unregister?.()
-    unregister = undefined
-    const connection = getNetxConnection()
-    if (connection === undefined) {
-      ctx.logger.warn('netxops-tools: no connection yet — waiting for host settings bridge')
-      return
-    }
-    unregister = registerNetxTools(ctx, connection)
-    const tokenConfigured = connection.token.trim().length > 0
-    ctx.logger.info(
-      'netxops-tools: registered netx__* for Ops preset → %s tokenConfigured=%s',
-      connection.apiUrl,
-      tokenConfigured,
-    )
-  }
-
-  remount()
-  const stopWatch = watchNetxConnection(() => { remount() })
-
-  ctx.effect(() => () => {
-    stopWatch()
-    unregister?.()
-    unregister = undefined
-  }, 'netxops-tools: dispose')
+  applyGroupToolsPlugin(ctx, { name, mode: 'settings' })
 }

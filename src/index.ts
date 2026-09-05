@@ -1,7 +1,8 @@
 /**
- * Host-plane Netx Ops: settings (apiUrl / lang / alarm push) + credentials
- * (NETX_API_TOKEN) publish a connection snapshot; the Ops preset mounts
- * `netx__*` into its own tool scope (`dsh-netxops/tools`).
+ * Host-plane Netx Ops: settings (apiUrl / lang / alarm push / capability groups)
+ * + credentials (NETX_API_TOKEN) publish a connection snapshot. The Ops preset
+ * mounts selected `netx__*` groups via `dsh-netxops/tools`; groups marked public
+ * also register on the host tool/skill layer for other presets.
  *
  * When「关键告警推送」is on, this host dials out to netx's fixed-IP alarm hub and
  * opens/follows a sticky DSH session (im / WhatsApp is optional and separate).
@@ -27,7 +28,14 @@ import {
 } from './netx/alarm-push-status.ts'
 import { deliverAlarmToIm } from './netx/alarm-im.ts'
 import { deliverAlarmToSession, resetAlarmSession } from './netx/alarm-session.ts'
-import { publishNetxConnection } from './netx/runtime.ts'
+import {
+  capabilityGroupsFromSettings,
+  groupsForPlane,
+  type NetxCapabilityGroupSettingsFields,
+} from './netx/capability-groups.ts'
+import { registerGroupSkills } from './netx/group-skills.ts'
+import { publishNetxConnection, getNetxConnection, watchNetxConnection } from './netx/runtime.ts'
+import { registerNetxTools } from './netx/tools.ts'
 
 /** Cordis plugin name. */
 export const name = 'netxops'
@@ -78,6 +86,23 @@ export interface Config {
   imBotId: string
   /** Opaque target id from the same copy payload. */
   imTargetId: string
+  /**
+   * NMS provider adapter id. Supported today: `zte-ume`
+   * (REST `/v1/ume/*`; model tools are generic `netx__*Nms*`).
+   */
+  nmsProvider: string
+  /** nms tools/skills in the Netx Ops preset (default on). */
+  groupNmsInPreset: boolean
+  /** Publish nms tools/skills to other presets via the host layer (default off). */
+  groupNmsPublic: boolean
+  /** common tools/skills in the Netx Ops preset (default on). */
+  groupCommonInPreset: boolean
+  /** Publish common tools/skills to other presets (default off). */
+  groupCommonPublic: boolean
+  /** topology canvas / layout tools in the Netx Ops preset (default off). */
+  groupTopologyInPreset: boolean
+  /** Publish topology tools/skills to other presets (default off). */
+  groupTopologyPublic: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -91,6 +116,13 @@ export const Config: z<Config> = z.object({
   alarmDeliverIm: z.boolean().default(false),
   imBotId: z.string().default(''),
   imTargetId: z.string().default(''),
+  nmsProvider: z.string().default('zte-ume'),
+  groupNmsInPreset: z.boolean().default(true),
+  groupNmsPublic: z.boolean().default(false),
+  groupCommonInPreset: z.boolean().default(true),
+  groupCommonPublic: z.boolean().default(false),
+  groupTopologyInPreset: z.boolean().default(false),
+  groupTopologyPublic: z.boolean().default(false),
 })
 
 /** Package root (parent of `lib/` or `src/` depending on launch). */
@@ -238,11 +270,19 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
       const apiUrl = current.apiUrl.replace(/\/$/, '')
       const tokenConfigured = token.trim().length > 0
+      const groups = capabilityGroupsFromSettings(current as NetxCapabilityGroupSettingsFields)
+      if (current.nmsProvider && current.nmsProvider !== 'zte-ume') {
+        ctx.logger.warn(
+          'netxops: nmsProvider=%s is not implemented yet; using zte-ume REST adapter',
+          current.nmsProvider,
+        )
+      }
       publishNetxConnection({
         apiUrl,
         token,
         lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
+        groups,
       })
       restartAlarmPush(current, apiUrl, token)
       if (!tokenConfigured) {
@@ -253,11 +293,12 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         )
       } else {
         ctx.logger.info(
-          'netxops: published connection → %s tokenConfigured=true alarmPush=%s dsh=%s im=%s',
+          'netxops: published connection → %s tokenConfigured=true alarmPush=%s dsh=%s im=%s public=[%s]',
           apiUrl,
           current.alarmPushEnabled === true,
           current.alarmDeliverDsh !== false,
           current.alarmDeliverIm === true,
+          groupsForPlane(groups, 'public').join(',') || '(none)',
         )
       }
     }).catch((error) => {
@@ -280,7 +321,63 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     if (String(ref) === source().tokenCredentialRef) publish()
   })
 
-  // Browser card polls alarm-push WSS status through Connection RPC.
+  // Optional host-layer publish: groups with `public=true` become visible to other presets.
+  ctx.inject(['tools'], (toolsCtx) => {
+    let unregisterTools: (() => void) | undefined
+    const remountPublicTools = (): void => {
+      unregisterTools?.()
+      unregisterTools = undefined
+      const connection = getNetxConnection()
+      if (!connection) return
+      const enabled = groupsForPlane(connection.groups, 'public')
+      unregisterTools = registerNetxTools(toolsCtx, connection, { plane: 'public' })
+      toolsCtx.logger.info(
+        'netxops: host public tools groups=[%s]',
+        enabled.join(',') || '(none)',
+      )
+    }
+    remountPublicTools()
+    const stopWatch = watchNetxConnection(() => { remountPublicTools() })
+    toolsCtx.effect(() => () => {
+      stopWatch()
+      unregisterTools?.()
+    }, 'netxops: dispose public tools')
+  })
+
+  ctx.inject(['skills'], (skillsCtx) => {
+    let unregisterSkills: (() => void) | undefined
+    let generation = 0
+    const remountPublicSkills = (): void => {
+      const gen = ++generation
+      unregisterSkills?.()
+      unregisterSkills = undefined
+      const connection = getNetxConnection()
+      if (!connection) return
+      const enabled = groupsForPlane(connection.groups, 'public')
+      void registerGroupSkills(skillsCtx, enabled, 'netxops-public').then((dispose) => {
+        if (gen !== generation) {
+          dispose()
+          return
+        }
+        unregisterSkills = dispose
+        skillsCtx.logger.info(
+          'netxops: host public skills groups=[%s]',
+          enabled.join(',') || '(none)',
+        )
+      }).catch((error) => {
+        skillsCtx.logger.warn('netxops: public skill register failed: %s', error)
+      })
+    }
+    remountPublicSkills()
+    const stopWatch = watchNetxConnection(() => { remountPublicSkills() })
+    skillsCtx.effect(() => () => {
+      generation += 1
+      stopWatch()
+      unregisterSkills?.()
+    }, 'netxops: dispose public skills')
+  })
+
+  // Browser card polls alarm-push WSS status + IM delivery catalog through Connection RPC.
   ctx.inject(['connection'], (connCtx) => {
     const rpc = connCtx.connection?.rpc
     if (!rpc || typeof rpc.handle !== 'function') {
@@ -291,10 +388,46 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       const dispose = rpc.handle(
         NETXOPS_RPC_CHANNEL,
         async (endpoint: string) => {
-          if (endpoint !== 'alarm-push.status') {
-            return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
+          if (endpoint === 'alarm-push.status') {
+            return { ok: true, value: getAlarmPushStatus() }
           }
-          return { ok: true, value: getAlarmPushStatus() }
+          if (endpoint === 'im-delivery.catalog') {
+            type DshImCatalog = { listDeliveryCatalog?: () => Promise<unknown> }
+            const fromGet = typeof (ctx as { get?: (name: string) => unknown }).get === 'function'
+              ? (ctx as { get: (name: string) => unknown }).get('dshIm') as DshImCatalog | undefined
+              : undefined
+            const im = fromGet ?? (ctx as { dshIm?: DshImCatalog }).dshIm
+            if (!im || typeof im.listDeliveryCatalog !== 'function') {
+              return {
+                ok: true,
+                value: {
+                  available: false,
+                  options: [],
+                  hint: 'dsh-im-ops missing or outdated — install ≥ops.24 for delivery picker',
+                },
+              }
+            }
+            try {
+              const options = await im.listDeliveryCatalog()
+              return {
+                ok: true,
+                value: {
+                  available: true,
+                  options: Array.isArray(options) ? options : [],
+                },
+              }
+            } catch (error) {
+              return {
+                ok: true,
+                value: {
+                  available: false,
+                  options: [],
+                  hint: error instanceof Error ? error.message : String(error),
+                },
+              }
+            }
+          }
+          return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
         },
       )
       return () => { void dispose() }

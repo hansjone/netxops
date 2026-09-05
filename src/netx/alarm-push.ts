@@ -62,7 +62,7 @@ export function formatAlarmPrompt(payload: KeyAlarmPayload, lang = 'zh'): string
   const label = String(payload.rule_label ?? payload.native_probable_cause ?? '关键告警').trim()
   if (lang.startsWith('en')) {
     return [
-      `[UME ${actionEn[action] ?? (action || 'Alarm')}] ${label}`,
+      `[NMS ${actionEn[action] ?? (action || 'Alarm')}] ${label}`,
       `Device: ${device}`,
       `Object: ${String(payload.object_name ?? '-').trim()}`,
       `Severity: ${String(payload.perceived_severity ?? '-').trim()}`,
@@ -75,7 +75,7 @@ export function formatAlarmPrompt(payload: KeyAlarmPayload, lang = 'zh'): string
     ].join('\n')
   }
   return [
-    `[UME ${actionZh[action] ?? (action || '告警')}] ${label}`,
+    `[NMS ${actionZh[action] ?? (action || '告警')}] ${label}`,
     `设备: ${device}`,
     `对象: ${String(payload.object_name ?? '-').trim()}`,
     `级别: ${String(payload.perceived_severity ?? '-').trim()}`,

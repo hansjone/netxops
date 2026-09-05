@@ -15,6 +15,11 @@ import {
   type AlarmPushRpcCall,
   type AlarmPushStatus,
 } from './alarm-push-status-view.ts'
+import {
+  EMPTY_IM_DELIVERY_CATALOG,
+  fetchImDeliveryCatalog,
+  type ImDeliveryCatalog,
+} from './im-delivery-catalog.ts'
 
 export const NETXOPS_NS = 'netxops'
 const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
@@ -30,6 +35,13 @@ export interface NetxopsSettings {
   alarmDeliverIm?: boolean
   imBotId?: string
   imTargetId?: string
+  groupNmsInPreset?: boolean
+  groupNmsPublic?: boolean
+  groupCommonInPreset?: boolean
+  groupCommonPublic?: boolean
+  groupTopologyInPreset?: boolean
+  groupTopologyPublic?: boolean
+  nmsProvider?: string
 }
 
 interface CredentialState {
@@ -42,6 +54,13 @@ interface CredentialState {
 export interface NetxopsCardState extends CardShell {
   apiUrl: CardFieldState
   lang: CardFieldState
+  groupNmsInPreset: CardFieldState
+  groupNmsPublic: CardFieldState
+  groupCommonInPreset: CardFieldState
+  groupCommonPublic: CardFieldState
+  groupTopologyInPreset: CardFieldState
+  groupTopologyPublic: CardFieldState
+  nmsProvider: CardFieldState
   alarmPushEnabled: CardFieldState
   alarmDeliverDsh: CardFieldState
   alarmDeliverIm: CardFieldState
@@ -53,6 +72,8 @@ export interface NetxopsCardState extends CardShell {
   apiTokenRemoteReady: boolean
   /** Host WSS status when Connection RPC is available; otherwise null. */
   alarmPushStatus: AlarmPushStatus | null
+  /** Saved IM delivery targets for the picker (soft-depends on dsh-im-ops). */
+  imDeliveryCatalog: ImDeliveryCatalog
 }
 
 export interface NetxopsCardFace extends CardActions {
@@ -77,8 +98,10 @@ export class NetxopsCardController {
   }
   private rpcCall: AlarmPushRpcCall | undefined
   private alarmPushStatus: AlarmPushStatus | null = null
+  private imDeliveryCatalog: ImDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
   private pollTimer: ReturnType<typeof setInterval> | undefined
   private pollInFlight = false
+  private catalogInFlight = false
 
   constructor(
     private readonly scope: SettingsScope<NetxopsSettings>,
@@ -89,6 +112,13 @@ export class NetxopsCardController {
       [
         textField('apiUrl'),
         textField('lang'),
+        textField('nmsProvider'),
+        booleanFieldPersistFalse('groupNmsInPreset'),
+        booleanField('groupNmsPublic'),
+        booleanFieldPersistFalse('groupCommonInPreset'),
+        booleanField('groupCommonPublic'),
+        booleanField('groupTopologyInPreset'),
+        booleanField('groupTopologyPublic'),
         booleanField('alarmPushEnabled'),
         booleanFieldPersistFalse('alarmDeliverDsh'),
         booleanField('alarmDeliverIm'),
@@ -122,19 +152,29 @@ export class NetxopsCardController {
     this.rpcCall = call
     if (call === undefined) {
       this.stopStatusPoll()
+      let changed = false
       if (this.alarmPushStatus !== null) {
         this.alarmPushStatus = null
-        this.store.set(this.projection())
+        changed = true
       }
+      if (this.imDeliveryCatalog.options.length > 0 || this.imDeliveryCatalog.available !== true) {
+        this.imDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
+        changed = true
+      }
+      if (changed) this.store.set(this.projection())
       return
     }
     this.startStatusPoll()
     void this.refreshAlarmPushStatus()
+    void this.refreshImDeliveryCatalog()
   }
 
   private startStatusPoll(): void {
     if (this.pollTimer !== undefined) return
-    this.pollTimer = setInterval(() => { void this.refreshAlarmPushStatus() }, STATUS_POLL_MS)
+    this.pollTimer = setInterval(() => {
+      void this.refreshAlarmPushStatus()
+      void this.refreshImDeliveryCatalog()
+    }, STATUS_POLL_MS)
   }
 
   private stopStatusPoll(): void {
@@ -168,11 +208,48 @@ export class NetxopsCardController {
     }
   }
 
+  private async refreshImDeliveryCatalog(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.catalogInFlight) return
+    this.catalogInFlight = true
+    try {
+      const next = await fetchImDeliveryCatalog(call)
+      const prev = this.imDeliveryCatalog
+      const sameOptions = prev.options.length === next.options.length
+        && prev.options.every((row, index) => {
+          const other = next.options[index]
+          return other
+            && row.botId === other.botId
+            && row.targetId === other.targetId
+            && row.name === other.name
+            && row.channel === other.channel
+        })
+      if (
+        prev.available === next.available
+        && prev.hint === next.hint
+        && sameOptions
+      ) return
+      this.imDeliveryCatalog = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last good snapshot; next poll retries.
+    } finally {
+      this.catalogInFlight = false
+    }
+  }
+
   private projection(): NetxopsCardState {
     return {
       ...this.form.shell(),
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
+      nmsProvider: this.form.field('nmsProvider'),
+      groupNmsInPreset: this.form.field('groupNmsInPreset'),
+      groupNmsPublic: this.form.field('groupNmsPublic'),
+      groupCommonInPreset: this.form.field('groupCommonInPreset'),
+      groupCommonPublic: this.form.field('groupCommonPublic'),
+      groupTopologyInPreset: this.form.field('groupTopologyInPreset'),
+      groupTopologyPublic: this.form.field('groupTopologyPublic'),
       alarmPushEnabled: this.form.field('alarmPushEnabled'),
       alarmDeliverDsh: this.form.field('alarmDeliverDsh'),
       alarmDeliverIm: this.form.field('alarmDeliverIm'),
@@ -183,6 +260,7 @@ export class NetxopsCardController {
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,
       apiTokenRemoteReady: this.credential.remoteReady,
       alarmPushStatus: this.alarmPushStatus,
+      imDeliveryCatalog: this.imDeliveryCatalog,
     }
   }
 

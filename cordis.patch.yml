@@ -1,7 +1,9 @@
 # Host-plane Netx Ops bridge: settings + credentials → connection publish.
 # Ops-scoped `netx__*` tools mount from the agent preset (`dsh-netxops/tools`).
+# Capability groups: nms + common in preset; topology / public off.
+# Rule: one group ↔ one skill (netx-nms / netx-common / netx-topology).
 #
-# After `dsh plugin add` / link, open Settings → Plugins to edit apiUrl / lang
+# After `dsh plugin add` / link, open Settings → Plugins to edit apiUrl / lang / groups
 # (settings card client half; see docs/INSTALL.md). Token: credential NETX_API_TOKEN.
 
 - insert:
@@ -10,6 +12,7 @@
       config:
         apiUrl: http://127.0.0.1:8890
         lang: zh
+        nmsProvider: zte-ume
         tokenCredentialRef: NETX_API_TOKEN
         toolCallTimeoutMs: 120000
         installAgentPreset: true
@@ -18,3 +21,9 @@
         alarmDeliverIm: false
         imBotId: ''
         imTargetId: ''
+        groupNmsInPreset: true
+        groupNmsPublic: false
+        groupCommonInPreset: true
+        groupCommonPublic: false
+        groupTopologyInPreset: false
+        groupTopologyPublic: false

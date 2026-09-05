@@ -121,6 +121,9 @@ export function createNetxClient(connection: NetxConnection) {
     post(path: string, body: NetxJson, signal?: AbortSignal, timeoutMs?: number) {
       return request('POST', path, { body, signal, timeoutMs })
     },
+    patch(path: string, body: NetxJson, signal?: AbortSignal, timeoutMs?: number) {
+      return request('PATCH', path, { body, signal, timeoutMs })
+    },
   }
 }
 

@@ -1,28 +1,40 @@
 # Netx Ops tool map
 
-Tools are registered by the Ops agent preset (`dsh-netxops/tools`) into that preset's tool scope — not the host global layer — so other agent presets do not see them.
+Tools register by capability group. **One group ↔ one skill.**
 
-Model-facing name: `netx__<tool>`.
+| Group | Skill | Default in Ops preset |
+|-------|-------|------------------------|
+| **nms** | `netx-nms` | on |
+| **common** | `netx-common` | on |
+| **topology** | `netx-topology` | off |
+
+Public flags mount the same group on the host for other presets.
+Forced mounts: `dsh-netxops/tools-nms` | `tools-common` | `tools-topology`.
+
+Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` still hits `/v1/ume/*`.
+
+## nms → `netx-nms`
 
 | Tool | Role |
 |------|------|
-| `queryUmeAlarms` | Paged current alarms |
-| `aggregateUmeAlarms` | Severity / Top NE aggregate |
-| `runUmeDiagnostics` | Diagnostics + freshness meta |
-| `queryUmeNeInventory` | UME NE list |
-| `getUmeNe` | Single UME NE detail |
-| `queryUmeAlarmsRaw` | Raw / evidence fields |
-| `aggregateUmeAlarmsRaw` | Dynamic group_by |
-| `listUmeAlarmFields` | Field catalog |
-| `sqlQueryUme` | Read-only SELECT |
-| `findTopologyPaths` | Shortest path between UME NEs (path query only; no canvas layout in v1) |
-| `listManagedNe` | Managed device list |
-| `getManagedNe` | Managed device detail |
-| `execManagedNe` | Read-only CLI (batch-first) |
-| `listCliTargets` | CLI target index (managed + ume) |
+| `queryNmsAlarms` … `sqlQueryNms` | Alarm + inventory + SQL |
 
-Execution: browser/`fetch` from the DSH host → HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.
+## common → `netx-common`
 
-Handler/paths mirror [netx `packages/netx-mcp`](https://github.com/hansjone/netx/tree/main/packages/netx-mcp) (`http_tools.py` / `http_client.py`).
+| Tool | Role |
+|------|------|
+| `listManagedNe` / `getManagedNe` / `execManagedNe` / `listCliTargets` | Managed CLI |
+| `findTopologyPaths` | Fabric path lookup |
 
-**Out of v1:** `netx-topology` MCP / topology canvas skills.
+## topology → `netx-topology`
+
+| Tool | Role |
+|------|------|
+| Tree / view / folders / membership / neighbors | Canvas CRUD |
+| Fabric query / classify / edges | Inventory + adjacency |
+| `layoutTopologyView` | move_nodes / catalog / … |
+| `suggestSinkHubs` / `analyzeTopologyViewLayout` / `sinkTopologyDualUnits` | Dual-unit / QA (may stub → MCP layout engine) |
+
+Canonical skill bodies: sibling **`netx/skills/`**. DSH loads them at runtime (`NETX_SKILLS_ROOT` or `../netx/skills`) or from `presets/netxops/skills` after sync.
+
+Execution: HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.

@@ -30,11 +30,15 @@ const CSS = `
 .dsh-nx-reset{border:none;background:none;padding:0;font:inherit;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .dsh-nx-reset:hover:not(:disabled){color:var(--dsw-alias-label-primary)}
 .dsh-nx-input{height:34px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:8px;background:var(--dsw-alias-bg-layer-3);font:inherit;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-primary)}
+.dsh-nx-select{appearance:auto;cursor:pointer}
 .dsh-nx-input:focus-visible{outline:none;border-color:var(--dsw-alias-brand-primary)}
 .dsh-nx-inputInvalid{border-color:var(--dsw-alias-label-error)}
 .dsh-nx-hint{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
 .dsh-nx-checkRow{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .dsh-nx-checkRow input{margin-top:2px;flex:none}
+.dsh-nx-groupBlock{display:flex;flex-direction:column;gap:8px;padding:8px 0 4px}
+.dsh-nx-groupTitle{font-size:12px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary)}
+.dsh-nx-groupChecks{display:flex;flex-direction:column;gap:6px;padding-left:2px}
 .dsh-nx-invalid{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error)}
 .dsh-nx-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px;border-top:.5px solid var(--dsw-alias-border-l2)}
 .dsh-nx-failed{flex:1;min-width:0;margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error)}

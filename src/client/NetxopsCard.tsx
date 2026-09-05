@@ -7,6 +7,11 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { NetxopsCardFace, NetxopsCardState } from './controller.ts'
 import type { NetxopsLocaleKey } from './locales.ts'
 import type { CardFieldState } from './card-form.ts'
+import {
+  imCatalogOptionKey,
+  parseImCatalogOptionKey,
+  type ImDeliveryCatalog,
+} from './im-delivery-catalog.ts'
 import { alarmPushTone, type AlarmPushPhase } from './alarm-push-status-view.ts'
 import { ensureStyles } from './styles.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
@@ -84,6 +89,159 @@ function ValueField(props: {
       <p className={props.field.invalid ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
         {props.field.invalid ? props.invalidLabel : props.hint}
       </p>
+    </div>
+  )
+}
+
+function ImDeliveryPicker(props: {
+  catalog: ImDeliveryCatalog
+  botId: string
+  targetId: string
+  disabled: boolean
+  labels: {
+    target: string
+    none: string
+    manual: string
+    unavailable: string
+    botId: string
+    botHint: string
+    targetId: string
+    targetHint: string
+    overridden: string
+    reset: string
+    invalid: string
+  }
+  botField: CardFieldState
+  targetField: CardFieldState
+  onPick: (botId: string, targetId: string) => void
+  onEditBot: (text: string) => void
+  onEditTarget: (text: string) => void
+  onResetBot: () => void
+  onResetTarget: () => void
+}) {
+  const options = props.catalog.options
+  const selectedKey = props.botId && props.targetId
+    ? imCatalogOptionKey(props.botId, props.targetId)
+    : ''
+  const matched = options.some((row) => imCatalogOptionKey(row.botId, row.targetId) === selectedKey)
+  const [manual, setManual] = useState(() => !!(selectedKey && !matched))
+  useEffect(() => {
+    if (selectedKey && matched) setManual(false)
+    else if (selectedKey && !matched) setManual(true)
+  }, [selectedKey, matched])
+  const selectValue = manual ? '__manual__' : (matched ? selectedKey : '')
+  const showManual = manual || (selectedKey && !matched)
+
+  return (
+    <>
+      <div className="dsh-nx-field">
+        <div className="dsh-nx-fieldHead">
+          <label className="dsh-nx-label" htmlFor="netxops-im-target">{props.labels.target}</label>
+        </div>
+        <select
+          id="netxops-im-target"
+          className="dsh-nx-input dsh-nx-select"
+          value={selectValue}
+          disabled={props.disabled}
+          onChange={(event) => {
+            const value = event.target.value
+            if (value === '__manual__') {
+              setManual(true)
+              return
+            }
+            setManual(false)
+            if (!value) {
+              props.onPick('', '')
+              return
+            }
+            const next = parseImCatalogOptionKey(value)
+            props.onPick(next.botId, next.targetId)
+          }}
+        >
+          <option value="">
+            {options.length === 0 ? props.labels.none : `— ${props.labels.target} —`}
+          </option>
+          {options.map((row) => (
+            <option
+              key={imCatalogOptionKey(row.botId, row.targetId)}
+              value={imCatalogOptionKey(row.botId, row.targetId)}
+            >
+              {`${row.name} · ${row.channel || 'im'} · ${row.targetId}`}
+            </option>
+          ))}
+          <option value="__manual__">{props.labels.manual}</option>
+        </select>
+        {!props.catalog.available || options.length === 0
+          ? <p className="dsh-nx-hint">{props.catalog.hint || props.labels.unavailable}</p>
+          : null}
+      </div>
+      {showManual
+        ? (
+          <>
+            <ValueField
+              id="netxops-im-bot-id"
+              label={props.labels.botId}
+              hint={props.labels.botHint}
+              field={props.botField}
+              overriddenLabel={props.labels.overridden}
+              resetLabel={props.labels.reset}
+              invalidLabel={props.labels.invalid}
+              disabled={props.disabled}
+              onEdit={props.onEditBot}
+              onReset={props.onResetBot}
+            />
+            <ValueField
+              id="netxops-im-target-id"
+              label={props.labels.targetId}
+              hint={props.labels.targetHint}
+              field={props.targetField}
+              overriddenLabel={props.labels.overridden}
+              resetLabel={props.labels.reset}
+              invalidLabel={props.labels.invalid}
+              disabled={props.disabled}
+              onEdit={props.onEditTarget}
+              onReset={props.onResetTarget}
+            />
+          </>
+        )
+        : null}
+    </>
+  )
+}
+
+function CapabilityGroupBlock(props: {
+  title: string
+  inPresetLabel: string
+  publicLabel: string
+  inPreset: CardFieldState
+  published: CardFieldState
+  disabled: boolean
+  onEditInPreset: (checked: boolean) => void
+  onEditPublic: (checked: boolean) => void
+}) {
+  return (
+    <div className="dsh-nx-groupBlock">
+      <div className="dsh-nx-groupTitle">{props.title}</div>
+      <div className="dsh-nx-groupChecks">
+        <label className="dsh-nx-checkRow">
+          <input
+            type="checkbox"
+            checked={props.inPreset.text === 'true'}
+            disabled={props.disabled}
+            onChange={(event) => { props.onEditInPreset(event.target.checked) }}
+          />
+          <span>{props.inPresetLabel}</span>
+        </label>
+        <label className="dsh-nx-checkRow">
+          <input
+            type="checkbox"
+            checked={props.published.text === 'true'}
+            disabled={props.disabled}
+            onChange={(event) => { props.onEditPublic(event.target.checked) }}
+          />
+          <span>{props.publicLabel}</span>
+        </label>
+      </div>
     </div>
   )
 }
@@ -188,6 +346,66 @@ export function NetxopsCard(props: NetxopsCardProps) {
               onEdit={(text) => { props.edit('lang', text) }}
               onReset={() => { props.resetField('lang') }}
             />
+            <ValueField
+              id="netxops-nms-provider"
+              label={t('nmsProvider')}
+              hint={t('nmsProviderHint')}
+              field={state.nmsProvider}
+              overriddenLabel={t('overridden')}
+              resetLabel={t('reset')}
+              invalidLabel={t('invalid')}
+              disabled={disabled}
+              onEdit={(text) => { props.edit('nmsProvider', text) }}
+              onReset={() => { props.resetField('nmsProvider') }}
+            />
+            <div className="dsh-nx-field">
+              <div className="dsh-nx-fieldHead">
+                <span className="dsh-nx-label">{t('capabilityGroups')}</span>
+              </div>
+              <p className="dsh-nx-hint">{t('capabilityGroupsHint')}</p>
+              <CapabilityGroupBlock
+                title={t('groupNms')}
+                inPresetLabel={t('groupInPreset')}
+                publicLabel={t('groupPublic')}
+                inPreset={state.groupNmsInPreset}
+                published={state.groupNmsPublic}
+                disabled={disabled}
+                onEditInPreset={(checked) => {
+                  props.edit('groupNmsInPreset', checked ? 'true' : 'false')
+                }}
+                onEditPublic={(checked) => {
+                  props.edit('groupNmsPublic', checked ? 'true' : 'false')
+                }}
+              />
+              <CapabilityGroupBlock
+                title={t('groupCommon')}
+                inPresetLabel={t('groupInPreset')}
+                publicLabel={t('groupPublic')}
+                inPreset={state.groupCommonInPreset}
+                published={state.groupCommonPublic}
+                disabled={disabled}
+                onEditInPreset={(checked) => {
+                  props.edit('groupCommonInPreset', checked ? 'true' : 'false')
+                }}
+                onEditPublic={(checked) => {
+                  props.edit('groupCommonPublic', checked ? 'true' : 'false')
+                }}
+              />
+              <CapabilityGroupBlock
+                title={t('groupTopology')}
+                inPresetLabel={t('groupInPreset')}
+                publicLabel={t('groupPublic')}
+                inPreset={state.groupTopologyInPreset}
+                published={state.groupTopologyPublic}
+                disabled={disabled}
+                onEditInPreset={(checked) => {
+                  props.edit('groupTopologyInPreset', checked ? 'true' : 'false')
+                }}
+                onEditPublic={(checked) => {
+                  props.edit('groupTopologyPublic', checked ? 'true' : 'false')
+                }}
+              />
+            </div>
             <div className="dsh-nx-field">
               <div className="dsh-nx-fieldHead">
                 <label className="dsh-nx-label" htmlFor="netxops-alarm-push">{t('alarmPushEnabled')}</label>
@@ -290,29 +508,34 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 <span>{t('alarmDeliverImHint')}</span>
               </label>
             </div>
-            <ValueField
-              id="netxops-im-bot-id"
-              label={t('imBotId')}
-              hint={t('imBotIdHint')}
-              field={state.imBotId}
-              overriddenLabel={t('overridden')}
-              resetLabel={t('reset')}
-              invalidLabel={t('invalid')}
+            <ImDeliveryPicker
+              catalog={state.imDeliveryCatalog}
+              botId={state.imBotId.text}
+              targetId={state.imTargetId.text}
               disabled={disabled}
-              onEdit={(text) => { props.edit('imBotId', text) }}
-              onReset={() => { props.resetField('imBotId') }}
-            />
-            <ValueField
-              id="netxops-im-target-id"
-              label={t('imTargetId')}
-              hint={t('imTargetIdHint')}
-              field={state.imTargetId}
-              overriddenLabel={t('overridden')}
-              resetLabel={t('reset')}
-              invalidLabel={t('invalid')}
-              disabled={disabled}
-              onEdit={(text) => { props.edit('imTargetId', text) }}
-              onReset={() => { props.resetField('imTargetId') }}
+              labels={{
+                target: t('imTarget'),
+                none: t('imTargetNone'),
+                manual: t('imTargetManual'),
+                unavailable: t('imCatalogUnavailable'),
+                botId: t('imBotId'),
+                botHint: t('imBotIdHint'),
+                targetId: t('imTargetId'),
+                targetHint: t('imTargetIdHint'),
+                overridden: t('overridden'),
+                reset: t('reset'),
+                invalid: t('invalid'),
+              }}
+              botField={state.imBotId}
+              targetField={state.imTargetId}
+              onPick={(botId, targetId) => {
+                props.edit('imBotId', botId)
+                props.edit('imTargetId', targetId)
+              }}
+              onEditBot={(text) => { props.edit('imBotId', text) }}
+              onEditTarget={(text) => { props.edit('imTargetId', text) }}
+              onResetBot={() => { props.resetField('imBotId') }}
+              onResetTarget={() => { props.resetField('imTargetId') }}
             />
             <div className="dsh-nx-footer">
               {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}

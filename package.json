@@ -1,7 +1,7 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.17",
-  "description": "DeepSeek Harness Netx Ops: Ops-scoped netx__* REST tools + key-alarm push to DSH sessions + Plugins settings card + agent preset",
+  "version": "0.1.21",
+  "description": "DeepSeek Harness Netx Ops: capability groups nms/common/topology (one group ↔ one skill)",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -9,6 +9,9 @@
   "exports": {
     ".": "./lib/index.js",
     "./tools": "./lib/agent-tools.js",
+    "./tools-nms": "./lib/agent-tools-nms.js",
+    "./tools-common": "./lib/agent-tools-common.js",
+    "./tools-topology": "./lib/agent-tools-topology.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
@@ -16,6 +19,9 @@
     "src/",
     "lib/index.js",
     "lib/agent-tools.js",
+    "lib/agent-tools-nms.js",
+    "lib/agent-tools-common.js",
+    "lib/agent-tools-topology.js",
     "lib/client.js",
     "presets/",
     "cordis.patch.yml",
@@ -30,7 +36,7 @@
     "deepseek-harness",
     "netx",
     "ops",
-    "ume",
+    "nms",
     "agent-preset"
   ],
   "repository": {

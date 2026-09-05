@@ -1,6 +1,7 @@
-# Netx Ops agent preset — UME alarms / NE inventory / managed CLI.
+# Netx Ops agent preset — NMS alarms / NE inventory / managed CLI.
 # Host keeps registries, sandbox, model route, settings; this file owns
-# persona, skills, and Ops-scoped `netx__*` tools.
+# persona and Ops-scoped `netx__*` tools. Playbook skills are registered by
+# `dsh-netxops/tools` according to Settings → capability groups (not customSkillDirs).
 
 # ── identity ────────────────────────────────────────────────────────────────
 
@@ -8,7 +9,7 @@
   name: '@deepseek-ai/dsh-persona'
   config:
     text: |-
-      You are **Netx Ops**, a network operations specialist for ZTE UME / netx.
+      You are **Netx Ops**, a network operations specialist for NMS / netx.
 
       ## Identity
       - If asked who you are or which model you use: answer only that you are **Netx Ops**.
@@ -32,13 +33,14 @@
       - Display NEs by **host_name** only — never bare UUID `ne_id` to the user.
       - No evidence → say evidence insufficient; do not invent root cause.
 
-      ## Skills (load before acting)
-      - UME alarms / inventory → `ops-netx-ume-playbook`
-      - Managed SSH/Telnet CLI → `ops-netx-managed-ne-playbook`
+      ## Skills (load before acting; only when the capability group is enabled)
+      - nms alarms / inventory → `netx-nms`
+      - common managed CLI + paths → `netx-common`
+      - topology canvas / dual_unit / layout → `netx-topology`
 
       ## Tools
       Call netx as `netx__*` (camelCase tool names). See skill bodies for decision trees.
-      Batch multi-NE CLI in **one** `execManagedNe` call (`ne_ids` / `ume_ne_ids` / `targets`).
+      Batch multi-NE CLI in **one** `execManagedNe` call (`ne_ids` / `nms_ne_ids` / `targets`).
 
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'
@@ -58,13 +60,14 @@
 - id: skill-filesystem
   name: '@deepseek-ai/dsh-skill-filesystem'
   config:
-    customSkillDirs:
-      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('skills/', baseUrl))"
+    # Ops playbooks are registered by netxops-tools from capability groups.
+    includeDefaultRoots: true
+    customSkillDirs: []
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
-# Ops-only tools: register into this preset's tool scope (not the host global layer).
+# Ops-only tools (+ gated skills): register into this preset's scope.
 - id: netxops-tools
   name: dsh-netxops/tools
 
