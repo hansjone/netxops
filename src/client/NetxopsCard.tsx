@@ -7,8 +7,38 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { NetxopsCardFace, NetxopsCardState } from './controller.ts'
 import type { NetxopsLocaleKey } from './locales.ts'
 import type { CardFieldState } from './card-form.ts'
+import { alarmPushTone, type AlarmPushPhase } from './alarm-push-status-view.ts'
 import { ensureStyles } from './styles.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+
+function phaseLocaleKey(phase: AlarmPushPhase): NetxopsLocaleKey {
+  switch (phase) {
+    case 'disabled': return 'alarmPushPhaseDisabled'
+    case 'idle': return 'alarmPushPhaseIdle'
+    case 'connecting': return 'alarmPushPhaseConnecting'
+    case 'authenticating': return 'alarmPushPhaseAuthenticating'
+    case 'connected': return 'alarmPushPhaseConnected'
+    case 'reconnecting': return 'alarmPushPhaseReconnecting'
+    case 'auth_failed': return 'alarmPushPhaseAuthFailed'
+    case 'error': return 'alarmPushPhaseError'
+    default: return 'alarmPushPhaseDisabled'
+  }
+}
+
+function StatusBadge(props: {
+  phase: AlarmPushPhase
+  label: string
+}) {
+  const tone = alarmPushTone(props.phase)
+  const className = tone === 'ok'
+    ? 'dsh-nx-status dsh-nx-statusOk'
+    : tone === 'warn'
+      ? 'dsh-nx-status dsh-nx-statusWarn'
+      : tone === 'err'
+        ? 'dsh-nx-status dsh-nx-statusErr'
+        : 'dsh-nx-status'
+  return <span className={className}>{props.label}</span>
+}
 
 export type NetxopsCardProps =
   PropsRuntime<'settings.plugin.item'>
@@ -80,6 +110,9 @@ export function NetxopsCard(props: NetxopsCardProps) {
   const title = t('title' satisfies NetxopsLocaleKey)
   const disabled = !state.writable
   const blocked = !state.dirty || state.invalid || state.saving
+  const pushStatus = state.alarmPushStatus
+  const showHeaderStatus = pushStatus !== null
+    && (pushStatus.enabled || pushStatus.phase !== 'disabled')
 
   return (
     <li className={open ? 'dsh-nx-card dsh-nx-cardOpen' : 'dsh-nx-card'}>
@@ -94,6 +127,14 @@ export function NetxopsCard(props: NetxopsCardProps) {
           <span className="dsh-nx-name">{title}</span>
           <span className="dsh-nx-desc">{t('description')}</span>
         </span>
+        {showHeaderStatus && pushStatus
+          ? (
+            <StatusBadge
+              phase={pushStatus.phase}
+              label={t(phaseLocaleKey(pushStatus.phase))}
+            />
+          )
+          : null}
         {state.dirty ? <span className="dsh-nx-pending">{t('unsaved')}</span> : null}
         <span className={open ? 'dsh-nx-chevron dsh-nx-chevronOpen' : 'dsh-nx-chevron'} aria-hidden>▾</span>
       </button>
@@ -150,21 +191,31 @@ export function NetxopsCard(props: NetxopsCardProps) {
             <div className="dsh-nx-field">
               <div className="dsh-nx-fieldHead">
                 <label className="dsh-nx-label" htmlFor="netxops-alarm-push">{t('alarmPushEnabled')}</label>
-                {state.alarmPushEnabled.overridden
-                  ? (
-                    <span className="dsh-nx-badges">
-                      <span className="dsh-nx-badge">{t('overridden')}</span>
-                      <button
-                        type="button"
-                        className="dsh-nx-reset"
-                        disabled={disabled}
-                        onClick={() => { props.resetField('alarmPushEnabled') }}
-                      >
-                        {t('reset')}
-                      </button>
-                    </span>
-                  )
-                  : null}
+                <span className="dsh-nx-badges">
+                  {pushStatus
+                    ? (
+                      <StatusBadge
+                        phase={pushStatus.phase}
+                        label={`${t('alarmPushStatus')}: ${t(phaseLocaleKey(pushStatus.phase))}`}
+                      />
+                    )
+                    : null}
+                  {state.alarmPushEnabled.overridden
+                    ? (
+                      <>
+                        <span className="dsh-nx-badge">{t('overridden')}</span>
+                        <button
+                          type="button"
+                          className="dsh-nx-reset"
+                          disabled={disabled}
+                          onClick={() => { props.resetField('alarmPushEnabled') }}
+                        >
+                          {t('reset')}
+                        </button>
+                      </>
+                    )
+                    : null}
+                </span>
               </div>
               <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-push">
                 <input
@@ -178,6 +229,12 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 />
                 <span>{t('alarmPushEnabledHint')}</span>
               </label>
+              {pushStatus?.wsUrl
+                ? <p className="dsh-nx-hint">{pushStatus.wsUrl}</p>
+                : null}
+              {pushStatus?.lastError
+                ? <p className="dsh-nx-invalid" role="status">{pushStatus.lastError}</p>
+                : null}
             </div>
             <div className="dsh-nx-footer">
               {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}

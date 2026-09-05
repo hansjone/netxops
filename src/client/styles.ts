@@ -12,6 +12,10 @@ const CSS = `
 .dsh-nx-name{font-size:15px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
 .dsh-nx-desc{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
 .dsh-nx-pending{flex:none;border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary)}
+.dsh-nx-status{flex:none;border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-tertiary)}
+.dsh-nx-statusOk{color:var(--dsw-alias-label-primary);background:color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent)}
+.dsh-nx-statusWarn{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform)}
+.dsh-nx-statusErr{color:var(--dsw-alias-label-error);background:color-mix(in srgb, var(--dsw-alias-label-error) 12%, transparent)}
 .dsh-nx-chevron{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .16s}
 .dsh-nx-chevronOpen{transform:rotate(180deg)}
 .dsh-nx-body{border-top:.5px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}

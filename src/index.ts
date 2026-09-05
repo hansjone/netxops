@@ -20,6 +20,11 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
 import { startAlarmPushClient } from './netx/alarm-push.ts'
+import {
+  getAlarmPushStatus,
+  publishAlarmPushStatus,
+  resetAlarmPushStatus,
+} from './netx/alarm-push-status.ts'
 import { deliverAlarmToSession, resetAlarmSession } from './netx/alarm-session.ts'
 import { publishNetxConnection } from './netx/runtime.ts'
 
@@ -28,6 +33,9 @@ export const name = 'netxops'
 
 /** Wait for the credentials store before publishing a Bearer snapshot. */
 export const inject = ['credentials']
+
+/** Connection RPC channel for browser status reads. */
+export const NETXOPS_RPC_CHANNEL = '/netxops'
 
 /** Settings / composition namespace (Plugins page join key). */
 export const NETXOPS_SETTINGS_NAMESPACE = 'netxops'
@@ -167,9 +175,19 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     stopAlarmPush?.()
     stopAlarmPush = undefined
     resetAlarmSession()
-    if (!enabled) return
+    if (!enabled) {
+      resetAlarmPushStatus()
+      return
+    }
     if (!token.trim()) {
       ctx.logger.warn('netxops alarm-push: enabled but token is empty — not connecting')
+      publishAlarmPushStatus({
+        phase: 'error',
+        enabled: true,
+        wsUrl: '',
+        detail: 'missing_token',
+        lastError: 'token empty',
+      })
       return
     }
     stopAlarmPush = startAlarmPushClient({
@@ -229,10 +247,32 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     if (String(ref) === source().tokenCredentialRef) publish()
   })
 
+  // Browser card polls alarm-push WSS status through Connection RPC.
+  ctx.inject(['connection'], (connCtx) => {
+    const rpc = connCtx.connection?.rpc
+    if (!rpc || typeof rpc.handle !== 'function') {
+      connCtx.logger.warn('netxops: connection.rpc.handle unavailable — alarm status UI disabled')
+      return
+    }
+    connCtx.effect(() => {
+      const dispose = rpc.handle(
+        NETXOPS_RPC_CHANNEL,
+        async (endpoint: string) => {
+          if (endpoint !== 'alarm-push.status') {
+            return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
+          }
+          return { ok: true, value: getAlarmPushStatus() }
+        },
+      )
+      return () => { void dispose() }
+    }, 'netxops: alarm-push status rpc')
+  })
+
   ctx.effect(() => () => {
     generation += 1
     stopAlarmPush?.()
     stopAlarmPush = undefined
     resetAlarmSession()
+    resetAlarmPushStatus()
   }, 'netxops: dispose host bridge')
 }

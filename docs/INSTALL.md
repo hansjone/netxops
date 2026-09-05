@@ -30,7 +30,7 @@ dsh web   # or: pnpm dsh web
 
 1. **Settings → Plugins → Netx Ops** → API URL (+ token if the field is enabled).  
    Token fallback: `scripts/set-netx-token.ps1` / `.sh`.  
-   Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws` and follows a sticky session when netx matches a key alert.
+   Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws` and follows a sticky session when netx matches a key alert. The card header shows live WSS status (`Connected` / `Reconnecting` / `Auth failed`).
 2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
 3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms.
 
@@ -38,13 +38,15 @@ dsh web   # or: pnpm dsh web
 
 - **netx** (fixed IP) hosts the subscribe hub and fans out matched key alerts.
 - **netxops** (each DSH) reuses the same URL/token, connects outbound, and delivers into a DSH session.
+- Live status is exposed on the Plugins card via Connection RPC (`/netxops` → `alarm-push.status`); no curl required for day-to-day checks.
 - WhatsApp / `dsh-im` is **not** required for this path.
 
 ## Verify
 
 1. Plugins card **Netx Ops** visible.
-2. Agent presets → Custom → **Netx Ops**.
-3. Tools include `netx__queryUmeAlarms`.
+2. With key-alarm push on: card badge shows **Connected** (or reconnecting / auth failed with detail).
+3. Agent presets → Custom → **Netx Ops**.
+4. Tools include `netx__queryUmeAlarms`.
 
 See [TOOL_MAP.md](TOOL_MAP.md).
 

@@ -54,6 +54,19 @@ export function apply(ctx: ClientContext): void {
     }, 'netxops: credential invalidations')
   })
 
+  // Soft-inject Connection so the card can poll host WSS status.
+  ctx.inject(['connection'], (connCtx) => {
+    const call = connCtx.connection?.rpc?.call?.bind(connCtx.connection.rpc)
+    if (typeof call !== 'function') {
+      connCtx.logger.warn('netxops: connection.rpc.call unavailable — alarm status UI disabled')
+      return
+    }
+    card.setAlarmPushRpc(call)
+    connCtx.effect(() => () => {
+      card.setAlarmPushRpc(undefined)
+    }, 'netxops: clear alarm-push rpc')
+  })
+
   ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
     name: 'settings.plugin.item',
     key: NETXOPS_NS,

@@ -10,10 +10,16 @@ import {
   CardForm, textField, booleanField,
   type CardActions, type CardFieldState, type CardShell,
 } from './card-form.ts'
+import {
+  fetchAlarmPushStatus,
+  type AlarmPushRpcCall,
+  type AlarmPushStatus,
+} from './alarm-push-status-view.ts'
 
 export const NETXOPS_NS = 'netxops'
 const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
 const API_TOKEN_FIELD = 'apiToken'
+const STATUS_POLL_MS = 2_000
 
 export interface NetxopsSettings {
   apiUrl?: string
@@ -37,6 +43,8 @@ export interface NetxopsCardState extends CardShell {
   apiTokenConfigured: boolean
   apiTokenWritable: boolean
   apiTokenRemoteReady: boolean
+  /** Host WSS status when Connection RPC is available; otherwise null. */
+  alarmPushStatus: AlarmPushStatus | null
 }
 
 export interface NetxopsCardFace extends CardActions {
@@ -59,6 +67,10 @@ export class NetxopsCardController {
     writable: false,
     remoteReady: false,
   }
+  private rpcCall: AlarmPushRpcCall | undefined
+  private alarmPushStatus: AlarmPushStatus | null = null
+  private pollTimer: ReturnType<typeof setInterval> | undefined
+  private pollInFlight = false
 
   constructor(
     private readonly scope: SettingsScope<NetxopsSettings>,
@@ -86,6 +98,60 @@ export class NetxopsCardController {
     if (ready) void this.readCredential()
   }
 
+  /**
+   * Soft-inject Host Connection RPC used to read alarm-push WSS status.
+   * @param call - `ctx.connection.rpc.call`, or undefined when connection leaves.
+   */
+  setAlarmPushRpc(call: AlarmPushRpcCall | undefined): void {
+    this.rpcCall = call
+    if (call === undefined) {
+      this.stopStatusPoll()
+      if (this.alarmPushStatus !== null) {
+        this.alarmPushStatus = null
+        this.store.set(this.projection())
+      }
+      return
+    }
+    this.startStatusPoll()
+    void this.refreshAlarmPushStatus()
+  }
+
+  private startStatusPoll(): void {
+    if (this.pollTimer !== undefined) return
+    this.pollTimer = setInterval(() => { void this.refreshAlarmPushStatus() }, STATUS_POLL_MS)
+  }
+
+  private stopStatusPoll(): void {
+    if (this.pollTimer === undefined) return
+    clearInterval(this.pollTimer)
+    this.pollTimer = undefined
+  }
+
+  private async refreshAlarmPushStatus(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.pollInFlight) return
+    this.pollInFlight = true
+    try {
+      const next = await fetchAlarmPushStatus(call)
+      const prev = this.alarmPushStatus
+      if (
+        prev
+        && prev.phase === next.phase
+        && prev.enabled === next.enabled
+        && prev.wsUrl === next.wsUrl
+        && prev.detail === next.detail
+        && prev.lastError === next.lastError
+        && prev.lastConnectedAt === next.lastConnectedAt
+      ) return
+      this.alarmPushStatus = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last good snapshot; next poll retries.
+    } finally {
+      this.pollInFlight = false
+    }
+  }
+
   private projection(): NetxopsCardState {
     return {
       ...this.form.shell(),
@@ -96,6 +162,7 @@ export class NetxopsCardController {
       apiTokenConfigured: this.credential.configured,
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,
       apiTokenRemoteReady: this.credential.remoteReady,
+      alarmPushStatus: this.alarmPushStatus,
     }
   }
 

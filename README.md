@@ -16,7 +16,7 @@ dsh web
 Then:
 
 1. Settings → **Plugins** → **Netx Ops** → API URL / token  
-2. Optional: enable **关键告警推送** — DSH dials out to netx and opens a sticky session on matched key alarms (WhatsApp / im not required)  
+2. Optional: enable **关键告警推送** — DSH dials out to netx and opens a sticky session on matched key alarms (WhatsApp / im not required). The card shows live WSS status (Connected / Reconnecting / Auth failed).  
 3. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
 4. New session → choose **Netx Ops**
 

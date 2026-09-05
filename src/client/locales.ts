@@ -9,6 +9,15 @@ export type NetxopsLocaleKey =
   | 'langHint'
   | 'alarmPushEnabled'
   | 'alarmPushEnabledHint'
+  | 'alarmPushStatus'
+  | 'alarmPushPhaseDisabled'
+  | 'alarmPushPhaseIdle'
+  | 'alarmPushPhaseConnecting'
+  | 'alarmPushPhaseAuthenticating'
+  | 'alarmPushPhaseConnected'
+  | 'alarmPushPhaseReconnecting'
+  | 'alarmPushPhaseAuthFailed'
+  | 'alarmPushPhaseError'
   | 'apiToken'
   | 'apiTokenHint'
   | 'apiTokenUnavailable'
@@ -35,6 +44,15 @@ export const en: Record<NetxopsLocaleKey, string> = {
   langHint: 'Response language hint (zh / en).',
   alarmPushEnabled: 'Key-alarm push',
   alarmPushEnabledHint: 'Dial out to netx and open/follow a DSH session when a matched key alarm arrives. WhatsApp/im is optional and not required.',
+  alarmPushStatus: 'Push link',
+  alarmPushPhaseDisabled: 'Off',
+  alarmPushPhaseIdle: 'Idle',
+  alarmPushPhaseConnecting: 'Connecting…',
+  alarmPushPhaseAuthenticating: 'Authenticating…',
+  alarmPushPhaseConnected: 'Connected',
+  alarmPushPhaseReconnecting: 'Reconnecting…',
+  alarmPushPhaseAuthFailed: 'Auth failed',
+  alarmPushPhaseError: 'Error',
   apiToken: 'API token',
   apiTokenHint: 'Stored as credential NETX_API_TOKEN (never written into settings). Leave blank to keep the current token.',
   apiTokenUnavailable: 'This DSH build does not expose remote.credentials. Set the token with scripts/set-netx-token.ps1 (or .sh), then restart is not required if credentials are watched.',
@@ -62,6 +80,15 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   langHint: '响应语言提示（zh / en）。',
   alarmPushEnabled: '关键告警推送',
   alarmPushEnabledHint: '主动连接 netx；匹配到关键告警后在本机打开/续写一条 DSH 会话。不必安装 WhatsApp / im。',
+  alarmPushStatus: '推送链路',
+  alarmPushPhaseDisabled: '未开启',
+  alarmPushPhaseIdle: '空闲',
+  alarmPushPhaseConnecting: '连接中…',
+  alarmPushPhaseAuthenticating: '鉴权中…',
+  alarmPushPhaseConnected: '已连接',
+  alarmPushPhaseReconnecting: '重连中…',
+  alarmPushPhaseAuthFailed: '鉴权失败',
+  alarmPushPhaseError: '异常',
   apiToken: 'API Token',
   apiTokenHint: '写入凭据 NETX_API_TOKEN（不会进 settings）。留空表示保留已有 token。',
   apiTokenUnavailable: '当前 DSH 未提供 remote.credentials。请用 scripts/set-netx-token.ps1（或 .sh）写入 token；若 harness 在监视凭据文件则无需重启。',

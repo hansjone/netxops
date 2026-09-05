@@ -2,6 +2,12 @@
  * Convert a netx REST apiUrl into the DSH alarm-subscribe WebSocket URL.
  * @param apiUrl - e.g. http://192.168.1.10:8890
  */
+
+import {
+  publishAlarmPushStatus,
+  type AlarmPushPhase,
+} from './alarm-push-status.ts'
+
 export function alarmSubscribeUrl(apiUrl: string): string {
   const trimmed = apiUrl.trim().replace(/\/$/, '')
   if (!trimmed) return ''
@@ -99,6 +105,21 @@ export interface AlarmPushClientOptions {
   WebSocketImpl?: typeof WebSocket
 }
 
+function setPhase(
+  phase: AlarmPushPhase,
+  wsUrl: string,
+  extra: { detail?: string, lastError?: string | null, lastConnectedAt?: number | null } = {},
+): void {
+  publishAlarmPushStatus({
+    phase,
+    enabled: true,
+    wsUrl,
+    detail: extra.detail ?? '',
+    lastError: extra.lastError === undefined ? null : extra.lastError,
+    ...(extra.lastConnectedAt !== undefined ? { lastConnectedAt: extra.lastConnectedAt } : {}),
+  })
+}
+
 /**
  * Dial out to netx's fixed-IP alarm hub and forward `netx.alarm` events.
  * @returns disposer that closes the socket and cancels reconnect.
@@ -109,12 +130,20 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
   const token = options.token.trim()
   if (!wsUrl || !token) {
     log.warn?.('netxops alarm-push: missing apiUrl or token — not connecting')
+    setPhase('error', wsUrl, {
+      detail: 'missing_url_or_token',
+      lastError: 'missing apiUrl or token',
+    })
     return () => {}
   }
 
   const WS = options.WebSocketImpl ?? globalThis.WebSocket
   if (typeof WS !== 'function') {
     log.error?.('netxops alarm-push: WebSocket is unavailable in this runtime')
+    setPhase('error', wsUrl, {
+      detail: 'websocket_unavailable',
+      lastError: 'WebSocket unavailable',
+    })
     return () => {}
   }
 
@@ -131,27 +160,33 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
     }
   }
 
-  const scheduleReconnect = (): void => {
+  const scheduleReconnect = (reason: string): void => {
     if (closed) return
     clearReconnect()
     const delay = Math.min(60_000, baseDelay * (2 ** Math.min(attempt, 5)))
     attempt += 1
+    setPhase('reconnecting', wsUrl, {
+      detail: `retry_in_${delay}ms`,
+      lastError: reason,
+    })
     reconnectTimer = setTimeout(() => { connect() }, delay)
   }
 
   const connect = (): void => {
     if (closed) return
     clearReconnect()
+    setPhase(attempt > 0 ? 'reconnecting' : 'connecting', wsUrl, { detail: 'dialing' })
     try {
       socket = new WS(wsUrl)
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
       log.warn?.('netxops alarm-push: connect failed:', error)
-      scheduleReconnect()
+      scheduleReconnect(message)
       return
     }
 
     socket.addEventListener('open', () => {
-      attempt = 0
+      setPhase('authenticating', wsUrl, { detail: 'auth' })
       socket?.send(JSON.stringify({ type: 'auth', token }))
     })
 
@@ -164,11 +199,20 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
       }
       const type = String(msg.type ?? '').toLowerCase()
       if (type === 'auth-ok') {
+        attempt = 0
+        const now = Date.now()
+        setPhase('connected', wsUrl, {
+          detail: String(msg.user ?? 'ok'),
+          lastError: null,
+          lastConnectedAt: now,
+        })
         log.info?.('netxops alarm-push: subscribed to %s', wsUrl)
         return
       }
       if (type === 'auth-fail') {
-        log.error?.('netxops alarm-push: auth failed (%s)', msg.error)
+        const err = String(msg.error ?? 'auth_failed')
+        log.error?.('netxops alarm-push: auth failed (%s)', err)
+        setPhase('auth_failed', wsUrl, { detail: err, lastError: err })
         socket?.close()
         return
       }
@@ -185,7 +229,7 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
 
     socket.addEventListener('close', () => {
       socket = null
-      if (!closed) scheduleReconnect()
+      if (!closed) scheduleReconnect('socket_closed')
     })
 
     socket.addEventListener('error', () => {
@@ -193,7 +237,6 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
     })
   }
 
-  // Keepalive ping while connected.
   const pingTimer = setInterval(() => {
     if (socket && socket.readyState === WS.OPEN) {
       try {
