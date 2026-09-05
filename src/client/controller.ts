@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SnapshotStore } from './snapshot-store.ts'
 import {
-  CardForm, textField,
+  CardForm, textField, booleanField,
   type CardActions, type CardFieldState, type CardShell,
 } from './card-form.ts'
 
@@ -19,6 +19,7 @@ export interface NetxopsSettings {
   apiUrl?: string
   lang?: string
   tokenCredentialRef?: string
+  alarmPushEnabled?: boolean
 }
 
 interface CredentialState {
@@ -31,6 +32,7 @@ interface CredentialState {
 export interface NetxopsCardState extends CardShell {
   apiUrl: CardFieldState
   lang: CardFieldState
+  alarmPushEnabled: CardFieldState
   apiToken: CardFieldState
   apiTokenConfigured: boolean
   apiTokenWritable: boolean
@@ -64,7 +66,7 @@ export class NetxopsCardController {
   ) {
     this.form = new CardForm(
       scope,
-      [textField('apiUrl'), textField('lang')],
+      [textField('apiUrl'), textField('lang'), booleanField('alarmPushEnabled')],
       [{ field: API_TOKEN_FIELD, write: text => this.writeToken(text) }],
     )
     this.store = this.form.bind(() => this.projection())
@@ -89,6 +91,7 @@ export class NetxopsCardController {
       ...this.form.shell(),
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
+      alarmPushEnabled: this.form.field('alarmPushEnabled'),
       apiToken: this.form.field(API_TOKEN_FIELD),
       apiTokenConfigured: this.credential.configured,
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,

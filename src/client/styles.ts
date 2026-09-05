@@ -29,6 +29,8 @@ const CSS = `
 .dsh-nx-input:focus-visible{outline:none;border-color:var(--dsw-alias-brand-primary)}
 .dsh-nx-inputInvalid{border-color:var(--dsw-alias-label-error)}
 .dsh-nx-hint{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+.dsh-nx-checkRow{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.dsh-nx-checkRow input{margin-top:2px;flex:none}
 .dsh-nx-invalid{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error)}
 .dsh-nx-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px;border-top:.5px solid var(--dsw-alias-border-l2)}
 .dsh-nx-failed{flex:1;min-width:0;margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error)}

@@ -1,11 +1,10 @@
 /**
- * Host-plane Netx Ops: settings (apiUrl / lang) + credentials (NETX_API_TOKEN)
- * publish a connection snapshot; the Ops preset mounts `netx__*` into its own
- * tool scope (`dsh-netxops/tools`) so other agents do not see them.
+ * Host-plane Netx Ops: settings (apiUrl / lang / alarm push) + credentials
+ * (NETX_API_TOKEN) publish a connection snapshot; the Ops preset mounts
+ * `netx__*` into its own tool scope (`dsh-netxops/tools`).
  *
- * On activate, the agent preset + skills are copied into
- * `$DSH_HOME/.agent-presets/netxops` so `dsh plugin add` alone is enough
- * (Windows junctions are invisible to DSH's `Dirent.isDirectory()` scan).
+ * When「关键告警推送」is on, this host dials out to netx's fixed-IP alarm hub and
+ * opens/follows a sticky DSH session (im / WhatsApp is optional and separate).
  *
  * @module dsh-netxops
  */
@@ -20,6 +19,8 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
 import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
+import { startAlarmPushClient } from './netx/alarm-push.ts'
+import { deliverAlarmToSession, resetAlarmSession } from './netx/alarm-session.ts'
 import { publishNetxConnection } from './netx/runtime.ts'
 
 /** Cordis plugin name. */
@@ -52,6 +53,11 @@ export interface Config {
    * on every activate (required for Settings → Agent presets).
    */
   installAgentPreset: boolean
+  /**
+   * Dial out to netx `/v1/integrations/dsh-alarm/ws` and deliver matched key
+   * alarms into a sticky DSH session.
+   */
+  alarmPushEnabled: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -60,6 +66,7 @@ export const Config: z<Config> = z.object({
   tokenCredentialRef: z.string().role('credential-ref').default(DEFAULT_TOKEN_REF),
   toolCallTimeoutMs: z.number().step(1).min(1000).default(120_000),
   installAgentPreset: z.boolean().default(true),
+  alarmPushEnabled: z.boolean().default(false),
 })
 
 /** Package root (parent of `lib/` or `src/` depending on launch). */
@@ -144,15 +151,33 @@ function installNetxopsSettings(
 }
 
 /**
- * Apply the Netx Ops host bridge (settings + connection publish; tools live on the preset).
+ * Apply the Netx Ops host bridge (settings + connection publish + optional alarm push).
  */
 export function apply(ctx: Context, config: Config = Config({})): void {
   let source: () => Config = () => config
   let publishing: Promise<void> = Promise.resolve()
   let generation = 0
+  let stopAlarmPush: (() => void) | undefined
 
   if (config.installAgentPreset) {
     ensureAgentPresetInstalled(ctx.logger)
+  }
+
+  const restartAlarmPush = (apiUrl: string, token: string, enabled: boolean, lang: string): void => {
+    stopAlarmPush?.()
+    stopAlarmPush = undefined
+    resetAlarmSession()
+    if (!enabled) return
+    if (!token.trim()) {
+      ctx.logger.warn('netxops alarm-push: enabled but token is empty — not connecting')
+      return
+    }
+    stopAlarmPush = startAlarmPushClient({
+      apiUrl,
+      token,
+      logger: ctx.logger,
+      onAlarm: (payload) => deliverAlarmToSession(ctx, payload, lang),
+    })
   }
 
   const publish = (): void => {
@@ -170,6 +195,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
       })
+      restartAlarmPush(apiUrl, token, current.alarmPushEnabled === true, current.lang)
       if (!tokenConfigured) {
         ctx.logger.warn(
           'netxops: published connection → %s tokenConfigured=false (set credential %s)',
@@ -177,7 +203,11 @@ export function apply(ctx: Context, config: Config = Config({})): void {
           current.tokenCredentialRef,
         )
       } else {
-        ctx.logger.info('netxops: published connection → %s tokenConfigured=true', apiUrl)
+        ctx.logger.info(
+          'netxops: published connection → %s tokenConfigured=true alarmPush=%s',
+          apiUrl,
+          current.alarmPushEnabled === true,
+        )
       }
     }).catch((error) => {
       ctx.logger.error('netxops: connection publish error: %s', error)
@@ -201,5 +231,8 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   ctx.effect(() => () => {
     generation += 1
+    stopAlarmPush?.()
+    stopAlarmPush = undefined
+    resetAlarmSession()
   }, 'netxops: dispose host bridge')
 }

@@ -1,7 +1,7 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.14",
-  "description": "DeepSeek Harness Netx Ops: Ops-scoped netx__* REST tools + Plugins settings card + agent preset",
+  "version": "0.1.15",
+  "description": "DeepSeek Harness Netx Ops: Ops-scoped netx__* REST tools + key-alarm push to DSH sessions + Plugins settings card + agent preset",
   "license": "MIT",
   "type": "module",
   "private": false,

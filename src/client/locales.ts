@@ -7,6 +7,8 @@ export type NetxopsLocaleKey =
   | 'apiUrlHint'
   | 'lang'
   | 'langHint'
+  | 'alarmPushEnabled'
+  | 'alarmPushEnabledHint'
   | 'apiToken'
   | 'apiTokenHint'
   | 'apiTokenUnavailable'
@@ -28,9 +30,11 @@ export const en: Record<NetxopsLocaleKey, string> = {
   title: 'Netx Ops',
   description: 'UME API endpoint and bearer token for netx__* tools.',
   apiUrl: 'API URL',
-  apiUrlHint: 'netx REST root, e.g. http://127.0.0.1:8890',
+  apiUrlHint: 'netx REST root, e.g. http://127.0.0.1:8890 (also used for alarm subscribe)',
   lang: 'Language',
   langHint: 'Response language hint (zh / en).',
+  alarmPushEnabled: 'Key-alarm push',
+  alarmPushEnabledHint: 'Dial out to netx and open/follow a DSH session when a matched key alarm arrives. WhatsApp/im is optional and not required.',
   apiToken: 'API token',
   apiTokenHint: 'Stored as credential NETX_API_TOKEN (never written into settings). Leave blank to keep the current token.',
   apiTokenUnavailable: 'This DSH build does not expose remote.credentials. Set the token with scripts/set-netx-token.ps1 (or .sh), then restart is not required if credentials are watched.',
@@ -53,9 +57,11 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   title: 'Netx Ops',
   description: 'UME API 地址与 Bearer Token，供 netx__* 工具使用。',
   apiUrl: 'API 地址',
-  apiUrlHint: 'netx REST 根地址，例如 http://127.0.0.1:8890',
+  apiUrlHint: 'netx REST 根地址，例如 http://127.0.0.1:8890（告警订阅复用同一地址）',
   lang: '语言',
   langHint: '响应语言提示（zh / en）。',
+  alarmPushEnabled: '关键告警推送',
+  alarmPushEnabledHint: '主动连接 netx；匹配到关键告警后在本机打开/续写一条 DSH 会话。不必安装 WhatsApp / im。',
   apiToken: 'API Token',
   apiTokenHint: '写入凭据 NETX_API_TOKEN（不会进 settings）。留空表示保留已有 token。',
   apiTokenUnavailable: '当前 DSH 未提供 remote.credentials。请用 scripts/set-netx-token.ps1（或 .sh）写入 token；若 harness 在监视凭据文件则无需重启。',

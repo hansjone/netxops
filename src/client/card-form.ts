@@ -62,6 +62,24 @@ export function textField(field: string): CardFieldSpec {
   }
 }
 
+/** Boolean settings field rendered as a checkbox (stores true / clears when false). */
+export function booleanField(field: string): CardFieldSpec {
+  return {
+    field,
+    format: value => (value === true ? 'true' : 'false'),
+    parse: (text) => {
+      const normalized = text.trim().toLowerCase()
+      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+        return { kind: 'set', value: true }
+      }
+      if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === '') {
+        return { kind: 'clear' }
+      }
+      return undefined
+    },
+  }
+}
+
 export class CardForm<T> {
   private readonly specs: Map<string, CardFieldSpec>
   private readonly secretSpecs: Map<string, CardSecretSpec>

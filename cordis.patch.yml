@@ -13,3 +13,4 @@
         tokenCredentialRef: NETX_API_TOKEN
         toolCallTimeoutMs: 120000
         installAgentPreset: true
+        alarmPushEnabled: false

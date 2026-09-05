@@ -16,6 +16,15 @@ const external = [
   '@deepseek-ai/dsh-credentials',
   '@deepseek-ai/dsh-settings',
   '@deepseek-ai/dsh-tools',
+  '@deepseek-ai/dsh-llm',
+  '@deepseek-ai/dsh-brand',
+  '@deepseek-ai/dsh-agent',
+  '@deepseek-ai/dsh-agent-presets',
+  '@deepseek-ai/dsh-workspace',
+  '@deepseek-ai/dsh-session',
+  '@deepseek-ai/dsh-session-title',
+  '@deepseek-ai/dsh-permission-presets',
+  '@deepseek-ai/dsh-agent-default-model',
 ]
 
 const entries = [

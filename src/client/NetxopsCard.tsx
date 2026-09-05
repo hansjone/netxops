@@ -147,6 +147,38 @@ export function NetxopsCard(props: NetxopsCardProps) {
               onEdit={(text) => { props.edit('lang', text) }}
               onReset={() => { props.resetField('lang') }}
             />
+            <div className="dsh-nx-field">
+              <div className="dsh-nx-fieldHead">
+                <label className="dsh-nx-label" htmlFor="netxops-alarm-push">{t('alarmPushEnabled')}</label>
+                {state.alarmPushEnabled.overridden
+                  ? (
+                    <span className="dsh-nx-badges">
+                      <span className="dsh-nx-badge">{t('overridden')}</span>
+                      <button
+                        type="button"
+                        className="dsh-nx-reset"
+                        disabled={disabled}
+                        onClick={() => { props.resetField('alarmPushEnabled') }}
+                      >
+                        {t('reset')}
+                      </button>
+                    </span>
+                  )
+                  : null}
+              </div>
+              <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-push">
+                <input
+                  id="netxops-alarm-push"
+                  type="checkbox"
+                  checked={state.alarmPushEnabled.text === 'true'}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    props.edit('alarmPushEnabled', event.target.checked ? 'true' : 'false')
+                  }}
+                />
+                <span>{t('alarmPushEnabledHint')}</span>
+              </label>
+            </div>
             <div className="dsh-nx-footer">
               {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}
               <button
