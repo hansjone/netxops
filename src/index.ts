@@ -91,14 +91,10 @@ export interface Config {
    * (REST `/v1/ume/*`; model tools are generic `netx__*Nms*`).
    */
   nmsProvider: string
-  /** nms tools/skills in the Netx Ops preset (default on). */
-  groupNmsInPreset: boolean
-  /** Publish nms tools/skills to other presets via the host layer (default off). */
-  groupNmsPublic: boolean
-  /** common tools/skills in the Netx Ops preset (default on). */
-  groupCommonInPreset: boolean
-  /** Publish common tools/skills to other presets (default off). */
-  groupCommonPublic: boolean
+  /** ops tools/skills in the Netx Ops preset (default on) — NMS + CLI + paths. */
+  groupOpsInPreset: boolean
+  /** Publish ops tools/skills to other presets (default off). */
+  groupOpsPublic: boolean
   /** topology canvas / layout tools in the Netx Ops preset (default off). */
   groupTopologyInPreset: boolean
   /** Publish topology tools/skills to other presets (default off). */
@@ -117,10 +113,8 @@ export const Config: z<Config> = z.object({
   imBotId: z.string().default(''),
   imTargetId: z.string().default(''),
   nmsProvider: z.string().default('zte-ume'),
-  groupNmsInPreset: z.boolean().default(true),
-  groupNmsPublic: z.boolean().default(false),
-  groupCommonInPreset: z.boolean().default(true),
-  groupCommonPublic: z.boolean().default(false),
+  groupOpsInPreset: z.boolean().default(true),
+  groupOpsPublic: z.boolean().default(false),
   groupTopologyInPreset: z.boolean().default(false),
   groupTopologyPublic: z.boolean().default(false),
 })

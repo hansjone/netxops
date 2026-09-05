@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { opsSkillsRoot } from '../src/netx/group-skills.ts'
 import { SKILL_DIR_BY_GROUP } from '../src/netx/capability-groups.ts'
 
-test('opsSkillsRoot points at nms / common / topology playbook dirs', () => {
+test('opsSkillsRoot points at ops / topology playbook dirs', () => {
   const root = opsSkillsRoot()
   assert.ok(existsSync(root), root)
   for (const dir of Object.values(SKILL_DIR_BY_GROUP)) {

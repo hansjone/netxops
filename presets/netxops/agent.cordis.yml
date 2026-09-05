@@ -34,8 +34,7 @@
       - No evidence → say evidence insufficient; do not invent root cause.
 
       ## Skills (load before acting; only when the capability group is enabled)
-      - nms alarms / inventory → `netx-nms`
-      - common managed CLI + paths → `netx-common`
+      - ops (alarms / inventory / 「能否登录」CLI / paths) → `netx-ops`
       - topology canvas / dual_unit / layout → `netx-topology`
 
       ## Tools

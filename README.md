@@ -1,4 +1,4 @@
-# netxops — Netx Ops for DeepSeek Harness
+﻿# netxops — Netx Ops for DeepSeek Harness
 
 Public **DeepSeek Harness** package: native `netx__*` REST tools + Plugins card + **agent preset (skills included)**.
 
@@ -28,9 +28,9 @@ Also need: a reachable **netx API** (no local `pip install netx_mcp`). Details: 
 
 | In the plugin | Outside (data / runtime) |
 |---------------|---------------------------|
-| `netx__*` REST tools (groups: nms / common / topology; one group ↔ one skill; optional host publish + `tools-*`) + settings + credentials | netx HTTP API (URL + token) |
+| `netx__*` REST tools (groups: ops / topology; one group ↔ one skill; optional host publish + `tools-ops|topology`) + settings + credentials | netx HTTP API (URL + token) |
 | Optional key-alarm push (WSS client → sticky DSH session) | netx `/v1/integrations/dsh-alarm/ws` hub |
-| Persona + skills (`netx-nms` / `netx-common` / `netx-topology`) | |
+| Persona + skills (`netx-ops` / `netx-topology`) | |
 | Agent preset auto-install to `~/.dsh/.agent-presets` | |
 
 MCP (`python -m netx_mcp`) remains available for OpenClaw / other hosts — not required for DSH.

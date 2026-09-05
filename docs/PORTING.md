@@ -5,8 +5,7 @@
 | Source (oclaw) | Destination |
 |----------------|-------------|
 | `runtime/workspaces/ops/ROLE_SYSTEM.md` | `presets/netxops/PERSONA.md` + persona in `agent.cordis.yml` (brand **Netx Ops**) |
-| `skills/_workspace/ops/ops-netx-ume-playbook/` | **Canonical:** `netx/skills/nms/netx-nms/` |
-| `skills/_workspace/ops/ops-netx-managed-ne-playbook/` | **Canonical:** `netx/skills/common/netx-common/` |
+| `skills/_workspace/ops/ops-netx-ume-playbook/` + `ops-netx-managed-ne-playbook/` | **Canonical:** `netx/skills/ops/netx-ops/` (merged ops group) |
 | `skills/.../netx-topology` (MCP) | **Canonical:** `netx/skills/topology/netx-topology/` |
 | netx MCP HTTP surface | Host plugin `src/netx/*` + `src/index.ts`: settings namespace `netxops` + credential `NETX_API_TOKEN` → native `netx__*` tools |
 

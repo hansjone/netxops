@@ -1,7 +1,7 @@
 # Host-plane Netx Ops bridge: settings + credentials → connection publish.
 # Ops-scoped `netx__*` tools mount from the agent preset (`dsh-netxops/tools`).
-# Capability groups: nms + common in preset; topology / public off.
-# Rule: one group ↔ one skill (netx-nms / netx-common / netx-topology).
+# Capability groups: ops in preset; topology / public off.
+# Rule: one group ↔ one skill (netx-ops / netx-topology).
 #
 # After `dsh plugin add` / link, open Settings → Plugins to edit apiUrl / lang / groups
 # (settings card client half; see docs/INSTALL.md). Token: credential NETX_API_TOKEN.
@@ -21,9 +21,7 @@
         alarmDeliverIm: false
         imBotId: ''
         imTargetId: ''
-        groupNmsInPreset: true
-        groupNmsPublic: false
-        groupCommonInPreset: true
-        groupCommonPublic: false
+        groupOpsInPreset: true
+        groupOpsPublic: false
         groupTopologyInPreset: false
         groupTopologyPublic: false

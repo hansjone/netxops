@@ -4,26 +4,20 @@ Tools register by capability group. **One group ↔ one skill.**
 
 | Group | Skill | Default in Ops preset |
 |-------|-------|------------------------|
-| **nms** | `netx-nms` | on |
-| **common** | `netx-common` | on |
+| **ops** | `netx-ops` | on |
 | **topology** | `netx-topology` | off |
 
 Public flags mount the same group on the host for other presets.
-Forced mounts: `dsh-netxops/tools-nms` | `tools-common` | `tools-topology`.
+Forced mounts: `dsh-netxops/tools-ops` | `tools-topology` (legacy aliases: `tools-nms` / `tools-common` → ops).
 
 Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` still hits `/v1/ume/*`.
 
-## nms → `netx-nms`
+## ops → `netx-ops`
 
 | Tool | Role |
 |------|------|
 | `queryNmsAlarms` … `sqlQueryNms` | Alarm + inventory + SQL |
-
-## common → `netx-common`
-
-| Tool | Role |
-|------|------|
-| `listManagedNe` / `getManagedNe` / `execManagedNe` / `listCliTargets` | Managed CLI |
+| `listManagedNe` / `getManagedNe` / `execManagedNe` / `listCliTargets` | Managed CLI (login / show) |
 | `findTopologyPaths` | Fabric path lookup |
 
 ## topology → `netx-topology`

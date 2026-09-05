@@ -364,31 +364,17 @@ export function NetxopsCard(props: NetxopsCardProps) {
               </div>
               <p className="dsh-nx-hint">{t('capabilityGroupsHint')}</p>
               <CapabilityGroupBlock
-                title={t('groupNms')}
+                title={t('groupOps')}
                 inPresetLabel={t('groupInPreset')}
                 publicLabel={t('groupPublic')}
-                inPreset={state.groupNmsInPreset}
-                published={state.groupNmsPublic}
+                inPreset={state.groupOpsInPreset}
+                published={state.groupOpsPublic}
                 disabled={disabled}
                 onEditInPreset={(checked) => {
-                  props.edit('groupNmsInPreset', checked ? 'true' : 'false')
+                  props.edit('groupOpsInPreset', checked ? 'true' : 'false')
                 }}
                 onEditPublic={(checked) => {
-                  props.edit('groupNmsPublic', checked ? 'true' : 'false')
-                }}
-              />
-              <CapabilityGroupBlock
-                title={t('groupCommon')}
-                inPresetLabel={t('groupInPreset')}
-                publicLabel={t('groupPublic')}
-                inPreset={state.groupCommonInPreset}
-                published={state.groupCommonPublic}
-                disabled={disabled}
-                onEditInPreset={(checked) => {
-                  props.edit('groupCommonInPreset', checked ? 'true' : 'false')
-                }}
-                onEditPublic={(checked) => {
-                  props.edit('groupCommonPublic', checked ? 'true' : 'false')
+                  props.edit('groupOpsPublic', checked ? 'true' : 'false')
                 }}
               />
               <CapabilityGroupBlock

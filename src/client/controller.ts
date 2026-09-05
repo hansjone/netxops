@@ -35,10 +35,8 @@ export interface NetxopsSettings {
   alarmDeliverIm?: boolean
   imBotId?: string
   imTargetId?: string
-  groupNmsInPreset?: boolean
-  groupNmsPublic?: boolean
-  groupCommonInPreset?: boolean
-  groupCommonPublic?: boolean
+  groupOpsInPreset?: boolean
+  groupOpsPublic?: boolean
   groupTopologyInPreset?: boolean
   groupTopologyPublic?: boolean
   nmsProvider?: string
@@ -54,10 +52,8 @@ interface CredentialState {
 export interface NetxopsCardState extends CardShell {
   apiUrl: CardFieldState
   lang: CardFieldState
-  groupNmsInPreset: CardFieldState
-  groupNmsPublic: CardFieldState
-  groupCommonInPreset: CardFieldState
-  groupCommonPublic: CardFieldState
+  groupOpsInPreset: CardFieldState
+  groupOpsPublic: CardFieldState
   groupTopologyInPreset: CardFieldState
   groupTopologyPublic: CardFieldState
   nmsProvider: CardFieldState
@@ -113,10 +109,8 @@ export class NetxopsCardController {
         textField('apiUrl'),
         textField('lang'),
         textField('nmsProvider'),
-        booleanFieldPersistFalse('groupNmsInPreset'),
-        booleanField('groupNmsPublic'),
-        booleanFieldPersistFalse('groupCommonInPreset'),
-        booleanField('groupCommonPublic'),
+        booleanFieldPersistFalse('groupOpsInPreset'),
+        booleanField('groupOpsPublic'),
         booleanField('groupTopologyInPreset'),
         booleanField('groupTopologyPublic'),
         booleanField('alarmPushEnabled'),
@@ -244,10 +238,8 @@ export class NetxopsCardController {
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
       nmsProvider: this.form.field('nmsProvider'),
-      groupNmsInPreset: this.form.field('groupNmsInPreset'),
-      groupNmsPublic: this.form.field('groupNmsPublic'),
-      groupCommonInPreset: this.form.field('groupCommonInPreset'),
-      groupCommonPublic: this.form.field('groupCommonPublic'),
+      groupOpsInPreset: this.form.field('groupOpsInPreset'),
+      groupOpsPublic: this.form.field('groupOpsPublic'),
       groupTopologyInPreset: this.form.field('groupTopologyInPreset'),
       groupTopologyPublic: this.form.field('groupTopologyPublic'),
       alarmPushEnabled: this.form.field('alarmPushEnabled'),

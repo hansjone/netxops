@@ -1,12 +1,13 @@
 /**
- * @deprecated Use `dsh-netxops/tools-ops`. Alias that still forces the ops group.
- * @module dsh-netxops/tools-common
+ * Forced ops-group tools + skill (NMS + managed CLI + paths).
+ *
+ * @module dsh-netxops/tools-ops
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { applyGroupToolsPlugin } from './netx/group-tools-plugin.ts'
 
-export const name = 'netxops-tools-common'
+export const name = 'netxops-tools-ops'
 export const inject = ['tools']
 
 export function apply(ctx: Context): void {

@@ -3,13 +3,12 @@
  *
  * Rule: **one group ↔ one skill** (dirs under `netx/skills/<group>/`).
  *
- * - `nms` → skill `netx-nms` — vendor NMS adapter (zte-ume behind generic names)
- * - `common` → skill `netx-common` — managed CLI + findTopologyPaths
- * - `topology` → skill `netx-topology` — canvas / fabric / dual_unit / layout recipes
+ * - `ops` → skill `netx-ops` — NMS alarms/inventory/SQL + managed CLI + findTopologyPaths
+ * - `topology` → skill `netx-topology` — canvas / fabric / dual_unit / layout
  */
 
 /** Stable group ids used in settings, skill dirs, and registration filters. */
-export type NetxCapabilityGroupId = 'nms' | 'common' | 'topology'
+export type NetxCapabilityGroupId = 'ops' | 'topology'
 
 /** Per-group exposure knobs. */
 export interface NetxGroupExposure {
@@ -24,29 +23,26 @@ export type NetxCapabilityGroups = Record<NetxCapabilityGroupId, NetxGroupExposu
 
 /** Flat settings fields (Plugins card + schemastery Config). */
 export interface NetxCapabilityGroupSettingsFields {
-  groupNmsInPreset: boolean
-  groupNmsPublic: boolean
-  groupCommonInPreset: boolean
-  groupCommonPublic: boolean
+  groupOpsInPreset: boolean
+  groupOpsPublic: boolean
   groupTopologyInPreset: boolean
   groupTopologyPublic: boolean
 }
 
 /**
- * Default: nms + common in Ops preset; topology and all public off.
+ * Default: ops in Ops preset; topology and all public off.
  */
 export const DEFAULT_CAPABILITY_GROUPS: NetxCapabilityGroups = Object.freeze({
-  nms: Object.freeze({ inPreset: true, public: false }),
-  common: Object.freeze({ inPreset: true, public: false }),
+  ops: Object.freeze({ inPreset: true, public: false }),
   topology: Object.freeze({ inPreset: false, public: false }),
 })
 
 /**
  * Model-facing tool names (`netx__*`) owned by each group.
- * nms tools use generic `Nms` names; HTTP still hits the configured NMS provider adapter.
+ * NMS tools use generic `Nms` names; HTTP still hits the configured NMS provider adapter.
  */
 export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly string[]>> = Object.freeze({
-  nms: Object.freeze([
+  ops: Object.freeze([
     'netx__queryNmsAlarms',
     'netx__aggregateNmsAlarms',
     'netx__runNmsDiagnostics',
@@ -56,8 +52,6 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
     'netx__aggregateNmsAlarmsRaw',
     'netx__listNmsAlarmFields',
     'netx__sqlQueryNms',
-  ]),
-  common: Object.freeze([
     'netx__listManagedNe',
     'netx__getManagedNe',
     'netx__execManagedNe',
@@ -86,24 +80,29 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
 
 /** Skill directory name under skills root / `presets/netxops/skills/<group>/`. */
 export const SKILL_DIR_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, string>> = Object.freeze({
-  nms: 'nms',
-  common: 'common',
+  ops: 'ops',
   topology: 'topology',
 })
 
 export const CAPABILITY_GROUP_IDS: readonly NetxCapabilityGroupId[] = Object.freeze([
-  'nms',
-  'common',
+  'ops',
   'topology',
 ])
 
 /**
  * Build group policy from flat settings / Config fields.
- * Accepts legacy `groupManagedNe*` as aliases of `groupCommon*`.
- * Legacy `groupTopologyLayout*` ORs into `topology` (layout tools now live in topology).
+ *
+ * Legacy aliases (all map into `ops`):
+ * - `groupNms*` / `groupCommon*` / `groupManagedNe*`
+ *
+ * Legacy `groupTopologyLayout*` ORs into `topology`.
  */
 export function capabilityGroupsFromSettings(
   fields: Partial<NetxCapabilityGroupSettingsFields & {
+    groupNmsInPreset?: boolean
+    groupNmsPublic?: boolean
+    groupCommonInPreset?: boolean
+    groupCommonPublic?: boolean
     groupManagedNeInPreset?: boolean
     groupManagedNePublic?: boolean
     groupTopologyLayoutInPreset?: boolean
@@ -111,19 +110,29 @@ export function capabilityGroupsFromSettings(
   }> | null | undefined,
 ): NetxCapabilityGroups {
   const src = fields ?? {}
-  const commonInPreset = src.groupCommonInPreset !== undefined
-    ? src.groupCommonInPreset !== false
-    : src.groupManagedNeInPreset !== false
-  const commonPublic = src.groupCommonPublic === true
-    || src.groupManagedNePublic === true
+
+  let opsInPreset = true
+  if (src.groupOpsInPreset !== undefined) {
+    opsInPreset = src.groupOpsInPreset !== false
+  } else {
+    const legacy = [
+      src.groupNmsInPreset,
+      src.groupCommonInPreset,
+      src.groupManagedNeInPreset,
+    ].filter((v): v is boolean => v !== undefined)
+    if (legacy.length > 0) {
+      // Any explicit true → on; all explicit false → off.
+      opsInPreset = legacy.some((v) => v === true)
+    }
+  }
+
   return {
-    nms: {
-      inPreset: src.groupNmsInPreset !== false,
-      public: src.groupNmsPublic === true,
-    },
-    common: {
-      inPreset: commonInPreset,
-      public: commonPublic,
+    ops: {
+      inPreset: opsInPreset,
+      public: src.groupOpsPublic === true
+        || src.groupNmsPublic === true
+        || src.groupCommonPublic === true
+        || src.groupManagedNePublic === true,
     },
     topology: {
       inPreset: src.groupTopologyInPreset === true
@@ -136,9 +145,6 @@ export function capabilityGroupsFromSettings(
 
 /**
  * Groups enabled for one registration plane.
- * @param groups - published policy.
- * @param plane - preset scope vs host public layer.
- * @param only - when set, intersect with this allow-list (per-export tools packages).
  */
 export function groupsForPlane(
   groups: NetxCapabilityGroups | undefined,
@@ -155,13 +161,16 @@ export function groupsForPlane(
 }
 
 /**
- * Force-enable the listed groups (for `dsh-netxops/tools-<group>` mounts that
- * intentionally ignore Ops-preset inPreset flags).
+ * Force-enable the listed groups (for `dsh-netxops/tools-<group>` mounts).
+ * Legacy `nms` / `common` aliases resolve to `ops`.
  */
 export function groupsForced(
-  only: readonly NetxCapabilityGroupId[],
+  only: readonly (NetxCapabilityGroupId | 'nms' | 'common')[],
 ): NetxCapabilityGroupId[] {
-  return CAPABILITY_GROUP_IDS.filter((id) => only.includes(id))
+  const normalized = only.map((id) => (
+    id === 'nms' || id === 'common' ? 'ops' as const : id
+  ))
+  return CAPABILITY_GROUP_IDS.filter((id) => normalized.includes(id))
 }
 
 /**

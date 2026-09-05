@@ -1,4 +1,4 @@
-# Install Netx Ops on DeepSeek Harness
+﻿# Install Netx Ops on DeepSeek Harness
 
 ## What `dsh plugin add` gives you
 
@@ -6,7 +6,7 @@ One install wires **all of**:
 
 | Piece | How you use it |
 |-------|----------------|
-| Host tools | Capability groups **nms / common / topology** (one group ↔ one skill). Default nms+common in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-*` |
+| Host tools | Capability groups **ops / topology** (one group ↔ one skill). Default ops in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-ops|topology` |
 | Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / token / capability groups) |
 | Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot); playbooks follow the same group toggles |
 
@@ -31,9 +31,9 @@ dsh web   # or: pnpm dsh web
 1. **Settings → Plugins → Netx Ops** → API URL (+ token if the field is enabled).  
    Token fallback: `scripts/set-netx-token.ps1` / `.sh`.  
    Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws`. Choose **投递到 DSH 会话** and/or **投递到 WhatsApp / IM**. For IM, install `dsh-im-ops`, create a delivery target, then paste `imBotId` / `imTargetId`. The card header shows live WSS status.  
-   Capability groups: leave defaults for nms+common, or enable **topology** / **对其他预设公开** (new sessions after save).
+   Capability groups: leave default for **ops**, or enable **topology** / **对其他预设公开** (new sessions after save).
 2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
-3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms.
+3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms / 「能否登录」.
 
 ## Key-alarm push
 
@@ -47,7 +47,7 @@ dsh web   # or: pnpm dsh web
 1. Plugins card **Netx Ops** visible.
 2. With key-alarm push on: card badge shows **Connected** (or reconnecting / auth failed with detail).
 3. Agent presets → Custom → **Netx Ops**.
-4. Tools include `netx__queryNmsAlarms` (**nms**). `netx__findTopologyPaths` is **common**. Canvas / dual_unit need **topology** (`netx-topology` skill).
+4. Tools include `netx__queryNmsAlarms` / `netx__execManagedNe` / `netx__findTopologyPaths` (**ops** → skill `netx-ops`). Canvas / dual_unit need **topology** (`netx-topology`).
 
 See [TOOL_MAP.md](TOOL_MAP.md).
 

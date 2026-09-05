@@ -17,7 +17,7 @@ $src = Join-Path $NetxRoot "skills"
 $dst = Join-Path $opsRoot "presets\netxops\skills"
 if (-not (Test-Path $src)) { throw "missing $src" }
 
-foreach ($group in @("nms", "common", "topology")) {
+foreach ($group in @("ops", "topology")) {
   $from = Join-Path $src $group
   $to = Join-Path $dst $group
   if (-not (Test-Path $from)) { throw "missing group $from" }
@@ -26,9 +26,11 @@ foreach ($group in @("nms", "common", "topology")) {
   Copy-Item $from $to -Recurse -Force
 }
 
-# Drop legacy separate layout skill if present
-$legacyLayout = Join-Path $dst "topology-layout"
-if (Test-Path $legacyLayout) { Remove-Item $legacyLayout -Recurse -Force }
+# Drop legacy groups if present
+foreach ($legacy in @("nms", "common", "topology-layout")) {
+  $legacyPath = Join-Path $dst $legacy
+  if (Test-Path $legacyPath) { Remove-Item $legacyPath -Recurse -Force }
+}
 
 @"
 # Mirrored from netx/skills — do not long-edit here
@@ -40,7 +42,7 @@ powershell -File .\scripts\sync-skills-from-netx.ps1
 ```
 
 Runtime prefers ``NETX_SKILLS_ROOT`` or sibling ``../netx/skills``.
-One topology skill covers canvas + dual_unit / layout recipes; DSH may still gate **tools** via topology vs topology-layout groups.
+Groups: **ops** (``netx-ops``) + **topology** (``netx-topology``). One group ↔ one skill.
 "@ | Set-Content -Encoding utf8 (Join-Path $dst "README.md")
 
 Write-Host "Synced $src -> $dst"
