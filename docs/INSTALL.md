@@ -20,6 +20,10 @@ You do **not** run `link-preset.ps1` for normal use. That script is only a manua
 
 No local Python / `netx_mcp` install is required for DSH. (OpenClaw and other MCP hosts can still use `python -m netx_mcp` separately.)
 
+## Clone / `pnpm install`（仓库源码）
+
+`@deepseek-ai/*` 由 **DSH Host profile** 提供，**不**声明为可从公共 registry 安装的依赖。仓库根目录 `pnpm install` 只会装公开包（如 `fflate`）。完整运行请用上面的 `dsh plugin add`，不要指望裸 clone 能从 npm 拉齐 Harness 内部包。
+
 ## Install
 
 ```powershell
