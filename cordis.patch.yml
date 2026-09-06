@@ -25,6 +25,7 @@
         alarmDeliverIm: false
         imBotId: ''
         imTargetId: ''
+        imTargets: ''
         groupOpsInPreset: true
         groupOpsPublic: false
         groupTopologyInPreset: false

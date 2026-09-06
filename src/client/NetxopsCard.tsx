@@ -9,9 +9,15 @@ import type { NetxopsLocaleKey } from './locales.ts'
 import type { CardFieldState } from './card-form.ts'
 import {
   imCatalogOptionKey,
-  parseImCatalogOptionKey,
   type ImDeliveryCatalog,
 } from './im-delivery-catalog.ts'
+import {
+  formatImTargetsJson,
+  imTargetKey,
+  resolveImTargets,
+  setImTargetSelected,
+  type ImDeliveryTarget,
+} from '../netx/im-targets.ts'
 import { alarmPushTone, type AlarmPushPhase } from './alarm-push-status-view.ts'
 import { ensureStyles } from './styles.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
@@ -95,117 +101,98 @@ function ValueField(props: {
 
 function ImDeliveryPicker(props: {
   catalog: ImDeliveryCatalog
-  botId: string
-  targetId: string
+  targetsJson: string
+  legacyBotId: string
+  legacyTargetId: string
   disabled: boolean
   labels: {
     target: string
     none: string
-    manual: string
+    selectedCount: string
     unavailable: string
-    botId: string
-    botHint: string
-    targetId: string
-    targetHint: string
-    overridden: string
-    reset: string
-    invalid: string
   }
-  botField: CardFieldState
-  targetField: CardFieldState
-  onPick: (botId: string, targetId: string) => void
-  onEditBot: (text: string) => void
-  onEditTarget: (text: string) => void
-  onResetBot: () => void
-  onResetTarget: () => void
+  onChange: (targets: ImDeliveryTarget[]) => void
 }) {
   const options = props.catalog.options
-  const selectedKey = props.botId && props.targetId
-    ? imCatalogOptionKey(props.botId, props.targetId)
-    : ''
-  const matched = options.some((row) => imCatalogOptionKey(row.botId, row.targetId) === selectedKey)
-  const [manual, setManual] = useState(() => !!(selectedKey && !matched))
-  useEffect(() => {
-    if (selectedKey && matched) setManual(false)
-    else if (selectedKey && !matched) setManual(true)
-  }, [selectedKey, matched])
-  const selectValue = manual ? '__manual__' : (matched ? selectedKey : '')
-  const showManual = manual || (selectedKey && !matched)
+  const selected = resolveImTargets({
+    imTargets: props.targetsJson,
+    imBotId: props.legacyBotId,
+    imTargetId: props.legacyTargetId,
+  })
+  const selectedKeys = new Set(selected.map((row) => imTargetKey(row.botId, row.targetId)))
+
+  // Orphan legacy / JSON targets not present in the live catalog still show as checked rows.
+  const orphanSelected = selected.filter(
+    (row) => !options.some(
+      (opt) => imCatalogOptionKey(opt.botId, opt.targetId) === imTargetKey(row.botId, row.targetId),
+    ),
+  )
 
   return (
-    <>
-      <div className="dsh-nx-field">
-        <div className="dsh-nx-fieldHead">
-          <label className="dsh-nx-label" htmlFor="netxops-im-target">{props.labels.target}</label>
-        </div>
-        <select
-          id="netxops-im-target"
-          className="dsh-nx-input dsh-nx-select"
-          value={selectValue}
-          disabled={props.disabled}
-          onChange={(event) => {
-            const value = event.target.value
-            if (value === '__manual__') {
-              setManual(true)
-              return
-            }
-            setManual(false)
-            if (!value) {
-              props.onPick('', '')
-              return
-            }
-            const next = parseImCatalogOptionKey(value)
-            props.onPick(next.botId, next.targetId)
-          }}
-        >
-          <option value="">
-            {options.length === 0 ? props.labels.none : `— ${props.labels.target} —`}
-          </option>
-          {options.map((row) => (
-            <option
-              key={imCatalogOptionKey(row.botId, row.targetId)}
-              value={imCatalogOptionKey(row.botId, row.targetId)}
-            >
-              {`${row.name} · ${row.channel || 'im'} · ${row.targetId}`}
-            </option>
-          ))}
-          <option value="__manual__">{props.labels.manual}</option>
-        </select>
-        {!props.catalog.available || options.length === 0
-          ? <p className="dsh-nx-hint">{props.catalog.hint || props.labels.unavailable}</p>
+    <div className="dsh-nx-field">
+      <div className="dsh-nx-fieldHead">
+        <span className="dsh-nx-label">{props.labels.target}</span>
+        {selected.length > 0
+          ? (
+            <span className="dsh-nx-badgeMuted">
+              {props.labels.selectedCount.replace('{count}', String(selected.length))}
+            </span>
+          )
           : null}
       </div>
-      {showManual
+      {options.length === 0 && orphanSelected.length === 0
         ? (
-          <>
-            <ValueField
-              id="netxops-im-bot-id"
-              label={props.labels.botId}
-              hint={props.labels.botHint}
-              field={props.botField}
-              overriddenLabel={props.labels.overridden}
-              resetLabel={props.labels.reset}
-              invalidLabel={props.labels.invalid}
-              disabled={props.disabled}
-              onEdit={props.onEditBot}
-              onReset={props.onResetBot}
-            />
-            <ValueField
-              id="netxops-im-target-id"
-              label={props.labels.targetId}
-              hint={props.labels.targetHint}
-              field={props.targetField}
-              overriddenLabel={props.labels.overridden}
-              resetLabel={props.labels.reset}
-              invalidLabel={props.labels.invalid}
-              disabled={props.disabled}
-              onEdit={props.onEditTarget}
-              onReset={props.onResetTarget}
-            />
-          </>
+          <p className="dsh-nx-hint">
+            {!props.catalog.available
+              ? (props.catalog.hint || props.labels.unavailable)
+              : props.labels.none}
+          </p>
         )
+        : (
+          <div className="dsh-nx-imTargetList">
+            {options.map((row) => {
+              const key = imCatalogOptionKey(row.botId, row.targetId)
+              const checked = selectedKeys.has(key)
+              return (
+                <label key={key} className="dsh-nx-checkRow">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={props.disabled}
+                    onChange={(event) => {
+                      props.onChange(setImTargetSelected(
+                        selected,
+                        { botId: row.botId, targetId: row.targetId },
+                        event.target.checked,
+                      ))
+                    }}
+                  />
+                  <span>{`${row.name} · ${row.channel || 'im'} · ${row.targetId}`}</span>
+                </label>
+              )
+            })}
+            {orphanSelected.map((row) => {
+              const key = imTargetKey(row.botId, row.targetId)
+              return (
+                <label key={`orphan-${key}`} className="dsh-nx-checkRow">
+                  <input
+                    type="checkbox"
+                    checked
+                    disabled={props.disabled}
+                    onChange={(event) => {
+                      props.onChange(setImTargetSelected(selected, row, event.target.checked))
+                    }}
+                  />
+                  <span>{`${row.botId} · ${row.targetId}`}</span>
+                </label>
+              )
+            })}
+          </div>
+        )}
+      {!props.catalog.available && options.length > 0
+        ? <p className="dsh-nx-hint">{props.catalog.hint || props.labels.unavailable}</p>
         : null}
-    </>
+    </div>
   )
 }
 
@@ -362,7 +349,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
               <div className="dsh-nx-fieldHead">
                 <span className="dsh-nx-label">{t('capabilityGroups')}</span>
               </div>
-              <p className="dsh-nx-hint">{t('capabilityGroupsHint')}</p>
               <CapabilityGroupBlock
                 title={t('groupOps')}
                 inPresetLabel={t('groupInPreset')}
@@ -427,11 +413,11 @@ export function NetxopsCard(props: NetxopsCardProps) {
                   type="checkbox"
                   checked={state.alarmPushEnabled.text === 'true'}
                   disabled={disabled}
+                  aria-label={t('alarmPushEnabled')}
                   onChange={(event) => {
                     props.edit('alarmPushEnabled', event.target.checked ? 'true' : 'false')
                   }}
                 />
-                <span>{t('alarmPushEnabledHint')}</span>
               </label>
               {pushStatus?.wsUrl
                 ? <p className="dsh-nx-hint">{pushStatus.wsUrl}</p>
@@ -460,69 +446,77 @@ export function NetxopsCard(props: NetxopsCardProps) {
                   type="checkbox"
                   checked={state.alarmDeliverDsh.text === 'true'}
                   disabled={disabled}
+                  aria-label={t('alarmDeliverDsh')}
                   onChange={(event) => {
                     props.edit('alarmDeliverDsh', event.target.checked ? 'true' : 'false')
                   }}
                 />
-                <span>{t('alarmDeliverDshHint')}</span>
-              </label>
-            </div>
-            <div className="dsh-nx-field">
-              <div className="dsh-nx-fieldHead">
-                <label className="dsh-nx-label" htmlFor="netxops-alarm-im">{t('alarmDeliverIm')}</label>
-                {state.alarmDeliverIm.overridden
-                  ? (
-                    <span className="dsh-nx-badges">
-                      <span className="dsh-nx-badge">{t('overridden')}</span>
-                      <button type="button" className="dsh-nx-reset" disabled={disabled} onClick={() => { props.resetField('alarmDeliverIm') }}>
-                        {t('reset')}
-                      </button>
-                    </span>
-                  )
-                  : null}
-              </div>
-              <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-im">
-                <input
-                  id="netxops-alarm-im"
-                  type="checkbox"
-                  checked={state.alarmDeliverIm.text === 'true'}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    props.edit('alarmDeliverIm', event.target.checked ? 'true' : 'false')
-                  }}
-                />
-                <span>{t('alarmDeliverImHint')}</span>
               </label>
             </div>
             <ImDeliveryPicker
               catalog={state.imDeliveryCatalog}
-              botId={state.imBotId.text}
-              targetId={state.imTargetId.text}
+              targetsJson={state.imTargets.text}
+              legacyBotId={state.imBotId.text}
+              legacyTargetId={state.imTargetId.text}
               disabled={disabled}
               labels={{
-                target: t('imTarget'),
+                target: t('alarmDeliverIm'),
                 none: t('imTargetNone'),
-                manual: t('imTargetManual'),
+                selectedCount: t('imTargetSelectedCount'),
                 unavailable: t('imCatalogUnavailable'),
-                botId: t('imBotId'),
-                botHint: t('imBotIdHint'),
-                targetId: t('imTargetId'),
-                targetHint: t('imTargetIdHint'),
-                overridden: t('overridden'),
-                reset: t('reset'),
-                invalid: t('invalid'),
               }}
-              botField={state.imBotId}
-              targetField={state.imTargetId}
-              onPick={(botId, targetId) => {
-                props.edit('imBotId', botId)
-                props.edit('imTargetId', targetId)
+              onChange={(targets) => {
+                props.edit('imTargets', formatImTargetsJson(targets))
+                const first = targets[0]
+                props.edit('imBotId', first?.botId ?? '')
+                props.edit('imTargetId', first?.targetId ?? '')
+                props.edit('alarmDeliverIm', targets.length > 0 ? 'true' : 'false')
               }}
-              onEditBot={(text) => { props.edit('imBotId', text) }}
-              onEditTarget={(text) => { props.edit('imTargetId', text) }}
-              onResetBot={() => { props.resetField('imBotId') }}
-              onResetTarget={() => { props.resetField('imTargetId') }}
             />
+            <div className="dsh-nx-field">
+              <div className="dsh-nx-fieldHead">
+                <span className="dsh-nx-label">{t('sessionsExport')}</span>
+              </div>
+              {state.sessionsExportStatus === null
+                ? <p className="dsh-nx-hint">{t('sessionsExportUnavailable')}</p>
+                : state.sessionsExportStatus.available
+                  ? (
+                    <p className="dsh-nx-hint">
+                      {t('sessionsExportCount').replace(
+                        '{count}',
+                        String(state.sessionsExportStatus.sessionCount),
+                      )}
+                    </p>
+                  )
+                  : (
+                    <p className="dsh-nx-invalid" role="status">
+                      {state.sessionsExportStatus.reason || t('sessionsExportUnavailable')}
+                    </p>
+                  )}
+              {state.sessionsExportError
+                ? <p className="dsh-nx-invalid" role="status">{state.sessionsExportError}</p>
+                : null}
+              {state.sessionsExportLastFile && !state.sessionsExportBusy && !state.sessionsExportError
+                ? (
+                  <p className="dsh-nx-hint" role="status">
+                    {t('sessionsExportDone').replace('{file}', state.sessionsExportLastFile)}
+                  </p>
+                )
+                : null}
+              <div className="dsh-nx-exportRow">
+                <button
+                  type="button"
+                  className="dsh-nx-btn dsh-nx-export"
+                  disabled={
+                    state.sessionsExportBusy
+                    || state.sessionsExportStatus?.available !== true
+                  }
+                  onClick={() => { props.exportAllSessions() }}
+                >
+                  {t(state.sessionsExportBusy ? 'sessionsExportBusy' : 'sessionsExportButton')}
+                </button>
+              </div>
+            </div>
             <div className="dsh-nx-footer">
               {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}
               <button

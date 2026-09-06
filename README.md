@@ -22,8 +22,9 @@ Then:
 
 1. Settings → **Plugins** → **Netx Ops** → API URL / token / capability groups  
 2. Optional: enable **关键告警推送** — DSH dials out to netx; choose **Deliver to DSH session** and/or **Deliver to WhatsApp / IM** (paste `botId`+`targetId` from IM 投递设置). The card shows live WSS status.  
-3. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
-4. New session → choose **Netx Ops**
+3. Optional: **导出全部会话** — download one ZIP of every durable session on this Host.  
+4. Settings → **Agent presets** → Custom → **Netx Ops** (installed automatically on first host activate)  
+5. New session → choose **Netx Ops**
 
 Also need: a reachable **netx API** (no local `pip install netx_mcp`).
 
@@ -35,6 +36,7 @@ Also need: a reachable **netx API** (no local `pip install netx_mcp`).
 |---------------|---------------------------|
 | `netx__*` REST tools (groups: ops / topology; one group ↔ one skill; optional host publish + `tools-ops|topology`) + settings + credentials | netx HTTP API (URL + token) |
 | Optional key-alarm push (WSS client → sticky DSH session) | netx `/v1/integrations/dsh-alarm/ws` hub |
+| **Export all sessions** (Plugins card → browser ZIP download) | this Host’s session store (JSONL) |
 | Persona + skills (`netx-ops` / `netx-topology`) | |
 | Agent preset auto-install to `~/.dsh/.agent-presets` | |
 

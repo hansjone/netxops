@@ -7,6 +7,10 @@
  * When「关键告警推送」is on, this host dials out to netx's fixed-IP alarm hub and
  * opens/follows a sticky DSH session (im / WhatsApp is optional and separate).
  *
+ * Ops can download every durable session on this Host as one ZIP
+ * (`GET /api/netxops.sessions.export`) for HQ analysis — including cloud Hosts,
+ * where the browser receives the archive.
+ *
  * @module dsh-netxops
  */
 
@@ -34,7 +38,14 @@ import {
   type NetxCapabilityGroupSettingsFields,
 } from './netx/capability-groups.ts'
 import { registerGroupSkills } from './netx/group-skills.ts'
+import { resolveImTargets } from './netx/im-targets.ts'
 import { publishNetxConnection, getNetxConnection, watchNetxConnection } from './netx/runtime.ts'
+import {
+  getSessionsExportStatus,
+  NETXOPS_SESSIONS_EXPORT_PATH,
+  sessionsExportHeadResponse,
+  sessionsExportResponse,
+} from './netx/session-export.ts'
 import { registerNetxTools } from './netx/tools.ts'
 
 /** Cordis plugin name. */
@@ -78,13 +89,18 @@ export interface Config {
   /** When push is on, also followup the sticky Netx Ops DSH session (default). */
   alarmDeliverDsh: boolean
   /**
-   * When push is on, also send via `ctx.dshIm.send(imBotId, imTargetId, …)`.
-   * Requires dsh-im-ops and a saved delivery target.
+   * When push is on, also send via `ctx.dshIm.send` to every configured target.
+   * Derived from selected sinks (`imTargets` / legacy pair); empty list means off.
    */
   alarmDeliverIm: boolean
-  /** Opaque bot id from IM「投递设置」→ 复制调用参数. */
+  /**
+   * JSON array of `{ botId, targetId }` sinks. Preferred over the legacy
+   * single-target fields below when non-empty.
+   */
+  imTargets: string
+  /** Opaque bot id from IM「投递设置」→ 复制调用参数 (legacy single-target). */
   imBotId: string
-  /** Opaque target id from the same copy payload. */
+  /** Opaque target id from the same copy payload (legacy single-target). */
   imTargetId: string
   /**
    * NMS provider adapter id. Supported today: `zte-ume`
@@ -110,6 +126,7 @@ export const Config: z<Config> = z.object({
   alarmPushEnabled: z.boolean().default(false),
   alarmDeliverDsh: z.boolean().default(true),
   alarmDeliverIm: z.boolean().default(false),
+  imTargets: z.string().default(''),
   imBotId: z.string().default(''),
   imTargetId: z.string().default(''),
   nmsProvider: z.string().default('zte-ume'),
@@ -234,9 +251,12 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     }
     const lang = current.lang
     const deliverDsh = current.alarmDeliverDsh !== false
-    const deliverIm = current.alarmDeliverIm === true
-    const imBotId = current.imBotId ?? ''
-    const imTargetId = current.imTargetId ?? ''
+    const imTargets = resolveImTargets({
+      imTargets: current.imTargets ?? '',
+      imBotId: current.imBotId ?? '',
+      imTargetId: current.imTargetId ?? '',
+    })
+    const deliverIm = imTargets.length > 0
     stopAlarmPush = startAlarmPushClient({
       apiUrl,
       token,
@@ -247,8 +267,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         }
         await deliverAlarmToIm(ctx, payload, {
           enabled: deliverIm,
-          botId: imBotId,
-          targetId: imTargetId,
+          targets: imTargets,
           lang,
         })
       },
@@ -286,12 +305,17 @@ export function apply(ctx: Context, config: Config = Config({})): void {
           current.tokenCredentialRef,
         )
       } else {
+        const imSinkCount = resolveImTargets({
+          imTargets: current.imTargets ?? '',
+          imBotId: current.imBotId ?? '',
+          imTargetId: current.imTargetId ?? '',
+        }).length
         ctx.logger.info(
           'netxops: published connection → %s tokenConfigured=true alarmPush=%s dsh=%s im=%s public=[%s]',
           apiUrl,
           current.alarmPushEnabled === true,
           current.alarmDeliverDsh !== false,
-          current.alarmDeliverIm === true,
+          imSinkCount,
           groupsForPlane(groups, 'public').join(',') || '(none)',
         )
       }
@@ -371,61 +395,94 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     }, 'netxops: dispose public skills')
   })
 
-  // Browser card polls alarm-push WSS status + IM delivery catalog through Connection RPC.
+  // Browser card: alarm-push status + IM catalog (RPC) and all-sessions ZIP (Fetch).
   ctx.inject(['connection'], (connCtx) => {
-    const rpc = connCtx.connection?.rpc
+    const connection = connCtx.connection as {
+      rpc?: { handle?: (channel: string, handler: (endpoint: string) => Promise<unknown>) => (() => void) | Promise<void> }
+      fetch?: {
+        register?: (route: {
+          readonly path: string
+          readonly methods: readonly ('GET' | 'HEAD')[]
+          readonly fetch: (request: Request) => Promise<Response>
+        }) => () => Promise<void>
+      }
+    } | undefined
+    const rpc = connection?.rpc
     if (!rpc || typeof rpc.handle !== 'function') {
       connCtx.logger.warn('netxops: connection.rpc.handle unavailable — alarm status UI disabled')
-      return
+    } else {
+      connCtx.effect(() => {
+        const dispose = rpc.handle(
+          NETXOPS_RPC_CHANNEL,
+          async (endpoint: string) => {
+            if (endpoint === 'alarm-push.status') {
+              return { ok: true, value: getAlarmPushStatus() }
+            }
+            if (endpoint === 'sessions.export.status') {
+              const value = await getSessionsExportStatus(ctx)
+              return { ok: true, value }
+            }
+            if (endpoint === 'im-delivery.catalog') {
+              type DshImCatalog = { listDeliveryCatalog?: () => Promise<unknown> }
+              const fromGet = typeof (ctx as { get?: (name: string) => unknown }).get === 'function'
+                ? (ctx as { get: (name: string) => unknown }).get('dshIm') as DshImCatalog | undefined
+                : undefined
+              const im = fromGet ?? (ctx as { dshIm?: DshImCatalog }).dshIm
+              if (!im || typeof im.listDeliveryCatalog !== 'function') {
+                return {
+                  ok: true,
+                  value: {
+                    available: false,
+                    options: [],
+                    hint: 'dsh-im-ops missing or outdated — install ≥ops.24 for delivery picker',
+                  },
+                }
+              }
+              try {
+                const options = await im.listDeliveryCatalog()
+                return {
+                  ok: true,
+                  value: {
+                    available: true,
+                    options: Array.isArray(options) ? options : [],
+                  },
+                }
+              } catch (error) {
+                return {
+                  ok: true,
+                  value: {
+                    available: false,
+                    options: [],
+                    hint: error instanceof Error ? error.message : String(error),
+                  },
+                }
+              }
+            }
+            return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
+          },
+        )
+        return () => { void dispose() }
+      }, 'netxops: alarm-push status rpc')
     }
-    connCtx.effect(() => {
-      const dispose = rpc.handle(
-        NETXOPS_RPC_CHANNEL,
-        async (endpoint: string) => {
-          if (endpoint === 'alarm-push.status') {
-            return { ok: true, value: getAlarmPushStatus() }
-          }
-          if (endpoint === 'im-delivery.catalog') {
-            type DshImCatalog = { listDeliveryCatalog?: () => Promise<unknown> }
-            const fromGet = typeof (ctx as { get?: (name: string) => unknown }).get === 'function'
-              ? (ctx as { get: (name: string) => unknown }).get('dshIm') as DshImCatalog | undefined
-              : undefined
-            const im = fromGet ?? (ctx as { dshIm?: DshImCatalog }).dshIm
-            if (!im || typeof im.listDeliveryCatalog !== 'function') {
-              return {
-                ok: true,
-                value: {
-                  available: false,
-                  options: [],
-                  hint: 'dsh-im-ops missing or outdated — install ≥ops.24 for delivery picker',
-                },
-              }
+
+    const fetchApi = connection?.fetch
+    if (!fetchApi || typeof fetchApi.register !== 'function') {
+      connCtx.logger.warn('netxops: connection.fetch.register unavailable — sessions export download disabled')
+    } else {
+      connCtx.effect(() => {
+        const dispose = fetchApi.register({
+          path: NETXOPS_SESSIONS_EXPORT_PATH,
+          methods: ['GET', 'HEAD'],
+          fetch: async (request) => {
+            if (request.method === 'HEAD') {
+              return sessionsExportHeadResponse(ctx, request)
             }
-            try {
-              const options = await im.listDeliveryCatalog()
-              return {
-                ok: true,
-                value: {
-                  available: true,
-                  options: Array.isArray(options) ? options : [],
-                },
-              }
-            } catch (error) {
-              return {
-                ok: true,
-                value: {
-                  available: false,
-                  options: [],
-                  hint: error instanceof Error ? error.message : String(error),
-                },
-              }
-            }
-          }
-          return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
-        },
-      )
-      return () => { void dispose() }
-    }, 'netxops: alarm-push status rpc')
+            return sessionsExportResponse(ctx, request)
+          },
+        })
+        return () => { void dispose() }
+      }, 'netxops: sessions export fetch')
+    }
   })
 
   ctx.effect(() => () => {

@@ -20,6 +20,11 @@ import {
   fetchImDeliveryCatalog,
   type ImDeliveryCatalog,
 } from './im-delivery-catalog.ts'
+import {
+  downloadAllSessionsExport,
+  fetchSessionsExportStatus,
+  type SessionsExportStatus,
+} from './sessions-export-view.ts'
 
 export const NETXOPS_NS = 'netxops'
 const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
@@ -33,6 +38,8 @@ export interface NetxopsSettings {
   alarmPushEnabled?: boolean
   alarmDeliverDsh?: boolean
   alarmDeliverIm?: boolean
+  /** JSON array of `{ botId, targetId }` — multi WhatsApp / IM sinks. */
+  imTargets?: string
   imBotId?: string
   imTargetId?: string
   groupOpsInPreset?: boolean
@@ -60,6 +67,7 @@ export interface NetxopsCardState extends CardShell {
   alarmPushEnabled: CardFieldState
   alarmDeliverDsh: CardFieldState
   alarmDeliverIm: CardFieldState
+  imTargets: CardFieldState
   imBotId: CardFieldState
   imTargetId: CardFieldState
   apiToken: CardFieldState
@@ -70,12 +78,22 @@ export interface NetxopsCardState extends CardShell {
   alarmPushStatus: AlarmPushStatus | null
   /** Saved IM delivery targets for the picker (soft-depends on dsh-im-ops). */
   imDeliveryCatalog: ImDeliveryCatalog
+  /** Bulk session-export readiness from Host RPC; null when RPC is absent. */
+  sessionsExportStatus: SessionsExportStatus | null
+  /** In-flight bulk export download. */
+  sessionsExportBusy: boolean
+  /** Last bulk export error message, if any. */
+  sessionsExportError: string | null
+  /** Last successful download filename. */
+  sessionsExportLastFile: string | null
 }
 
 export interface NetxopsCardFace extends CardActions {
   hooks: {
     netxopsCard: SnapshotStore<NetxopsCardState>
   }
+  /** Download every durable session on this Host as one ZIP. */
+  exportAllSessions: () => void
 }
 
 type CredentialsRemote = {
@@ -95,9 +113,15 @@ export class NetxopsCardController {
   private rpcCall: AlarmPushRpcCall | undefined
   private alarmPushStatus: AlarmPushStatus | null = null
   private imDeliveryCatalog: ImDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
+  private sessionsExportStatus: SessionsExportStatus | null = null
+  private sessionsExportBusy = false
+  private sessionsExportError: string | null = null
+  private sessionsExportLastFile: string | null = null
   private pollTimer: ReturnType<typeof setInterval> | undefined
   private pollInFlight = false
   private catalogInFlight = false
+  private exportStatusInFlight = false
+  private exportInFlight: Promise<void> | undefined
 
   constructor(
     private readonly scope: SettingsScope<NetxopsSettings>,
@@ -116,6 +140,7 @@ export class NetxopsCardController {
         booleanField('alarmPushEnabled'),
         booleanFieldPersistFalse('alarmDeliverDsh'),
         booleanField('alarmDeliverIm'),
+        textField('imTargets'),
         textField('imBotId'),
         textField('imTargetId'),
       ],
@@ -155,12 +180,17 @@ export class NetxopsCardController {
         this.imDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
         changed = true
       }
+      if (this.sessionsExportStatus !== null) {
+        this.sessionsExportStatus = null
+        changed = true
+      }
       if (changed) this.store.set(this.projection())
       return
     }
     this.startStatusPoll()
     void this.refreshAlarmPushStatus()
     void this.refreshImDeliveryCatalog()
+    void this.refreshSessionsExportStatus()
   }
 
   private startStatusPoll(): void {
@@ -168,6 +198,7 @@ export class NetxopsCardController {
     this.pollTimer = setInterval(() => {
       void this.refreshAlarmPushStatus()
       void this.refreshImDeliveryCatalog()
+      void this.refreshSessionsExportStatus()
     }, STATUS_POLL_MS)
   }
 
@@ -232,6 +263,54 @@ export class NetxopsCardController {
     }
   }
 
+  private async refreshSessionsExportStatus(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.exportStatusInFlight) return
+    this.exportStatusInFlight = true
+    try {
+      const next = await fetchSessionsExportStatus(call)
+      const prev = this.sessionsExportStatus
+      if (
+        prev
+        && prev.available === next.available
+        && prev.sessionCount === next.sessionCount
+        && prev.supportsRawArtifacts === next.supportsRawArtifacts
+        && prev.reason === next.reason
+      ) return
+      this.sessionsExportStatus = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last good snapshot; next poll retries.
+    } finally {
+      this.exportStatusInFlight = false
+    }
+  }
+
+  /**
+   * Download every durable session as one ZIP through the browser download manager.
+   */
+  exportAllSessions(): void {
+    if (this.exportInFlight !== undefined || this.sessionsExportBusy) return
+    if (this.sessionsExportStatus?.available !== true) return
+    this.sessionsExportBusy = true
+    this.sessionsExportError = null
+    this.store.set(this.projection())
+    this.exportInFlight = downloadAllSessionsExport()
+      .then((result) => {
+        this.sessionsExportLastFile = result.filename
+        this.sessionsExportError = null
+      })
+      .catch((error: unknown) => {
+        this.sessionsExportError = error instanceof Error ? error.message : String(error)
+      })
+      .finally(() => {
+        this.sessionsExportBusy = false
+        this.exportInFlight = undefined
+        this.store.set(this.projection())
+        void this.refreshSessionsExportStatus()
+      })
+  }
+
   private projection(): NetxopsCardState {
     return {
       ...this.form.shell(),
@@ -245,6 +324,7 @@ export class NetxopsCardController {
       alarmPushEnabled: this.form.field('alarmPushEnabled'),
       alarmDeliverDsh: this.form.field('alarmDeliverDsh'),
       alarmDeliverIm: this.form.field('alarmDeliverIm'),
+      imTargets: this.form.field('imTargets'),
       imBotId: this.form.field('imBotId'),
       imTargetId: this.form.field('imTargetId'),
       apiToken: this.form.field(API_TOKEN_FIELD),
@@ -253,6 +333,10 @@ export class NetxopsCardController {
       apiTokenRemoteReady: this.credential.remoteReady,
       alarmPushStatus: this.alarmPushStatus,
       imDeliveryCatalog: this.imDeliveryCatalog,
+      sessionsExportStatus: this.sessionsExportStatus,
+      sessionsExportBusy: this.sessionsExportBusy,
+      sessionsExportError: this.sessionsExportError,
+      sessionsExportLastFile: this.sessionsExportLastFile,
     }
   }
 
@@ -303,7 +387,11 @@ export class NetxopsCardController {
   }
 
   inject(): NetxopsCardFace {
-    return { hooks: { netxopsCard: this.store }, ...this.form.actions() }
+    return {
+      hooks: { netxopsCard: this.store },
+      ...this.form.actions(),
+      exportAllSessions: () => { this.exportAllSessions() },
+    }
   }
 
   private async writeToken(value: string): Promise<boolean> {

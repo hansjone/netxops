@@ -39,7 +39,11 @@ const CSS = `
 .dsh-nx-groupBlock{display:flex;flex-direction:column;gap:8px;padding:8px 0 4px}
 .dsh-nx-groupTitle{font-size:12px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary)}
 .dsh-nx-groupChecks{display:flex;flex-direction:column;gap:6px;padding-left:2px}
+.dsh-nx-imTargetList{display:flex;flex-direction:column;gap:8px;padding:4px 0 2px}
 .dsh-nx-invalid{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error)}
+.dsh-nx-exportRow{display:flex;align-items:center;gap:8px;padding-top:4px}
+.dsh-nx-export{border-color:var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-primary)}
+.dsh-nx-export:hover:not(:disabled){border-color:var(--dsw-alias-label-dimmed)}
 .dsh-nx-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px;border-top:.5px solid var(--dsw-alias-border-l2)}
 .dsh-nx-failed{flex:1;min-width:0;margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error)}
 .dsh-nx-btn{appearance:none;border:1px solid transparent;border-radius:8px;padding:5px 14px;font:inherit;font-size:13px;line-height:1.5;cursor:pointer}
