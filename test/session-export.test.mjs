@@ -7,8 +7,10 @@ import {
   sessionsExportZipFilename,
 } from '../src/netx/session-export.ts'
 
-test('safePathSegment strips path separators and dots', () => {
-  assert.equal(safePathSegment('../a/b'), '___a_b')
+test('safePathSegment strips path separators and keeps filename extensions', () => {
+  assert.equal(safePathSegment('../a/b'), 'b')
+  assert.equal(safePathSegment('..\\evil.jsonl'), 'evil.jsonl')
+  assert.equal(safePathSegment('session.jsonl'), 'session.jsonl')
   assert.equal(safePathSegment('netxops-alarm-abc'), 'netxops-alarm-abc')
 })
 

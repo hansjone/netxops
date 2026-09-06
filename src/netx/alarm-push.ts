@@ -148,6 +148,10 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
   }
 
   let closed = false
+  /** After auth-fail, do not reconnect until the client is disposed/restarted. */
+  let haltReconnect = false
+  /** Only forward alarms after a successful auth-ok on the current socket. */
+  let subscribed = false
   let socket: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
   let attempt = 0
@@ -161,7 +165,7 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
   }
 
   const scheduleReconnect = (reason: string): void => {
-    if (closed) return
+    if (closed || haltReconnect) return
     clearReconnect()
     const delay = Math.min(60_000, baseDelay * (2 ** Math.min(attempt, 5)))
     attempt += 1
@@ -173,8 +177,9 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
   }
 
   const connect = (): void => {
-    if (closed) return
+    if (closed || haltReconnect) return
     clearReconnect()
+    subscribed = false
     setPhase(attempt > 0 ? 'reconnecting' : 'connecting', wsUrl, { detail: 'dialing' })
     try {
       socket = new WS(wsUrl)
@@ -200,6 +205,7 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
       const type = String(msg.type ?? '').toLowerCase()
       if (type === 'auth-ok') {
         attempt = 0
+        subscribed = true
         const now = Date.now()
         setPhase('connected', wsUrl, {
           detail: String(msg.user ?? 'ok'),
@@ -211,13 +217,24 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
       }
       if (type === 'auth-fail') {
         const err = String(msg.error ?? 'auth_failed')
-        log.error?.('netxops alarm-push: auth failed (%s)', err)
+        log.error?.('netxops alarm-push: auth failed (%s) — not reconnecting until settings/token change', err)
+        subscribed = false
+        haltReconnect = true
+        clearReconnect()
         setPhase('auth_failed', wsUrl, { detail: err, lastError: err })
-        socket?.close()
+        try {
+          socket?.close()
+        } catch {
+          // ignore
+        }
         return
       }
       if (type === 'pong') return
       if (type === 'event' && String(msg.event ?? '') === 'netx.alarm') {
+        if (!subscribed) {
+          log.warn?.('netxops alarm-push: ignoring alarm before auth-ok')
+          return
+        }
         const payload = msg.payload && typeof msg.payload === 'object'
           ? msg.payload as KeyAlarmPayload
           : {}
@@ -229,7 +246,8 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
 
     socket.addEventListener('close', () => {
       socket = null
-      if (!closed) scheduleReconnect('socket_closed')
+      subscribed = false
+      if (!closed && !haltReconnect) scheduleReconnect('socket_closed')
     })
 
     socket.addEventListener('error', () => {

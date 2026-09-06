@@ -19,14 +19,26 @@ interface StickyHandle {
   sessionId: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Agent type varies by DSH version
   agent: any
+  dispose?: () => Promise<void> | void
 }
 
 let sticky: StickyHandle | null = null
+/** Serialize create/followup so concurrent alarms cannot open multiple sticky sessions. */
+let deliveryChain: Promise<void> = Promise.resolve()
 
 function resolveWorkspacePath(): string {
   const fromEnv = process.env.DSH_HOME?.trim()
   const home = fromEnv && fromEnv.length > 0 ? fromEnv : join(homedir(), '.dsh')
   return join(home, 'workspaces', 'netxops-alarms')
+}
+
+async function disposeSticky(handle: StickyHandle | null): Promise<void> {
+  if (!handle) return
+  try {
+    await handle.dispose?.()
+  } catch {
+    // Best-effort teardown; the process may already have dropped the agent.
+  }
 }
 
 /**
@@ -40,27 +52,35 @@ export async function deliverAlarmToSession(
   payload: KeyAlarmPayload,
   lang = 'zh',
 ): Promise<void> {
-  const prompt = formatAlarmPrompt(payload, lang)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const agents = (ctx as any).agents
-  if (!agents || typeof agents.create !== 'function') {
-    ctx.logger.warn(
-      'netxops alarm-push: ctx.agents unavailable — enable a profile that mounts agents to receive alarms in a DSH session',
-    )
-    return
-  }
-
-  if (sticky?.agent && typeof sticky.agent.followup === 'function') {
-    try {
-      await followup(ctx, sticky.agent, prompt)
+  const run = async (): Promise<void> => {
+    const prompt = formatAlarmPrompt(payload, lang)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agents = (ctx as any).agents
+    if (!agents || typeof agents.create !== 'function') {
+      ctx.logger.warn(
+        'netxops alarm-push: ctx.agents unavailable — enable a profile that mounts agents to receive alarms in a DSH session',
+      )
       return
-    } catch (error) {
-      ctx.logger.warn('netxops alarm-push: sticky followup failed, recreating session: %s', error)
-      sticky = null
     }
+
+    if (sticky?.agent && typeof sticky.agent.followup === 'function') {
+      try {
+        await followup(ctx, sticky.agent, prompt)
+        return
+      } catch (error) {
+        ctx.logger.warn('netxops alarm-push: sticky followup failed, recreating session: %s', error)
+        const previous = sticky
+        sticky = null
+        await disposeSticky(previous)
+      }
+    }
+
+    await createStickySession(ctx, prompt)
   }
 
-  await createStickySession(ctx, prompt)
+  const next = deliveryChain.then(run, run)
+  deliveryChain = next.then(() => undefined, () => undefined)
+  await next
 }
 
 async function followup(ctx: Context, agent: { followup: (msg: unknown) => unknown }, prompt: string): Promise<void> {
@@ -78,7 +98,7 @@ async function followup(ctx: Context, agent: { followup: (msg: unknown) => unkno
     const summary = typeof mod.boundContextSummary === 'function'
       ? mod.boundContextSummary('netx key alarm')
       : 'netx key alarm'
-    agent.followup(createUserMessage({
+    await Promise.resolve(agent.followup(createUserMessage({
       content: [{ type: 'text', text: prompt }],
       source: {
         kind: 'webhook',
@@ -87,7 +107,7 @@ async function followup(ctx: Context, agent: { followup: (msg: unknown) => unkno
         form: 'notice',
         summary,
       },
-    }))
+    })))
   } catch (error) {
     // Fallback: some hosts accept a plain text followup helper on agents.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,7 +182,11 @@ async function createStickySession(ctx: Context, prompt: string): Promise<void> 
       sessionTitle.rename(handle.agent.session, TITLE)
     }
     await followup(ctx, handle.agent, prompt)
-    sticky = { sessionId, agent: handle.agent }
+    sticky = {
+      sessionId,
+      agent: handle.agent,
+      dispose: typeof handle.dispose === 'function' ? () => handle.dispose() : undefined,
+    }
     ctx.logger.info('netxops alarm-push: opened sticky session %s', sessionId)
   } catch (error) {
     try {
@@ -174,7 +198,9 @@ async function createStickySession(ctx: Context, prompt: string): Promise<void> 
   }
 }
 
-/** Drop the sticky handle (tests / dispose). */
+/** Drop and dispose the sticky handle (config restart / plugin dispose / tests). */
 export function resetAlarmSession(): void {
+  const previous = sticky
   sticky = null
+  void disposeSticky(previous)
 }

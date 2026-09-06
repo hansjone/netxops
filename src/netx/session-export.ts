@@ -162,11 +162,14 @@ export async function getSessionsExportStatus(
 }
 
 /**
- * Sanitize one path segment for ZIP entry names.
- * @param id - raw session id or hostname fragment.
+ * Sanitize one path segment for ZIP entry names (no separators / traversal).
+ * Keeps a single basename; dots in extensions like `.jsonl` are allowed.
+ * @param id - raw session id, hostname fragment, or artifact filename.
  */
 export function safePathSegment(id: string): string {
-  return id.replace(/[^A-Za-z0-9_-]/g, '_')
+  const base = String(id || '').replace(/\\/g, '/').split('/').pop() ?? ''
+  const cleaned = base.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+/, '')
+  return cleaned || 'unnamed'
 }
 
 /**
@@ -246,7 +249,9 @@ export async function* sessionsExportEntries(
         skipped.push({ id, reason: 'no stored artifact' })
         continue
       }
-      const filename = raw.filename && raw.filename.length > 0 ? raw.filename : 'session.jsonl'
+      const filename = safePathSegment(
+        raw.filename && raw.filename.length > 0 ? raw.filename : 'session.jsonl',
+      ) || 'session.jsonl'
       const path = `sessions/${safePathSegment(id)}/${filename}`
       artifactEntries.push({ path, content: raw.content })
       included.push({
