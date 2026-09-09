@@ -132,6 +132,7 @@ export async function getSessionsExportStatus(
       available: false,
       sessionCount: 0,
       supportsRawArtifacts: false,
+      reasonCode: 'no_persistence',
       reason: 'sessionPersistence unavailable — mount a JSONL session backend (web profile default)',
     }
   }
@@ -140,6 +141,7 @@ export async function getSessionsExportStatus(
       available: false,
       sessionCount: 0,
       supportsRawArtifacts: false,
+      reasonCode: 'no_raw_artifacts',
       reason: 'persistence backend does not expose per-session raw artifacts (SQLite export unsupported)',
     }
   }
@@ -156,6 +158,7 @@ export async function getSessionsExportStatus(
       available: false,
       sessionCount: 0,
       supportsRawArtifacts: true,
+      reasonCode: 'list_failed',
       reason: error instanceof Error ? error.message : String(error),
     }
   }

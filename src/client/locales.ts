@@ -1,8 +1,12 @@
-/** Locale keys for the Netx Ops Plugins settings card. */
+/** Locale keys for the Netx Ops settings section. */
 
 export type NetxopsLocaleKey =
   | 'title'
   | 'description'
+  | 'sectionConnection'
+  | 'sectionCapabilities'
+  | 'sectionAlarms'
+  | 'sectionExport'
   | 'apiUrl'
   | 'apiUrlHint'
   | 'lang'
@@ -37,24 +41,34 @@ export type NetxopsLocaleKey =
   | 'sessionsExport'
   | 'sessionsExportCount'
   | 'sessionsExportUnavailable'
+  | 'sessionsExportNoPersistence'
+  | 'sessionsExportNoRawArtifacts'
+  | 'sessionsExportListFailed'
+  | 'sessionsExportRpcUnavailable'
+  | 'sessionsExportRpcFailed'
+  | 'sessionsExportHttpFailed'
+  | 'sessionsExportEmpty'
   | 'sessionsExportButton'
   | 'sessionsExportBusy'
   | 'sessionsExportDone'
   | 'overridden'
   | 'reset'
   | 'invalid'
-  | 'expand'
-  | 'collapse'
   | 'unsaved'
   | 'readOnly'
   | 'saveFailed'
   | 'discard'
   | 'save'
   | 'saving'
+  | 'configSaved'
 
 export const en: Record<NetxopsLocaleKey, string> = {
   title: 'Netx Ops',
   description: 'API, token, capabilities, and alarm delivery.',
+  sectionConnection: 'Connection',
+  sectionCapabilities: 'Capability groups',
+  sectionAlarms: 'Key-alarm delivery',
+  sectionExport: 'Session export',
   apiUrl: 'API URL',
   apiUrlHint: 'e.g. http://127.0.0.1:8890',
   lang: 'Language',
@@ -89,31 +103,41 @@ export const en: Record<NetxopsLocaleKey, string> = {
   sessionsExport: 'Export all sessions',
   sessionsExportCount: '{count} sessions',
   sessionsExportUnavailable: 'Export unavailable',
+  sessionsExportNoPersistence: 'Session store unavailable (JSONL backend required).',
+  sessionsExportNoRawArtifacts: 'This persistence backend cannot export raw session files.',
+  sessionsExportListFailed: 'Failed to list sessions: {detail}',
+  sessionsExportRpcUnavailable: 'Cannot reach Host RPC for export status.',
+  sessionsExportRpcFailed: 'Export status RPC failed.',
+  sessionsExportHttpFailed: 'Export failed: HTTP {status}{detail}',
+  sessionsExportEmpty: 'Export failed: empty ZIP body.',
   sessionsExportButton: 'Download ZIP',
   sessionsExportBusy: 'Preparing…',
   sessionsExportDone: 'Downloaded: {file}',
   overridden: 'Overridden',
   reset: 'Reset',
   invalid: 'Invalid',
-  expand: 'Expand',
-  collapse: 'Collapse',
-  unsaved: 'Unsaved',
+  unsaved: 'Unsaved changes',
   readOnly: 'Read-only',
   saveFailed: 'Save failed',
   discard: 'Discard',
   save: 'Save',
   saving: 'Saving…',
+  configSaved: 'Saved',
 }
 
 export const zh: Record<NetxopsLocaleKey, string> = {
   title: 'Netx Ops',
   description: 'API、Token、能力组与告警投递。',
+  sectionConnection: '连接',
+  sectionCapabilities: '能力组',
+  sectionAlarms: '关键告警投递',
+  sectionExport: '会话导出',
   apiUrl: 'API 地址',
   apiUrlHint: '例如 http://127.0.0.1:8890',
   lang: '语言',
   langHint: 'zh / en',
   capabilityGroups: '能力组',
-  nmsProvider: 'NMS provider',
+  nmsProvider: 'NMS 提供方',
   nmsProviderHint: 'zte-ume',
   groupOps: 'ops',
   groupTopology: 'topology',
@@ -142,18 +166,24 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   sessionsExport: '导出全部会话',
   sessionsExportCount: '{count} 个会话',
   sessionsExportUnavailable: '无法导出',
+  sessionsExportNoPersistence: '会话持久化不可用（需要 JSONL 后端）。',
+  sessionsExportNoRawArtifacts: '当前持久化后端不支持导出原始会话文件。',
+  sessionsExportListFailed: '列出会话失败：{detail}',
+  sessionsExportRpcUnavailable: '无法通过 Host RPC 查询导出状态。',
+  sessionsExportRpcFailed: '导出状态 RPC 失败。',
+  sessionsExportHttpFailed: '导出失败：HTTP {status}{detail}',
+  sessionsExportEmpty: '导出失败：ZIP 为空。',
   sessionsExportButton: '下载 ZIP',
   sessionsExportBusy: '准备中…',
   sessionsExportDone: '已下载：{file}',
   overridden: '已覆盖',
   reset: '重置',
   invalid: '无效',
-  expand: '展开',
-  collapse: '收起',
-  unsaved: '未保存',
+  unsaved: '有未保存更改',
   readOnly: '只读',
   saveFailed: '保存失败',
   discard: '丢弃',
   save: '保存',
   saving: '保存中…',
+  configSaved: '已保存',
 }

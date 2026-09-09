@@ -23,8 +23,10 @@ import {
 import {
   downloadAllSessionsExport,
   fetchSessionsExportStatus,
+  SessionsExportDownloadError,
   type SessionsExportStatus,
 } from './sessions-export-view.ts'
+import type { SessionsExportReasonCode } from '../session-export-shared.ts'
 
 export const NETXOPS_NS = 'netxops'
 const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
@@ -82,8 +84,13 @@ export interface NetxopsCardState extends CardShell {
   sessionsExportStatus: SessionsExportStatus | null
   /** In-flight bulk export download. */
   sessionsExportBusy: boolean
-  /** Last bulk export error message, if any. */
-  sessionsExportError: string | null
+  /** Last bulk export error (stable code + optional detail for locale templates). */
+  sessionsExportError: {
+    code: SessionsExportReasonCode
+    status?: number
+    detail: string
+    fallback: string
+  } | null
   /** Last successful download filename. */
   sessionsExportLastFile: string | null
 }
@@ -115,7 +122,7 @@ export class NetxopsCardController {
   private imDeliveryCatalog: ImDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
   private sessionsExportStatus: SessionsExportStatus | null = null
   private sessionsExportBusy = false
-  private sessionsExportError: string | null = null
+  private sessionsExportError: NetxopsCardState['sessionsExportError'] = null
   private sessionsExportLastFile: string | null = null
   private pollTimer: ReturnType<typeof setInterval> | undefined
   private pollInFlight = false
@@ -301,7 +308,20 @@ export class NetxopsCardController {
         this.sessionsExportError = null
       })
       .catch((error: unknown) => {
-        this.sessionsExportError = error instanceof Error ? error.message : String(error)
+        if (error instanceof SessionsExportDownloadError) {
+          this.sessionsExportError = {
+            code: error.code,
+            status: error.status,
+            detail: error.detail,
+            fallback: error.message,
+          }
+          return
+        }
+        this.sessionsExportError = {
+          code: 'http_failed',
+          detail: '',
+          fallback: error instanceof Error ? error.message : String(error),
+        }
       })
       .finally(() => {
         this.sessionsExportBusy = false

@@ -10,10 +10,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { formatAlarmPrompt, type KeyAlarmPayload } from './alarm-push.ts'
+import { tHost } from './i18n.ts'
 
 const PRESET_ID = 'netxops'
 const PERMISSION_PRESET = 'default'
-const TITLE = 'Netx 关键告警'
 
 interface StickyHandle {
   sessionId: string
@@ -75,7 +75,7 @@ export async function deliverAlarmToSession(
       }
     }
 
-    await createStickySession(ctx, prompt)
+    await createStickySession(ctx, prompt, lang)
   }
 
   const next = deliveryChain.then(run, run)
@@ -121,7 +121,7 @@ async function followup(ctx: Context, agent: { followup: (msg: unknown) => unkno
   }
 }
 
-async function createStickySession(ctx: Context, prompt: string): Promise<void> {
+async function createStickySession(ctx: Context, prompt: string, lang = 'zh'): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const c = ctx as any
   const agents = c.agents
@@ -179,7 +179,7 @@ async function createStickySession(ctx: Context, prompt: string): Promise<void> 
       permissionPresets.set(handle.agent.session, PERMISSION_PRESET)
     }
     if (sessionTitle && typeof sessionTitle.rename === 'function') {
-      sessionTitle.rename(handle.agent.session, TITLE)
+      sessionTitle.rename(handle.agent.session, tHost('alarm.sessionTitle', lang))
     }
     await followup(ctx, handle.agent, prompt)
     sticky = {

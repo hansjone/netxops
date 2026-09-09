@@ -434,6 +434,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
                   value: {
                     available: false,
                     options: [],
+                    reasonCode: 'im_catalog_unavailable',
                     hint: 'dsh-im-ops missing or outdated — install ≥ops.24 for delivery picker',
                   },
                 }

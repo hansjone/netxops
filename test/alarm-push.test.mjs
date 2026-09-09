@@ -35,3 +35,21 @@ test('formatAlarmPrompt keeps human fields without raw sockets', () => {
   assert.match(text, /PE1 \(10\.0\.0\.1\)/)
   assert.match(text, /请分析这条关键告警/)
 })
+
+test('formatAlarmPrompt switches to English when lang starts with en', () => {
+  const text = formatAlarmPrompt({
+    action: 'deleted',
+    rule_label: 'Power Down',
+    object_name: 'PORT-1',
+    perceived_severity: 'critical',
+    native_probable_cause: 'LOS',
+    time_created: '2026-01-01T00:00:00Z',
+    notification_id: 'n1',
+    alarm_key: 'k1',
+    ne: { host_name: 'PE1', ip_address: '10.0.0.1' },
+  }, 'en-US')
+  assert.match(text, /Alarm Cleared/)
+  assert.match(text, /Device: PE1 \(10\.0\.0\.1\)/)
+  assert.match(text, /Please analyze this key alarm/)
+  assert.doesNotMatch(text, /告警/)
+})

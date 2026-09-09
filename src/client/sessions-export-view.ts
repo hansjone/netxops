@@ -8,10 +8,12 @@ import {
 } from './alarm-push-status-view.ts'
 import {
   NETXOPS_SESSIONS_EXPORT_PATH,
+  type SessionsExportReasonCode,
   type SessionsExportStatus,
 } from '../session-export-shared.ts'
+import type { NetxopsLocaleKey } from './locales.ts'
 
-export type { SessionsExportStatus }
+export type { SessionsExportStatus, SessionsExportReasonCode }
 export { NETXOPS_SESSIONS_EXPORT_PATH }
 
 export const SESSIONS_EXPORT_STATUS_ENDPOINT = 'sessions.export.status'
@@ -20,7 +22,40 @@ const EMPTY_STATUS: SessionsExportStatus = {
   available: false,
   sessionCount: 0,
   supportsRawArtifacts: false,
+  reasonCode: 'rpc_unavailable',
   reason: 'RPC unavailable',
+}
+
+const REASON_CODES = new Set<SessionsExportReasonCode>([
+  'rpc_unavailable',
+  'rpc_failed',
+  'no_persistence',
+  'no_raw_artifacts',
+  'list_failed',
+  'http_failed',
+  'empty_body',
+])
+
+function asReasonCode(value: unknown): SessionsExportReasonCode | undefined {
+  return typeof value === 'string' && REASON_CODES.has(value as SessionsExportReasonCode)
+    ? value as SessionsExportReasonCode
+    : undefined
+}
+
+/** Map a status reasonCode to a client locale key. */
+export function sessionsExportReasonLocaleKey(
+  code: SessionsExportReasonCode | undefined,
+): NetxopsLocaleKey {
+  switch (code) {
+    case 'no_persistence': return 'sessionsExportNoPersistence'
+    case 'no_raw_artifacts': return 'sessionsExportNoRawArtifacts'
+    case 'list_failed': return 'sessionsExportListFailed'
+    case 'rpc_unavailable': return 'sessionsExportRpcUnavailable'
+    case 'rpc_failed': return 'sessionsExportRpcFailed'
+    case 'http_failed': return 'sessionsExportHttpFailed'
+    case 'empty_body': return 'sessionsExportEmpty'
+    default: return 'sessionsExportUnavailable'
+  }
 }
 
 /**
@@ -36,6 +71,7 @@ export function asSessionsExportStatus(value: unknown): SessionsExportStatus {
     available: row.available === true,
     sessionCount: typeof row.sessionCount === 'number' ? row.sessionCount : 0,
     supportsRawArtifacts: row.supportsRawArtifacts === true,
+    reasonCode: asReasonCode(row.reasonCode),
     reason: typeof row.reason === 'string' ? row.reason : undefined,
   }
 }
@@ -56,6 +92,7 @@ export async function fetchSessionsExportStatus(
   if (result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === false) {
     return {
       ...EMPTY_STATUS,
+      reasonCode: 'rpc_failed',
       reason: String((result as { error?: { message?: string } }).error?.message ?? 'rpc failed'),
     }
   }
@@ -93,6 +130,25 @@ export function saveBlobDownload(blob: Blob, filename: string): void {
   }
 }
 
+/** Browser download failure with a stable code for UI i18n. */
+export class SessionsExportDownloadError extends Error {
+  readonly code: Extract<SessionsExportReasonCode, 'http_failed' | 'empty_body'>
+  readonly status?: number
+  readonly detail: string
+
+  constructor(
+    code: Extract<SessionsExportReasonCode, 'http_failed' | 'empty_body'>,
+    message: string,
+    extra: { status?: number, detail?: string } = {},
+  ) {
+    super(message)
+    this.name = 'SessionsExportDownloadError'
+    this.code = code
+    this.status = extra.status
+    this.detail = extra.detail ?? ''
+  }
+}
+
 /**
  * Fetch the bulk sessions ZIP and hand it to the browser download manager.
  * Uses a credentialed GET + blob URL (not a bare `<a href=/api/...>` click after
@@ -112,7 +168,11 @@ export async function downloadAllSessionsExport(
   if (!response.ok) {
     const fromHeader = response.headers.get('x-netxops-export-error') ?? ''
     const detail = fromHeader || (await response.text().catch(() => ''))
-    throw new Error(`Export failed: HTTP ${response.status}${detail === '' ? '' : ` ${detail}`}`)
+    throw new SessionsExportDownloadError(
+      'http_failed',
+      `Export failed: HTTP ${response.status}${detail === '' ? '' : ` ${detail}`}`,
+      { status: response.status, detail },
+    )
   }
   const disposition = response.headers.get('content-disposition') ?? ''
   const matched = /filename="([^"]+)"/i.exec(disposition)
@@ -125,7 +185,7 @@ export async function downloadAllSessionsExport(
     : 0
   const blob = await response.blob()
   if (blob.size <= 0) {
-    throw new Error('Export failed: empty ZIP body')
+    throw new SessionsExportDownloadError('empty_body', 'Export failed: empty ZIP body')
   }
   save(blob, filename)
   return {

@@ -21,6 +21,8 @@ export interface ImDeliveryCatalog {
   available: boolean
   options: ImDeliveryCatalogOption[]
   hint: string
+  /** Stable code so the card can use locale keys instead of English hints. */
+  reasonCode?: 'im_catalog_unavailable' | 'rpc_failed'
   loading: boolean
 }
 
@@ -59,6 +61,9 @@ export function asImDeliveryCatalog(value: unknown): ImDeliveryCatalog {
     available: row.available !== false,
     options,
     hint: typeof row.hint === 'string' ? row.hint : '',
+    reasonCode: row.reasonCode === 'im_catalog_unavailable' || row.reasonCode === 'rpc_failed'
+      ? row.reasonCode
+      : undefined,
     loading: false,
   }
 }
@@ -79,6 +84,7 @@ export async function fetchImDeliveryCatalog(
     return {
       ...EMPTY_IM_DELIVERY_CATALOG,
       available: false,
+      reasonCode: 'rpc_failed',
       hint: String((result as { error?: { message?: string } }).error?.message ?? 'rpc failed'),
     }
   }

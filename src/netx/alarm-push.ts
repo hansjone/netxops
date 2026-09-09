@@ -7,6 +7,7 @@ import {
   publishAlarmPushStatus,
   type AlarmPushPhase,
 } from './alarm-push-status.ts'
+import { alarmActionLabel, tHost } from './i18n.ts'
 
 export function alarmSubscribeUrl(apiUrl: string): string {
   const trimmed = apiUrl.trim().replace(/\/$/, '')
@@ -42,16 +43,6 @@ export interface KeyAlarmPayload {
 /** Human-readable prompt for a sticky Netx Ops DSH session. */
 export function formatAlarmPrompt(payload: KeyAlarmPayload, lang = 'zh'): string {
   const action = String(payload.action ?? '').trim().toLowerCase()
-  const actionZh: Record<string, string> = {
-    inserted: '告警产生',
-    updated: '告警更新',
-    deleted: '告警清除',
-  }
-  const actionEn: Record<string, string> = {
-    inserted: 'Alarm Raised',
-    updated: 'Alarm Updated',
-    deleted: 'Alarm Cleared',
-  }
   const ne = payload.ne && typeof payload.ne === 'object' ? payload.ne : {}
   const host = String(ne.host_name ?? '').trim()
   const ip = String(ne.ip_address ?? '').trim()
@@ -59,32 +50,22 @@ export function formatAlarmPrompt(payload: KeyAlarmPayload, lang = 'zh'): string
   let device = host || neName || String(payload.ne_id ?? '').trim() || '-'
   if (ip) device = device === '-' ? ip : `${device} (${ip})`
 
-  const label = String(payload.rule_label ?? payload.native_probable_cause ?? '关键告警').trim()
-  if (lang.startsWith('en')) {
-    return [
-      `[NMS ${actionEn[action] ?? (action || 'Alarm')}] ${label}`,
-      `Device: ${device}`,
-      `Object: ${String(payload.object_name ?? '-').trim()}`,
-      `Severity: ${String(payload.perceived_severity ?? '-').trim()}`,
-      `Cause: ${String(payload.native_probable_cause ?? '-').trim()}`,
-      `Time: ${String(payload.time_created ?? '-').trim()}`,
-      `notificationId: ${String(payload.notification_id ?? '-').trim()}`,
-      `alarm_key: ${String(payload.alarm_key ?? '-').trim()}`,
-      '',
-      'Please analyze this key alarm and suggest next ops steps.',
-    ].join('\n')
-  }
+  const label = String(
+    payload.rule_label
+      ?? payload.native_probable_cause
+      ?? tHost('alarm.defaultLabel', lang),
+  ).trim()
   return [
-    `[NMS ${actionZh[action] ?? (action || '告警')}] ${label}`,
-    `设备: ${device}`,
-    `对象: ${String(payload.object_name ?? '-').trim()}`,
-    `级别: ${String(payload.perceived_severity ?? '-').trim()}`,
-    `原因: ${String(payload.native_probable_cause ?? '-').trim()}`,
-    `时间: ${String(payload.time_created ?? '-').trim()}`,
+    `[NMS ${alarmActionLabel(action, lang)}] ${label}`,
+    `${tHost('alarm.field.device', lang)}: ${device}`,
+    `${tHost('alarm.field.object', lang)}: ${String(payload.object_name ?? '-').trim()}`,
+    `${tHost('alarm.field.severity', lang)}: ${String(payload.perceived_severity ?? '-').trim()}`,
+    `${tHost('alarm.field.cause', lang)}: ${String(payload.native_probable_cause ?? '-').trim()}`,
+    `${tHost('alarm.field.time', lang)}: ${String(payload.time_created ?? '-').trim()}`,
     `notificationId: ${String(payload.notification_id ?? '-').trim()}`,
     `alarm_key: ${String(payload.alarm_key ?? '-').trim()}`,
     '',
-    '请分析这条关键告警并给出下一步运维建议。',
+    tHost('alarm.analyzeHint', lang),
   ].join('\n')
 }
 

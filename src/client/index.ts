@@ -1,5 +1,5 @@
 /**
- * Browser half — Settings → Plugins → Netx Ops card.
+ * Browser half — Settings → Netx Ops section (uds-auth-style page).
  *
  * Do not hard-inject `remote.credentials`: shipped `@deepseek-ai/dsh` 0.1.1-rc.2
  * remotes assembly does not mount that namespace (Models/Plugins cards only
@@ -11,7 +11,6 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import { NetxopsCard } from './NetxopsCard.tsx'
 import { NETXOPS_NS, NetxopsCardController } from './controller.ts'
 import { en, zh, type NetxopsLocaleKey } from './locales.ts'
@@ -24,7 +23,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const LOCALE_NS = 'settings.netxops'
 
-/** Match shipped ui-settings-plugins inject (no remote.credentials). */
+/** Match shipped settings shell inject (no remote.credentials). */
 export const inject = [
   'slots',
   'locale',
@@ -33,12 +32,24 @@ export const inject = [
 ]
 
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(LOCALE_NS, { zh, en }), 'netxops: locales')
+  ctx.effect(() => {
+    try {
+      return ctx.locale.register(LOCALE_NS, { zh, en })
+    } catch {
+      const offZh = ctx.locale.register(LOCALE_NS, 'zh', zh)
+      const offEn = ctx.locale.register(LOCALE_NS, 'en', en)
+      return () => {
+        offZh?.()
+        offEn?.()
+      }
+    }
+  }, 'netxops: locales')
 
   const card = new NetxopsCardController(
     ctx.settingsScope.bind({ namespace: NETXOPS_NS }),
     ctx,
   )
+  const t = ctx.locale.bind(LOCALE_NS) as (key: NetxopsLocaleKey) => string
 
   // Optional: newer remotes that mount credentials unlock the token field.
   ctx.inject(['remote.credentials'], (credCtx) => {
@@ -67,9 +78,11 @@ export function apply(ctx: ClientContext): void {
     }, 'netxops: clear alarm-push rpc')
   })
 
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
-    name: 'settings.plugin.item',
-    key: NETXOPS_NS,
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: NETXOPS_NS,
+    order: 24,
+    label: () => t('title'),
     locale: LOCALE_NS,
     inject: () => card.inject(),
   }, NetxopsCard))

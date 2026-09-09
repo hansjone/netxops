@@ -1,8 +1,8 @@
 /**
- * Netx Ops Plugins settings card — apiUrl / lang + credential token.
+ * Netx Ops settings section — uds-auth visual language (page header + cards).
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NetxopsCardFace, NetxopsCardState } from './controller.ts'
 import type { NetxopsLocaleKey } from './locales.ts'
@@ -20,7 +20,8 @@ import {
 } from '../netx/im-targets.ts'
 import { alarmPushTone, type AlarmPushPhase } from './alarm-push-status-view.ts'
 import { ensureStyles } from './styles.ts'
-import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import { sessionsExportReasonLocaleKey } from './sessions-export-view.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 
 function phaseLocaleKey(phase: AlarmPushPhase): NetxopsLocaleKey {
   switch (phase) {
@@ -51,8 +52,43 @@ function StatusBadge(props: {
   return <span className={className}>{props.label}</span>
 }
 
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => (
+    Object.prototype.hasOwnProperty.call(vars, name) ? vars[name]! : match
+  ))
+}
+
+function exportStatusMessage(
+  t: (key: NetxopsLocaleKey) => string,
+  status: NonNullable<NetxopsCardState['sessionsExportStatus']>,
+): string {
+  const key = sessionsExportReasonLocaleKey(status.reasonCode)
+  const template = t(key)
+  if (key === 'sessionsExportListFailed') {
+    return fillTemplate(template, { detail: status.reason || '' })
+  }
+  return status.reasonCode ? template : (status.reason || template)
+}
+
+function exportErrorMessage(
+  t: (key: NetxopsLocaleKey) => string,
+  error: NonNullable<NetxopsCardState['sessionsExportError']>,
+): string {
+  const key = sessionsExportReasonLocaleKey(error.code)
+  const template = t(key)
+  if (error.code === 'http_failed') {
+    const detail = error.detail.trim() === '' ? '' : ` ${error.detail.trim()}`
+    return fillTemplate(template, {
+      status: error.status !== undefined ? String(error.status) : '',
+      detail,
+    })
+  }
+  if (error.code === 'empty_body') return template
+  return error.fallback || template
+}
+
 export type NetxopsCardProps =
-  PropsRuntime<'settings.plugin.item'>
+  PropsRuntime<'settings.section'>
   & PropsLocale<'settings.netxops'>
   & InjectFace<NetxopsCardFace>
 
@@ -69,9 +105,9 @@ function ValueField(props: {
   onReset: () => void
 }) {
   return (
-    <div className="dsh-nx-field">
-      <div className="dsh-nx-fieldHead">
-        <label className="dsh-nx-label" htmlFor={props.id}>{props.label}</label>
+    <div className="dsh-nx-settings-field">
+      <div className="dsh-nx-field-head">
+        <label htmlFor={props.id}>{props.label}</label>
         {props.field.overridden
           ? (
             <span className="dsh-nx-badges">
@@ -85,7 +121,7 @@ function ValueField(props: {
       </div>
       <input
         id={props.id}
-        className={props.field.invalid ? 'dsh-nx-input dsh-nx-inputInvalid' : 'dsh-nx-input'}
+        className={props.field.invalid ? 'dsh-nx-inputInvalid' : undefined}
         type="text"
         value={props.field.text}
         disabled={props.disabled}
@@ -120,8 +156,6 @@ function ImDeliveryPicker(props: {
     imTargetId: props.legacyTargetId,
   })
   const selectedKeys = new Set(selected.map((row) => imTargetKey(row.botId, row.targetId)))
-
-  // Orphan legacy / JSON targets not present in the live catalog still show as checked rows.
   const orphanSelected = selected.filter(
     (row) => !options.some(
       (opt) => imCatalogOptionKey(opt.botId, opt.targetId) === imTargetKey(row.botId, row.targetId),
@@ -129,9 +163,9 @@ function ImDeliveryPicker(props: {
   )
 
   return (
-    <div className="dsh-nx-field">
-      <div className="dsh-nx-fieldHead">
-        <span className="dsh-nx-label">{props.labels.target}</span>
+    <div className="dsh-nx-settings-field">
+      <div className="dsh-nx-field-head">
+        <span className="dsh-nx-field-label">{props.labels.target}</span>
         {selected.length > 0
           ? (
             <span className="dsh-nx-badgeMuted">
@@ -144,7 +178,9 @@ function ImDeliveryPicker(props: {
         ? (
           <p className="dsh-nx-hint">
             {!props.catalog.available
-              ? (props.catalog.hint || props.labels.unavailable)
+              ? (props.catalog.reasonCode
+                ? props.labels.unavailable
+                : (props.catalog.hint || props.labels.unavailable))
               : props.labels.none}
           </p>
         )
@@ -190,7 +226,13 @@ function ImDeliveryPicker(props: {
           </div>
         )}
       {!props.catalog.available && options.length > 0
-        ? <p className="dsh-nx-hint">{props.catalog.hint || props.labels.unavailable}</p>
+        ? (
+          <p className="dsh-nx-hint">
+            {props.catalog.reasonCode
+              ? props.labels.unavailable
+              : (props.catalog.hint || props.labels.unavailable)}
+          </p>
+        )
         : null}
     </div>
   )
@@ -233,312 +275,334 @@ function CapabilityGroupBlock(props: {
   )
 }
 
+function ToggleField(props: {
+  id: string
+  label: string
+  checked: boolean
+  disabled: boolean
+  overridden: boolean
+  overriddenLabel: string
+  resetLabel: string
+  onToggle: (checked: boolean) => void
+  onReset: () => void
+  trailing?: ReactNode
+  hint?: ReactNode
+  error?: ReactNode
+}) {
+  return (
+    <div className="dsh-nx-settings-field">
+      <div className="dsh-nx-field-head">
+        <label htmlFor={props.id}>{props.label}</label>
+        <span className="dsh-nx-badges">
+          {props.trailing}
+          {props.overridden
+            ? (
+              <>
+                <span className="dsh-nx-badge">{props.overriddenLabel}</span>
+                <button type="button" className="dsh-nx-reset" disabled={props.disabled} onClick={props.onReset}>
+                  {props.resetLabel}
+                </button>
+              </>
+            )
+            : null}
+        </span>
+      </div>
+      <label className="dsh-nx-checkRow" htmlFor={props.id}>
+        <input
+          id={props.id}
+          type="checkbox"
+          checked={props.checked}
+          disabled={props.disabled}
+          aria-label={props.label}
+          onChange={(event) => { props.onToggle(event.target.checked) }}
+        />
+      </label>
+      {props.hint}
+      {props.error}
+    </div>
+  )
+}
+
 export function NetxopsCard(props: NetxopsCardProps) {
   ensureStyles()
   const { t } = props
   const state: NetxopsCardState = props.useNetxopsCard(snapshot => snapshot)
-  const [open, setOpen] = useState(false)
+  const [flash, setFlash] = useState<'ok' | 'err' | null>(null)
   const saveStarted = useRef(false)
 
   useEffect(() => {
     if (state.saving) {
       saveStarted.current = true
+      setFlash(null)
       return
     }
     if (!saveStarted.current) return
     saveStarted.current = false
-    if (!state.dirty && !state.failed) setOpen(false)
+    if (state.failed) {
+      setFlash('err')
+      return
+    }
+    if (!state.dirty) setFlash('ok')
   }, [state.dirty, state.failed, state.saving])
 
-  if (!state.available) return null
+  if (!state.available) {
+    return (
+      <section className="dsh-nx-settings" aria-label={t('title')}>
+        <div className="dsh-nx-settings-empty">{t('sessionsExportUnavailable')}</div>
+      </section>
+    )
+  }
 
-  const title = t('title' satisfies NetxopsLocaleKey)
   const disabled = !state.writable
   const blocked = !state.dirty || state.invalid || state.saving
   const pushStatus = state.alarmPushStatus
-  const showHeaderStatus = pushStatus !== null
-    && (pushStatus.enabled || pushStatus.phase !== 'disabled')
 
   return (
-    <li className={open ? 'dsh-nx-card dsh-nx-cardOpen' : 'dsh-nx-card'}>
-      <button
-        type="button"
-        className="dsh-nx-header"
-        aria-expanded={open}
-        aria-label={`${t(open ? 'collapse' : 'expand')}: ${title}`}
-        onClick={() => { setOpen(!open) }}
-      >
-        <span className="dsh-nx-headText">
-          <span className="dsh-nx-name">{title}</span>
-          <span className="dsh-nx-desc">{t('description')}</span>
-        </span>
-        {showHeaderStatus && pushStatus
-          ? (
-            <StatusBadge
-              phase={pushStatus.phase}
-              label={t(phaseLocaleKey(pushStatus.phase))}
-            />
-          )
-          : null}
-        {state.dirty ? <span className="dsh-nx-pending">{t('unsaved')}</span> : null}
-        <span className={open ? 'dsh-nx-chevron dsh-nx-chevronOpen' : 'dsh-nx-chevron'} aria-hidden>▾</span>
-      </button>
-      {open
-        ? (
-          <div className="dsh-nx-body">
-            {!state.writable ? <p className="dsh-nx-readOnly" role="status">{t('readOnly')}</p> : null}
-            <div className="dsh-nx-field">
-              <div className="dsh-nx-fieldHead">
-                <label className="dsh-nx-label" htmlFor="netxops-api-token">{t('apiToken')}</label>
-                <span className="dsh-nx-badges">
-                  <span className={state.apiTokenConfigured ? 'dsh-nx-badge' : 'dsh-nx-badgeMuted'}>
-                    {state.apiTokenConfigured ? t('apiTokenSet') : t('apiTokenUnset')}
-                  </span>
-                </span>
-              </div>
-              <input
-                id="netxops-api-token"
-                className="dsh-nx-input"
-                type="password"
-                autoComplete="off"
-                value={state.apiToken.text}
-                disabled={!state.apiTokenWritable}
-                onChange={(event) => { props.edit('apiToken', event.target.value) }}
-              />
-              <p className="dsh-nx-hint">
-                {state.apiTokenRemoteReady ? t('apiTokenHint') : t('apiTokenUnavailable')}
-              </p>
-            </div>
-            <ValueField
-              id="netxops-api-url"
-              label={t('apiUrl')}
-              hint={t('apiUrlHint')}
-              field={state.apiUrl}
-              overriddenLabel={t('overridden')}
-              resetLabel={t('reset')}
-              invalidLabel={t('invalid')}
-              disabled={disabled}
-              onEdit={(text) => { props.edit('apiUrl', text) }}
-              onReset={() => { props.resetField('apiUrl') }}
-            />
-            <ValueField
-              id="netxops-lang"
-              label={t('lang')}
-              hint={t('langHint')}
-              field={state.lang}
-              overriddenLabel={t('overridden')}
-              resetLabel={t('reset')}
-              invalidLabel={t('invalid')}
-              disabled={disabled}
-              onEdit={(text) => { props.edit('lang', text) }}
-              onReset={() => { props.resetField('lang') }}
-            />
-            <ValueField
-              id="netxops-nms-provider"
-              label={t('nmsProvider')}
-              hint={t('nmsProviderHint')}
-              field={state.nmsProvider}
-              overriddenLabel={t('overridden')}
-              resetLabel={t('reset')}
-              invalidLabel={t('invalid')}
-              disabled={disabled}
-              onEdit={(text) => { props.edit('nmsProvider', text) }}
-              onReset={() => { props.resetField('nmsProvider') }}
-            />
-            <div className="dsh-nx-field">
-              <div className="dsh-nx-fieldHead">
-                <span className="dsh-nx-label">{t('capabilityGroups')}</span>
-              </div>
-              <CapabilityGroupBlock
-                title={t('groupOps')}
-                inPresetLabel={t('groupInPreset')}
-                publicLabel={t('groupPublic')}
-                inPreset={state.groupOpsInPreset}
-                published={state.groupOpsPublic}
-                disabled={disabled}
-                onEditInPreset={(checked) => {
-                  props.edit('groupOpsInPreset', checked ? 'true' : 'false')
-                }}
-                onEditPublic={(checked) => {
-                  props.edit('groupOpsPublic', checked ? 'true' : 'false')
-                }}
-              />
-              <CapabilityGroupBlock
-                title={t('groupTopology')}
-                inPresetLabel={t('groupInPreset')}
-                publicLabel={t('groupPublic')}
-                inPreset={state.groupTopologyInPreset}
-                published={state.groupTopologyPublic}
-                disabled={disabled}
-                onEditInPreset={(checked) => {
-                  props.edit('groupTopologyInPreset', checked ? 'true' : 'false')
-                }}
-                onEditPublic={(checked) => {
-                  props.edit('groupTopologyPublic', checked ? 'true' : 'false')
-                }}
-              />
-            </div>
-            <div className="dsh-nx-field">
-              <div className="dsh-nx-fieldHead">
-                <label className="dsh-nx-label" htmlFor="netxops-alarm-push">{t('alarmPushEnabled')}</label>
-                <span className="dsh-nx-badges">
-                  {pushStatus
-                    ? (
-                      <StatusBadge
-                        phase={pushStatus.phase}
-                        label={`${t('alarmPushStatus')}: ${t(phaseLocaleKey(pushStatus.phase))}`}
-                      />
-                    )
-                    : null}
-                  {state.alarmPushEnabled.overridden
-                    ? (
-                      <>
-                        <span className="dsh-nx-badge">{t('overridden')}</span>
-                        <button
-                          type="button"
-                          className="dsh-nx-reset"
-                          disabled={disabled}
-                          onClick={() => { props.resetField('alarmPushEnabled') }}
-                        >
-                          {t('reset')}
-                        </button>
-                      </>
-                    )
-                    : null}
-                </span>
-              </div>
-              <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-push">
-                <input
-                  id="netxops-alarm-push"
-                  type="checkbox"
-                  checked={state.alarmPushEnabled.text === 'true'}
-                  disabled={disabled}
-                  aria-label={t('alarmPushEnabled')}
-                  onChange={(event) => {
-                    props.edit('alarmPushEnabled', event.target.checked ? 'true' : 'false')
-                  }}
-                />
-              </label>
-              {pushStatus?.wsUrl
-                ? <p className="dsh-nx-hint">{pushStatus.wsUrl}</p>
-                : null}
-              {pushStatus?.lastError
-                ? <p className="dsh-nx-invalid" role="status">{pushStatus.lastError}</p>
-                : null}
-            </div>
-            <div className="dsh-nx-field">
-              <div className="dsh-nx-fieldHead">
-                <label className="dsh-nx-label" htmlFor="netxops-alarm-dsh">{t('alarmDeliverDsh')}</label>
-                {state.alarmDeliverDsh.overridden
-                  ? (
-                    <span className="dsh-nx-badges">
-                      <span className="dsh-nx-badge">{t('overridden')}</span>
-                      <button type="button" className="dsh-nx-reset" disabled={disabled} onClick={() => { props.resetField('alarmDeliverDsh') }}>
-                        {t('reset')}
-                      </button>
-                    </span>
-                  )
-                  : null}
-              </div>
-              <label className="dsh-nx-checkRow" htmlFor="netxops-alarm-dsh">
-                <input
-                  id="netxops-alarm-dsh"
-                  type="checkbox"
-                  checked={state.alarmDeliverDsh.text === 'true'}
-                  disabled={disabled}
-                  aria-label={t('alarmDeliverDsh')}
-                  onChange={(event) => {
-                    props.edit('alarmDeliverDsh', event.target.checked ? 'true' : 'false')
-                  }}
-                />
-              </label>
-            </div>
-            <ImDeliveryPicker
-              catalog={state.imDeliveryCatalog}
-              targetsJson={state.imTargets.text}
-              legacyBotId={state.imBotId.text}
-              legacyTargetId={state.imTargetId.text}
-              disabled={disabled}
-              labels={{
-                target: t('alarmDeliverIm'),
-                none: t('imTargetNone'),
-                selectedCount: t('imTargetSelectedCount'),
-                unavailable: t('imCatalogUnavailable'),
-              }}
-              onChange={(targets) => {
-                props.edit('imTargets', formatImTargetsJson(targets))
-                const first = targets[0]
-                props.edit('imBotId', first?.botId ?? '')
-                props.edit('imTargetId', first?.targetId ?? '')
-                props.edit('alarmDeliverIm', targets.length > 0 ? 'true' : 'false')
-              }}
-            />
-            <div className="dsh-nx-field">
-              <div className="dsh-nx-fieldHead">
-                <span className="dsh-nx-label">{t('sessionsExport')}</span>
-              </div>
-              {state.sessionsExportStatus === null
-                ? <p className="dsh-nx-hint">{t('sessionsExportUnavailable')}</p>
-                : state.sessionsExportStatus.available
-                  ? (
-                    <p className="dsh-nx-hint">
-                      {t('sessionsExportCount').replace(
-                        '{count}',
-                        String(state.sessionsExportStatus.sessionCount),
-                      )}
-                    </p>
-                  )
-                  : (
-                    <p className="dsh-nx-invalid" role="status">
-                      {state.sessionsExportStatus.reason || t('sessionsExportUnavailable')}
-                    </p>
-                  )}
-              {state.sessionsExportError
-                ? <p className="dsh-nx-invalid" role="status">{state.sessionsExportError}</p>
-                : null}
-              {state.sessionsExportLastFile && !state.sessionsExportBusy && !state.sessionsExportError
-                ? (
-                  <p className="dsh-nx-hint" role="status">
-                    {t('sessionsExportDone').replace('{file}', state.sessionsExportLastFile)}
-                  </p>
-                )
-                : null}
-              <div className="dsh-nx-exportRow">
-                <button
-                  type="button"
-                  className="dsh-nx-btn dsh-nx-export"
-                  disabled={
-                    state.sessionsExportBusy
-                    || state.sessionsExportStatus?.available !== true
-                  }
-                  onClick={() => { props.exportAllSessions() }}
-                >
-                  {t(state.sessionsExportBusy ? 'sessionsExportBusy' : 'sessionsExportButton')}
-                </button>
-              </div>
-            </div>
-            <div className="dsh-nx-footer">
-              {state.failed ? <p className="dsh-nx-failed" role="status">{t('saveFailed')}</p> : null}
-              <button
-                type="button"
-                className="dsh-nx-btn dsh-nx-discard"
-                disabled={!state.dirty || state.saving}
-                onClick={props.discard}
-              >
-                {t('discard')}
-              </button>
-              <button
-                type="button"
-                className="dsh-nx-btn dsh-nx-save"
-                disabled={blocked}
-                onClick={props.save}
-              >
-                {t(state.saving ? 'saving' : 'save')}
-              </button>
-            </div>
-          </div>
-        )
+    <section className="dsh-nx-settings" aria-label={t('title')}>
+      <header>
+        <h2>{t('title')}</h2>
+        <p className="dsh-nx-settings-intro">{t('description')}</p>
+      </header>
+
+      {!state.writable
+        ? <p className="dsh-nx-hint" role="status">{t('readOnly')}</p>
         : null}
-    </li>
+
+      <div className="dsh-nx-settings-card">
+        <h3>{t('sectionConnection')}</h3>
+        <div className="dsh-nx-settings-field">
+          <div className="dsh-nx-field-head">
+            <label htmlFor="netxops-api-token">{t('apiToken')}</label>
+            <span className="dsh-nx-badges">
+              <span className={state.apiTokenConfigured ? 'dsh-nx-badge' : 'dsh-nx-badgeMuted'}>
+                {state.apiTokenConfigured ? t('apiTokenSet') : t('apiTokenUnset')}
+              </span>
+            </span>
+          </div>
+          <input
+            id="netxops-api-token"
+            type="password"
+            autoComplete="off"
+            value={state.apiToken.text}
+            disabled={!state.apiTokenWritable}
+            onChange={(event) => { props.edit('apiToken', event.target.value) }}
+          />
+          <p className="dsh-nx-hint">
+            {state.apiTokenRemoteReady ? t('apiTokenHint') : t('apiTokenUnavailable')}
+          </p>
+        </div>
+        <ValueField
+          id="netxops-api-url"
+          label={t('apiUrl')}
+          hint={t('apiUrlHint')}
+          field={state.apiUrl}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t('invalid')}
+          disabled={disabled}
+          onEdit={(text) => { props.edit('apiUrl', text) }}
+          onReset={() => { props.resetField('apiUrl') }}
+        />
+        <ValueField
+          id="netxops-lang"
+          label={t('lang')}
+          hint={t('langHint')}
+          field={state.lang}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t('invalid')}
+          disabled={disabled}
+          onEdit={(text) => { props.edit('lang', text) }}
+          onReset={() => { props.resetField('lang') }}
+        />
+        <ValueField
+          id="netxops-nms-provider"
+          label={t('nmsProvider')}
+          hint={t('nmsProviderHint')}
+          field={state.nmsProvider}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t('invalid')}
+          disabled={disabled}
+          onEdit={(text) => { props.edit('nmsProvider', text) }}
+          onReset={() => { props.resetField('nmsProvider') }}
+        />
+      </div>
+
+      <div className="dsh-nx-settings-card">
+        <h3>{t('sectionCapabilities')}</h3>
+        <CapabilityGroupBlock
+          title={t('groupOps')}
+          inPresetLabel={t('groupInPreset')}
+          publicLabel={t('groupPublic')}
+          inPreset={state.groupOpsInPreset}
+          published={state.groupOpsPublic}
+          disabled={disabled}
+          onEditInPreset={(checked) => {
+            props.edit('groupOpsInPreset', checked ? 'true' : 'false')
+          }}
+          onEditPublic={(checked) => {
+            props.edit('groupOpsPublic', checked ? 'true' : 'false')
+          }}
+        />
+        <CapabilityGroupBlock
+          title={t('groupTopology')}
+          inPresetLabel={t('groupInPreset')}
+          publicLabel={t('groupPublic')}
+          inPreset={state.groupTopologyInPreset}
+          published={state.groupTopologyPublic}
+          disabled={disabled}
+          onEditInPreset={(checked) => {
+            props.edit('groupTopologyInPreset', checked ? 'true' : 'false')
+          }}
+          onEditPublic={(checked) => {
+            props.edit('groupTopologyPublic', checked ? 'true' : 'false')
+          }}
+        />
+      </div>
+
+      <div className="dsh-nx-settings-card">
+        <h3>{t('sectionAlarms')}</h3>
+        <ToggleField
+          id="netxops-alarm-push"
+          label={t('alarmPushEnabled')}
+          checked={state.alarmPushEnabled.text === 'true'}
+          disabled={disabled}
+          overridden={state.alarmPushEnabled.overridden}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          onToggle={(checked) => {
+            props.edit('alarmPushEnabled', checked ? 'true' : 'false')
+          }}
+          onReset={() => { props.resetField('alarmPushEnabled') }}
+          trailing={pushStatus
+            ? (
+              <StatusBadge
+                phase={pushStatus.phase}
+                label={`${t('alarmPushStatus')}: ${t(phaseLocaleKey(pushStatus.phase))}`}
+              />
+            )
+            : null}
+          hint={pushStatus?.wsUrl ? <p className="dsh-nx-hint">{pushStatus.wsUrl}</p> : null}
+          error={pushStatus?.lastError
+            ? <p className="dsh-nx-invalid" role="status">{pushStatus.lastError}</p>
+            : null}
+        />
+        <ToggleField
+          id="netxops-alarm-dsh"
+          label={t('alarmDeliverDsh')}
+          checked={state.alarmDeliverDsh.text === 'true'}
+          disabled={disabled}
+          overridden={state.alarmDeliverDsh.overridden}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          onToggle={(checked) => {
+            props.edit('alarmDeliverDsh', checked ? 'true' : 'false')
+          }}
+          onReset={() => { props.resetField('alarmDeliverDsh') }}
+        />
+        <ImDeliveryPicker
+          catalog={state.imDeliveryCatalog}
+          targetsJson={state.imTargets.text}
+          legacyBotId={state.imBotId.text}
+          legacyTargetId={state.imTargetId.text}
+          disabled={disabled}
+          labels={{
+            target: t('alarmDeliverIm'),
+            none: t('imTargetNone'),
+            selectedCount: t('imTargetSelectedCount'),
+            unavailable: t('imCatalogUnavailable'),
+          }}
+          onChange={(targets) => {
+            props.edit('imTargets', formatImTargetsJson(targets))
+            const first = targets[0]
+            props.edit('imBotId', first?.botId ?? '')
+            props.edit('imTargetId', first?.targetId ?? '')
+            props.edit('alarmDeliverIm', targets.length > 0 ? 'true' : 'false')
+          }}
+        />
+      </div>
+
+      <div className="dsh-nx-settings-card">
+        <h3>{t('sectionExport')}</h3>
+        <div className="dsh-nx-settings-field">
+          <span className="dsh-nx-field-label">{t('sessionsExport')}</span>
+          {state.sessionsExportStatus === null
+            ? <p className="dsh-nx-hint">{t('sessionsExportUnavailable')}</p>
+            : state.sessionsExportStatus.available
+              ? (
+                <p className="dsh-nx-hint">
+                  {t('sessionsExportCount').replace(
+                    '{count}',
+                    String(state.sessionsExportStatus.sessionCount),
+                  )}
+                </p>
+              )
+              : (
+                <p className="dsh-nx-hint">
+                  {exportStatusMessage(t, state.sessionsExportStatus)}
+                </p>
+              )}
+          {state.sessionsExportError
+            ? (
+              <p className="dsh-nx-invalid" role="status">
+                {exportErrorMessage(t, state.sessionsExportError)}
+              </p>
+            )
+            : null}
+          {state.sessionsExportLastFile && !state.sessionsExportBusy && !state.sessionsExportError
+            ? (
+              <p className="dsh-nx-hint" role="status">
+                {t('sessionsExportDone').replace('{file}', state.sessionsExportLastFile)}
+              </p>
+            )
+            : null}
+          <div className="dsh-nx-settings-actions">
+            <button
+              type="button"
+              className="dsh-nx-btn"
+              disabled={
+                state.sessionsExportBusy
+                || state.sessionsExportStatus?.available !== true
+              }
+              onClick={() => { props.exportAllSessions() }}
+            >
+              {t(state.sessionsExportBusy ? 'sessionsExportBusy' : 'sessionsExportButton')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="dsh-nx-settings-actions">
+        <button
+          type="button"
+          className="dsh-nx-btn dsh-nx-btn-primary"
+          disabled={blocked}
+          onClick={props.save}
+        >
+          {t(state.saving ? 'saving' : 'save')}
+        </button>
+        <button
+          type="button"
+          className="dsh-nx-btn dsh-nx-btn-ghost"
+          disabled={!state.dirty || state.saving}
+          onClick={() => {
+            props.discard()
+            setFlash(null)
+          }}
+        >
+          {t('discard')}
+        </button>
+        {state.dirty && !state.saving
+          ? <span className="dsh-nx-settings-msg">{t('unsaved')}</span>
+          : null}
+        {flash === 'ok' && !state.dirty
+          ? <span className="dsh-nx-settings-msg ok">{t('configSaved')}</span>
+          : null}
+        {(flash === 'err' || state.failed)
+          ? <span className="dsh-nx-settings-msg err" role="status">{t('saveFailed')}</span>
+          : null}
+      </div>
+    </section>
   )
 }
