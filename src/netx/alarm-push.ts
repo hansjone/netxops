@@ -173,7 +173,18 @@ export function startAlarmPushClient(options: AlarmPushClientOptions): () => voi
 
     socket.addEventListener('open', () => {
       setPhase('authenticating', wsUrl, { detail: 'auth' })
-      socket?.send(JSON.stringify({ type: 'auth', token }))
+      let clientLabel = 'netxops'
+      try {
+        // Node / Bun hosts: include hostname so NetX hub can list multi-DSH links.
+        const env = typeof process !== 'undefined' ? process.env : undefined
+        const hostname = env?.HOSTNAME || env?.COMPUTERNAME
+        if (typeof hostname === 'string' && hostname.trim()) {
+          clientLabel = `netxops@${hostname.trim()}`
+        }
+      } catch {
+        // browser / restricted runtime — keep generic label
+      }
+      socket?.send(JSON.stringify({ type: 'auth', token, client: clientLabel }))
     })
 
     socket.addEventListener('message', (event) => {
