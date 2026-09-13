@@ -412,13 +412,14 @@ export class NetxopsCardController {
     this.kbUiError = null
     this.store.set(this.projection())
 
-    const applyPath = (path: unknown): void => {
-      if (typeof path !== 'string' || path.trim() === '') {
-        // Cancel / empty — no error
-        return
-      }
-      this.form.actions().edit('kbRoot', path.trim())
+    const applyPath = (path: string): void => {
+      this.form.actions().edit('kbRoot', path)
       void this.refreshKbPreview()
+      // Selecting a folder should land immediately — don't require a separate Save.
+      void this.form.save().then(() => {
+        void this.refreshKbStatus()
+        void this.refreshKbPreview()
+      })
     }
 
     const fail = (error: unknown): void => {
@@ -426,10 +427,24 @@ export class NetxopsCardController {
       this.store.set(this.projection())
     }
 
+    /**
+     * `remote.directoryPicker.pick()` returns a Typert Result `{ ok, value }`,
+     * not a bare string (see dsh ui-workspace Navigation.pickDirectory).
+     */
+    const acceptPickResult = (result: unknown): void => {
+      const path = unwrapDirectoryPickResult(result)
+      if (path === null) return // user cancelled
+      if (path === undefined) {
+        fail(`unexpected directoryPicker result: ${safeJson(result)}`)
+        return
+      }
+      applyPath(path)
+    }
+
     const picker = this.kbDirectoryPicker
     if (picker !== undefined) {
       void picker.pick()
-        .then(applyPath)
+        .then(acceptPickResult)
         .catch(fail)
         .finally(() => {
           this.kbBrowseInFlight = false
@@ -447,25 +462,7 @@ export class NetxopsCardController {
       return
     }
     void call('/api', 'directoryPicker/pick', { args: {} })
-      .then((result) => {
-        // Remotes often return the path directly, or { ok, value }.
-        if (typeof result === 'string' || result === null) {
-          applyPath(result)
-          return
-        }
-        if (result !== null && typeof result === 'object') {
-          const row = result as { ok?: boolean; value?: unknown; error?: { message?: string } }
-          if (row.ok === false) {
-            fail(row.error?.message || 'directoryPicker/pick failed')
-            return
-          }
-          if ('value' in row) {
-            applyPath(row.value)
-            return
-          }
-        }
-        applyPath(result)
-      })
+      .then(acceptPickResult)
       .catch(fail)
       .finally(() => {
         this.kbBrowseInFlight = false
@@ -624,4 +621,42 @@ export class NetxopsCardController {
 function refOf(snapshot: SettingsScopeSnapshot<NetxopsSettings>): string {
   const declared = snapshot.value?.tokenCredentialRef
   return declared !== undefined && declared.length > 0 ? declared : DEFAULT_TOKEN_REF
+}
+
+/**
+ * Normalize directoryPicker pick outcomes.
+ * @returns trimmed path; `null` = cancelled; `undefined` = unparseable.
+ */
+function unwrapDirectoryPickResult(result: unknown): string | null | undefined {
+  if (result === null) return null
+  if (typeof result === 'string') {
+    const trimmed = result.trim()
+    return trimmed === '' ? null : trimmed
+  }
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) return undefined
+  const row = result as {
+    ok?: boolean
+    value?: unknown
+    error?: { message?: string }
+  }
+  if (row.ok === false) {
+    throw new Error(row.error?.message || 'directoryPicker/pick failed')
+  }
+  if ('value' in row) {
+    if (row.value === null) return null
+    if (typeof row.value === 'string') {
+      const trimmed = row.value.trim()
+      return trimmed === '' ? null : trimmed
+    }
+    return undefined
+  }
+  return undefined
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
 }
