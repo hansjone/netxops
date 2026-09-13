@@ -521,7 +521,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
             <button
               type="button"
               className="dsh-nx-btn"
-              disabled={disabled || !state.kbDirectoryPickerReady}
+              disabled={disabled}
               onClick={() => { props.browseKbRoot() }}
             >
               {t('kbBrowse')}
@@ -534,6 +534,14 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 ? t('kbRootHint')
                 : t('kbBrowseUnavailable')}
           </p>
+          <p className="dsh-nx-hint">{t('kbSaveHint')}</p>
+          {state.kbUiError
+            ? (
+              <p className="dsh-nx-invalid" role="status">
+                {fillTemplate(t('kbBrowseFailed'), { detail: state.kbUiError })}
+              </p>
+            )
+            : null}
           {state.kbStatus?.status === 'error' && state.kbStatus.errorMessage
             ? <p className="dsh-nx-invalid" role="status">{state.kbStatus.errorMessage}</p>
             : null}

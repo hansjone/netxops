@@ -79,14 +79,24 @@ export function apply(ctx: ClientContext): void {
   })
 
   // Soft-inject Host directory picker for knowledge-base browse.
+  // Prefer the dedicated remote namespace; also accept ctx.remote.directoryPicker.
+  const bindDirectoryPicker = (picker: { pick?: (signal?: AbortSignal) => Promise<string | null> } | undefined): void => {
+    if (!picker || typeof picker.pick !== 'function') return
+    card.setDirectoryPicker(picker as { pick: (signal?: AbortSignal) => Promise<string | null> })
+  }
+  bindDirectoryPicker(
+    (ctx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
+      .remote?.directoryPicker,
+  )
   ctx.inject(['remote.directoryPicker'], (dpCtx) => {
-    const picker = (dpCtx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
+    const viaGet = typeof (dpCtx as { get?: (name: string) => unknown }).get === 'function'
+      ? (dpCtx as { get: (name: string) => unknown }).get('remote.directoryPicker') as
+        | { pick?: (signal?: AbortSignal) => Promise<string | null> }
+        | undefined
+      : undefined
+    const viaNested = (dpCtx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
       .remote?.directoryPicker
-    if (!picker || typeof picker.pick !== 'function') {
-      dpCtx.logger.warn('netxops: remote.directoryPicker.pick unavailable — browse button disabled')
-      return
-    }
-    card.setDirectoryPicker(picker)
+    bindDirectoryPicker(viaGet ?? viaNested)
     dpCtx.effect(() => () => {
       card.setDirectoryPicker(undefined)
     }, 'netxops: clear directory picker')

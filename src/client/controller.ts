@@ -91,6 +91,8 @@ export interface NetxopsCardState extends CardShell {
   kbStatus: KbSnapshot | null
   /** Soft-injected `remote.directoryPicker` is available. */
   kbDirectoryPickerReady: boolean
+  /** Last browse / resolve UI error (picker refuse, RPC miss, …). */
+  kbUiError: string | null
   /** Saved IM delivery targets for the picker (soft-depends on dsh-im-ops). */
   imDeliveryCatalog: ImDeliveryCatalog
   /** Bulk session-export readiness from Host RPC; null when RPC is absent. */
@@ -143,6 +145,7 @@ export class NetxopsCardController {
   private kbDirectoryPicker: DirectoryPickerRemote | undefined
   private kbBrowseInFlight = false
   private kbStatusInFlight = false
+  private kbUiError: string | null = null
   private imDeliveryCatalog: ImDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
   private sessionsExportStatus: SessionsExportStatus | null = null
   private sessionsExportBusy = false
@@ -400,24 +403,73 @@ export class NetxopsCardController {
   }
 
   /**
-   * Open the Host OS directory chooser and write the path into kbRoot.
+   * Open the Host OS directory chooser (or /api directoryPicker/pick fallback)
+   * and write the path into kbRoot.
    */
   browseKbRoot(): void {
-    const picker = this.kbDirectoryPicker
-    if (picker === undefined || this.kbBrowseInFlight) return
+    if (this.kbBrowseInFlight) return
     this.kbBrowseInFlight = true
-    void picker.pick()
-      .then((path) => {
-        if (typeof path === 'string' && path.trim() !== '') {
-          this.form.actions().edit('kbRoot', path)
-          void this.refreshKbPreview()
+    this.kbUiError = null
+    this.store.set(this.projection())
+
+    const applyPath = (path: unknown): void => {
+      if (typeof path !== 'string' || path.trim() === '') {
+        // Cancel / empty — no error
+        return
+      }
+      this.form.actions().edit('kbRoot', path.trim())
+      void this.refreshKbPreview()
+    }
+
+    const fail = (error: unknown): void => {
+      this.kbUiError = error instanceof Error ? error.message : String(error)
+      this.store.set(this.projection())
+    }
+
+    const picker = this.kbDirectoryPicker
+    if (picker !== undefined) {
+      void picker.pick()
+        .then(applyPath)
+        .catch(fail)
+        .finally(() => {
+          this.kbBrowseInFlight = false
+          this.store.set(this.projection())
+        })
+      return
+    }
+
+    // Fallback: workspace controller remote verb on the Host /api channel.
+    const call = this.rpcCall
+    if (call === undefined) {
+      this.kbBrowseInFlight = false
+      this.kbUiError = 'directory picker unavailable — paste an absolute folder path and Save'
+      this.store.set(this.projection())
+      return
+    }
+    void call('/api', 'directoryPicker/pick', { args: {} })
+      .then((result) => {
+        // Remotes often return the path directly, or { ok, value }.
+        if (typeof result === 'string' || result === null) {
+          applyPath(result)
+          return
         }
+        if (result !== null && typeof result === 'object') {
+          const row = result as { ok?: boolean; value?: unknown; error?: { message?: string } }
+          if (row.ok === false) {
+            fail(row.error?.message || 'directoryPicker/pick failed')
+            return
+          }
+          if ('value' in row) {
+            applyPath(row.value)
+            return
+          }
+        }
+        applyPath(result)
       })
-      .catch(() => {
-        // Picker cancel / host refusal — leave draft unchanged.
-      })
+      .catch(fail)
       .finally(() => {
         this.kbBrowseInFlight = false
+        this.store.set(this.projection())
       })
   }
 
@@ -482,7 +534,8 @@ export class NetxopsCardController {
       apiTokenRemoteReady: this.credential.remoteReady,
       alarmPushStatus: this.alarmPushStatus,
       kbStatus: this.kbPreview ?? this.kbStatus,
-      kbDirectoryPickerReady: this.kbDirectoryPicker !== undefined,
+      kbDirectoryPickerReady: this.kbDirectoryPicker !== undefined || this.rpcCall !== undefined,
+      kbUiError: this.kbUiError,
       imDeliveryCatalog: this.imDeliveryCatalog,
       sessionsExportStatus: this.sessionsExportStatus,
       sessionsExportBusy: this.sessionsExportBusy,

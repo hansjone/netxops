@@ -23,6 +23,8 @@ export type NetxopsLocaleKey =
   | 'kbRootHint'
   | 'kbBrowse'
   | 'kbBrowseUnavailable'
+  | 'kbBrowseFailed'
+  | 'kbSaveHint'
   | 'kbStatusConfigured'
   | 'kbStatusUnconfigured'
   | 'kbStatusError'
@@ -92,7 +94,9 @@ export const en: Record<NetxopsLocaleKey, string> = {
   kbRoot: 'Package root',
   kbRootHint: 'Folder with MANIFEST.json (operator-subset v1.0). Empty = pure netx.',
   kbBrowse: 'Browse…',
-  kbBrowseUnavailable: 'Directory picker unavailable — paste an absolute path.',
+  kbBrowseUnavailable: 'Directory picker unavailable — paste an absolute folder path, then Save.',
+  kbBrowseFailed: 'Browse failed: {detail}',
+  kbSaveHint: 'Click Save after choosing a path to apply the knowledge base.',
   kbStatusConfigured: 'Knowledge base: {operator} ({country}) v{version}',
   kbStatusUnconfigured: 'Knowledge base: not configured (pure netx)',
   kbStatusError: 'Knowledge base: error — {detail}',
@@ -163,7 +167,9 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   kbRoot: '知识包根目录',
   kbRootHint: '含 MANIFEST.json 的运营商子集包（v1.0）。留空=纯 netx。',
   kbBrowse: '浏览…',
-  kbBrowseUnavailable: '目录选择器不可用 — 请粘贴绝对路径。',
+  kbBrowseUnavailable: '目录选择器不可用 — 请粘贴绝对目录路径后点保存。',
+  kbBrowseFailed: '浏览失败：{detail}',
+  kbSaveHint: '选好路径后请点「保存」，知识库才会生效。',
   kbStatusConfigured: '知识库: {operator}（{country}） v{version}',
   kbStatusUnconfigured: '知识库: 未配置（纯 netx）',
   kbStatusError: '知识库: 错误 — {detail}',

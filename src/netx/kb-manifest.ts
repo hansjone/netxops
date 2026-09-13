@@ -12,7 +12,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 /** Known content flags; unknown keys are preserved when boolean. */
 export interface KbContentFlags {
@@ -218,15 +218,32 @@ export function parseManifest(raw: string): {
 
 /**
  * Resolve kbRoot → KbSnapshot (unconfigured / configured / error).
+ * Accepts a directory, or a path directly to MANIFEST.json (uses its parent).
  */
 export function resolveKbRoot(kbRoot: string, maxDepth = 3): KbSnapshot {
   const trimmed = kbRoot.trim()
   if (!trimmed) return unconfiguredKbSnapshot()
 
-  const located = findManifest(trimmed, maxDepth)
+  let root = resolve(trimmed)
+  try {
+    const st = statSync(root)
+    if (st.isFile()) {
+      if (basename(root).toLowerCase() === 'manifest.json') {
+        root = dirname(root)
+      } else {
+        return errorSnapshot(`kbRoot is not a directory: ${root}`)
+      }
+    } else if (!st.isDirectory()) {
+      return errorSnapshot(`kbRoot is not a directory: ${root}`)
+    }
+  } catch {
+    return errorSnapshot(`kbRoot not found: ${root}`)
+  }
+
+  const located = findManifest(root, maxDepth)
   if (located.error) return errorSnapshot(located.error)
   if (located.paths.length === 0) {
-    return errorSnapshot(`no MANIFEST.json under ${resolve(trimmed)} (maxDepth=${maxDepth})`)
+    return errorSnapshot(`no MANIFEST.json under ${root} (maxDepth=${maxDepth})`)
   }
   if (located.paths.length > 1) {
     return errorSnapshot(

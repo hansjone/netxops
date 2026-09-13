@@ -64,7 +64,11 @@ export async function resolveKbPath(
   path: string,
   signal?: AbortSignal,
 ): Promise<KbSnapshot> {
-  const result = await call(NETXOPS_RPC_CHANNEL, KB_RESOLVE_ENDPOINT, { path }, signal)
+  // Prefer flat `{ path }` (netxops channel); also try `{ args: { path } }`.
+  let result = await call(NETXOPS_RPC_CHANNEL, KB_RESOLVE_ENDPOINT, { path }, signal)
+  if (!(result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === true)) {
+    result = await call(NETXOPS_RPC_CHANNEL, KB_RESOLVE_ENDPOINT, { args: { path } }, signal)
+  }
   if (result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === true) {
     return asKbSnapshot((result as { value?: unknown }).value)
   }

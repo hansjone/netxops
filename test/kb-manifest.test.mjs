@@ -144,8 +144,31 @@ test('findManifest respects maxDepth', () => {
   })
 })
 
-test('missing kbRoot path → error', () => {
-  const snap = resolveKbRoot(join(tmpdir(), 'netxops-kb-missing-' + Date.now()))
-  assert.equal(snap.status, 'error')
-  assert.match(snap.errorMessage, /not found/)
+test('path to MANIFEST.json file resolves via parent dir', () => {
+  withTemp((root) => {
+    const manifestPath = join(root, 'MANIFEST.json')
+    writeFileSync(manifestPath, validManifest(), 'utf8')
+    const snap = resolveKbRoot(manifestPath)
+    assert.equal(snap.status, 'configured')
+    assert.equal(snap.realRoot, root)
+    assert.equal(snap.operatorName, 'IOH')
+  })
+})
+
+test('contract content flags hasRegions etc. are accepted', () => {
+  withTemp((root) => {
+    writeFileSync(join(root, 'MANIFEST.json'), validManifest({
+      content: {
+        hasRegions: true,
+        hasTheory: true,
+        hasPacket: true,
+        hasCommon: true,
+        hasSkills: true,
+      },
+    }), 'utf8')
+    const snap = resolveKbRoot(root)
+    assert.equal(snap.status, 'configured')
+    assert.equal(snap.content.hasRegions, true)
+    assert.equal(snap.content.hasSkills, true)
+  })
 })
