@@ -42,7 +42,8 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
    Token fallback: `scripts/set-netx-token.ps1` / `.sh`.  
    Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws`. Choose **投递到 DSH 会话** and/or **投递到 WhatsApp / IM**. For IM, install `dsh-im-ops`, create a delivery target, then paste `imBotId` / `imTargetId`. The card header shows live WSS status.  
    Optional: **导出全部会话** downloads `dsh-sessions-<host>-<utc>.zip` via `GET /api/netxops.sessions.export` (browser download; works for cloud Hosts).  
-   Capability groups: leave default for **ops**, or enable **topology** / **对其他预设公开** (new sessions after save).
+   Capability groups: leave default for **ops**, or enable **topology** / **对其他预设公开** (new sessions after save).  
+   Optional: **知识库** — set package root (folder with `MANIFEST.json` operator-subset v1.0). Empty = pure netx. See [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md).
 2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
 3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms / 「能否登录」.
 
@@ -67,8 +68,9 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
 3. Agent presets → Custom → **Netx Ops**.
 4. Tools include `netx__queryNmsAlarms` / `netx__execManagedNe` / `netx__findTopologyPaths` (**ops** → skill `netx-ops`). Canvas / dual_unit need **topology** (`netx-topology`).
 5. Export section shows a session count; **下载 ZIP** starts a browser download.
+6. Optional knowledge-base badge shows operator/country/version when `kbRoot` + MANIFEST are valid.
 
-See [TOOL_MAP.md](TOOL_MAP.md).
+See [TOOL_MAP.md](TOOL_MAP.md) and [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md).
 
 ## Path / local checkout (developers)
 

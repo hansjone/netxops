@@ -16,6 +16,12 @@ import {
   type AlarmPushStatus,
 } from './alarm-push-status-view.ts'
 import {
+  fetchKbStatus,
+  resolveKbPath,
+  type KbSnapshot,
+} from './kb-status-view.ts'
+import { unconfiguredKbSnapshot } from '../netx/kb-manifest.ts'
+import {
   EMPTY_IM_DELIVERY_CATALOG,
   fetchImDeliveryCatalog,
   type ImDeliveryCatalog,
@@ -49,6 +55,8 @@ export interface NetxopsSettings {
   groupTopologyInPreset?: boolean
   groupTopologyPublic?: boolean
   nmsProvider?: string
+  /** Operator-subset knowledge package root (Host-local path). */
+  kbRoot?: string
 }
 
 interface CredentialState {
@@ -66,6 +74,7 @@ export interface NetxopsCardState extends CardShell {
   groupTopologyInPreset: CardFieldState
   groupTopologyPublic: CardFieldState
   nmsProvider: CardFieldState
+  kbRoot: CardFieldState
   alarmPushEnabled: CardFieldState
   alarmDeliverDsh: CardFieldState
   alarmDeliverIm: CardFieldState
@@ -78,6 +87,10 @@ export interface NetxopsCardState extends CardShell {
   apiTokenRemoteReady: boolean
   /** Host WSS status when Connection RPC is available; otherwise null. */
   alarmPushStatus: AlarmPushStatus | null
+  /** Latest KB snapshot (saved root, or live preview while editing). */
+  kbStatus: KbSnapshot | null
+  /** Soft-injected `remote.directoryPicker` is available. */
+  kbDirectoryPickerReady: boolean
   /** Saved IM delivery targets for the picker (soft-depends on dsh-im-ops). */
   imDeliveryCatalog: ImDeliveryCatalog
   /** Bulk session-export readiness from Host RPC; null when RPC is absent. */
@@ -101,6 +114,12 @@ export interface NetxopsCardFace extends CardActions {
   }
   /** Download every durable session on this Host as one ZIP. */
   exportAllSessions: () => void
+  /** Open the Host directory picker and write the chosen path into kbRoot. */
+  browseKbRoot: () => void
+}
+
+type DirectoryPickerRemote = {
+  pick: (signal?: AbortSignal) => Promise<string | null>
 }
 
 type CredentialsRemote = {
@@ -119,6 +138,11 @@ export class NetxopsCardController {
   }
   private rpcCall: AlarmPushRpcCall | undefined
   private alarmPushStatus: AlarmPushStatus | null = null
+  private kbStatus: KbSnapshot | null = null
+  private kbPreview: KbSnapshot | null = null
+  private kbDirectoryPicker: DirectoryPickerRemote | undefined
+  private kbBrowseInFlight = false
+  private kbStatusInFlight = false
   private imDeliveryCatalog: ImDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
   private sessionsExportStatus: SessionsExportStatus | null = null
   private sessionsExportBusy = false
@@ -140,6 +164,7 @@ export class NetxopsCardController {
         textField('apiUrl'),
         textField('lang'),
         textField('nmsProvider'),
+        textField('kbRoot'),
         booleanFieldPersistFalse('groupOpsInPreset'),
         booleanField('groupOpsPublic'),
         booleanField('groupTopologyInPreset'),
@@ -154,7 +179,10 @@ export class NetxopsCardController {
       [{ field: API_TOKEN_FIELD, write: text => this.writeToken(text) }],
     )
     this.store = this.form.bind(() => this.projection())
-    scope.subscribe(() => { void this.readCredential() })
+    scope.subscribe(() => {
+      void this.readCredential()
+      void this.refreshKbPreview()
+    })
     void this.readCredential()
   }
 
@@ -171,7 +199,7 @@ export class NetxopsCardController {
   }
 
   /**
-   * Soft-inject Host Connection RPC used to read alarm-push WSS status.
+   * Soft-inject Host Connection RPC used to read alarm-push WSS status + KB status.
    * @param call - `ctx.connection.rpc.call`, or undefined when connection leaves.
    */
   setAlarmPushRpc(call: AlarmPushRpcCall | undefined): void {
@@ -181,6 +209,11 @@ export class NetxopsCardController {
       let changed = false
       if (this.alarmPushStatus !== null) {
         this.alarmPushStatus = null
+        changed = true
+      }
+      if (this.kbStatus !== null || this.kbPreview !== null) {
+        this.kbStatus = null
+        this.kbPreview = null
         changed = true
       }
       if (this.imDeliveryCatalog.options.length > 0 || this.imDeliveryCatalog.available !== true) {
@@ -196,14 +229,29 @@ export class NetxopsCardController {
     }
     this.startStatusPoll()
     void this.refreshAlarmPushStatus()
+    void this.refreshKbStatus()
+    void this.refreshKbPreview()
     void this.refreshImDeliveryCatalog()
     void this.refreshSessionsExportStatus()
+  }
+
+  /**
+   * Soft-inject `remote.directoryPicker` for the knowledge-base browse button.
+   */
+  setDirectoryPicker(picker: DirectoryPickerRemote | undefined): void {
+    const ready = picker !== undefined
+    if (this.kbDirectoryPicker === picker && (this.kbDirectoryPicker !== undefined) === ready) {
+      return
+    }
+    this.kbDirectoryPicker = picker
+    this.store.set(this.projection())
   }
 
   private startStatusPoll(): void {
     if (this.pollTimer !== undefined) return
     this.pollTimer = setInterval(() => {
       void this.refreshAlarmPushStatus()
+      void this.refreshKbStatus()
       void this.refreshImDeliveryCatalog()
       void this.refreshSessionsExportStatus()
     }, STATUS_POLL_MS)
@@ -293,6 +341,86 @@ export class NetxopsCardController {
     }
   }
 
+  private async refreshKbStatus(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.kbStatusInFlight) return
+    this.kbStatusInFlight = true
+    try {
+      const next = await fetchKbStatus(call)
+      const prev = this.kbStatus
+      if (
+        prev
+        && prev.status === next.status
+        && prev.realRoot === next.realRoot
+        && prev.operatorName === next.operatorName
+        && prev.country === next.country
+        && prev.version === next.version
+        && prev.errorMessage === next.errorMessage
+      ) return
+      this.kbStatus = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last good snapshot; next poll retries.
+    } finally {
+      this.kbStatusInFlight = false
+    }
+  }
+
+  private async refreshKbPreview(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined) return
+    const draft = this.form.field('kbRoot').text.trim()
+    const saved = (this.scope.getSnapshot().value?.kbRoot ?? '').trim()
+    if (draft === saved) {
+      if (this.kbPreview !== null) {
+        this.kbPreview = null
+        this.store.set(this.projection())
+      }
+      return
+    }
+    try {
+      const next = draft === ''
+        ? unconfiguredKbSnapshot()
+        : await resolveKbPath(call, draft)
+      const prev = this.kbPreview
+      if (
+        prev
+        && prev.status === next.status
+        && prev.realRoot === next.realRoot
+        && prev.operatorName === next.operatorName
+        && prev.country === next.country
+        && prev.version === next.version
+        && prev.errorMessage === next.errorMessage
+      ) return
+      this.kbPreview = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last preview; edits retry via scope subscribe.
+    }
+  }
+
+  /**
+   * Open the Host OS directory chooser and write the path into kbRoot.
+   */
+  browseKbRoot(): void {
+    const picker = this.kbDirectoryPicker
+    if (picker === undefined || this.kbBrowseInFlight) return
+    this.kbBrowseInFlight = true
+    void picker.pick()
+      .then((path) => {
+        if (typeof path === 'string' && path.trim() !== '') {
+          this.form.actions().edit('kbRoot', path)
+          void this.refreshKbPreview()
+        }
+      })
+      .catch(() => {
+        // Picker cancel / host refusal — leave draft unchanged.
+      })
+      .finally(() => {
+        this.kbBrowseInFlight = false
+      })
+  }
+
   /**
    * Download every durable session as one ZIP through the browser download manager.
    */
@@ -337,6 +465,7 @@ export class NetxopsCardController {
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
       nmsProvider: this.form.field('nmsProvider'),
+      kbRoot: this.form.field('kbRoot'),
       groupOpsInPreset: this.form.field('groupOpsInPreset'),
       groupOpsPublic: this.form.field('groupOpsPublic'),
       groupTopologyInPreset: this.form.field('groupTopologyInPreset'),
@@ -352,6 +481,8 @@ export class NetxopsCardController {
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,
       apiTokenRemoteReady: this.credential.remoteReady,
       alarmPushStatus: this.alarmPushStatus,
+      kbStatus: this.kbPreview ?? this.kbStatus,
+      kbDirectoryPickerReady: this.kbDirectoryPicker !== undefined,
       imDeliveryCatalog: this.imDeliveryCatalog,
       sessionsExportStatus: this.sessionsExportStatus,
       sessionsExportBusy: this.sessionsExportBusy,
@@ -407,10 +538,24 @@ export class NetxopsCardController {
   }
 
   inject(): NetxopsCardFace {
+    const actions = this.form.actions()
     return {
       hooks: { netxopsCard: this.store },
-      ...this.form.actions(),
+      ...actions,
+      edit: (field, text) => {
+        actions.edit(field, text)
+        if (field === 'kbRoot') void this.refreshKbPreview()
+      },
+      discard: () => {
+        actions.discard()
+        void this.refreshKbPreview()
+      },
+      resetField: (field) => {
+        actions.resetField(field)
+        if (field === 'kbRoot') void this.refreshKbPreview()
+      },
       exportAllSessions: () => { this.exportAllSessions() },
+      browseKbRoot: () => { this.browseKbRoot() },
     }
   }
 

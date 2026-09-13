@@ -1,7 +1,7 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.28",
-  "description": "DeepSeek Harness Netx Ops: capability groups ops/topology + multi IM delivery + session export",
+  "version": "0.1.29",
+  "description": "DeepSeek Harness Netx Ops: capability groups ops/topology + multi IM delivery + session export + knowledge-base MANIFEST",
   "license": "MIT",
   "type": "module",
   "private": false,

@@ -5,6 +5,7 @@ export type NetxopsLocaleKey =
   | 'description'
   | 'sectionConnection'
   | 'sectionCapabilities'
+  | 'sectionKnowledge'
   | 'sectionAlarms'
   | 'sectionExport'
   | 'apiUrl'
@@ -18,6 +19,13 @@ export type NetxopsLocaleKey =
   | 'groupTopology'
   | 'groupInPreset'
   | 'groupPublic'
+  | 'kbRoot'
+  | 'kbRootHint'
+  | 'kbBrowse'
+  | 'kbBrowseUnavailable'
+  | 'kbStatusConfigured'
+  | 'kbStatusUnconfigured'
+  | 'kbStatusError'
   | 'alarmPushEnabled'
   | 'alarmPushStatus'
   | 'alarmPushPhaseDisabled'
@@ -64,9 +72,10 @@ export type NetxopsLocaleKey =
 
 export const en: Record<NetxopsLocaleKey, string> = {
   title: 'Netx Ops',
-  description: 'API, token, capabilities, and alarm delivery.',
+  description: 'API, token, capabilities, knowledge base, and alarm delivery.',
   sectionConnection: 'Connection',
   sectionCapabilities: 'Capability groups',
+  sectionKnowledge: 'Knowledge base',
   sectionAlarms: 'Key-alarm delivery',
   sectionExport: 'Session export',
   apiUrl: 'API URL',
@@ -80,6 +89,13 @@ export const en: Record<NetxopsLocaleKey, string> = {
   groupTopology: 'topology',
   groupInPreset: 'In Netx Ops preset',
   groupPublic: 'Publish to other presets',
+  kbRoot: 'Package root',
+  kbRootHint: 'Folder with MANIFEST.json (operator-subset v1.0). Empty = pure netx.',
+  kbBrowse: 'Browse…',
+  kbBrowseUnavailable: 'Directory picker unavailable — paste an absolute path.',
+  kbStatusConfigured: 'Knowledge base: {operator} ({country}) v{version}',
+  kbStatusUnconfigured: 'Knowledge base: not configured (pure netx)',
+  kbStatusError: 'Knowledge base: error — {detail}',
   alarmPushEnabled: 'Key-alarm push',
   alarmPushStatus: 'Status',
   alarmPushPhaseDisabled: 'Off',
@@ -127,9 +143,10 @@ export const en: Record<NetxopsLocaleKey, string> = {
 
 export const zh: Record<NetxopsLocaleKey, string> = {
   title: 'Netx Ops',
-  description: 'API、Token、能力组与告警投递。',
+  description: 'API、Token、能力组、知识库与告警投递。',
   sectionConnection: '连接',
   sectionCapabilities: '能力组',
+  sectionKnowledge: '知识库',
   sectionAlarms: '关键告警投递',
   sectionExport: '会话导出',
   apiUrl: 'API 地址',
@@ -143,6 +160,13 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   groupTopology: 'topology',
   groupInPreset: '在 Netx Ops 预设中启用',
   groupPublic: '对其他预设公开',
+  kbRoot: '知识包根目录',
+  kbRootHint: '含 MANIFEST.json 的运营商子集包（v1.0）。留空=纯 netx。',
+  kbBrowse: '浏览…',
+  kbBrowseUnavailable: '目录选择器不可用 — 请粘贴绝对路径。',
+  kbStatusConfigured: '知识库: {operator}（{country}） v{version}',
+  kbStatusUnconfigured: '知识库: 未配置（纯 netx）',
+  kbStatusError: '知识库: 错误 — {detail}',
   alarmPushEnabled: '关键告警推送',
   alarmPushStatus: '状态',
   alarmPushPhaseDisabled: '未开启',

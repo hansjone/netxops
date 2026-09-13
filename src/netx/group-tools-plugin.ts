@@ -10,6 +10,8 @@ import {
   type NetxCapabilityGroupId,
 } from './capability-groups.ts'
 import { registerGroupSkills } from './group-skills.ts'
+import { registerKbContextSkill } from './kb-context-skill.ts'
+import { getKbContext, watchKbContext } from './kb-runtime.ts'
 import { getNetxConnection, watchNetxConnection } from './runtime.ts'
 import { registerNetxTools } from './tools.ts'
 
@@ -72,6 +74,7 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
   const stopToolWatch = watchNetxConnection(() => { remountTools() })
 
   ctx.inject(['skills'], (skillsCtx) => {
+    let unregisterKbSkill: (() => void) | undefined
     const remountSkills = (): void => {
       const gen = ++skillGeneration
       unregisterSkills?.()
@@ -88,14 +91,24 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
         skillsCtx.logger.warn('%s: skill register failed: %s', options.name, error)
       })
     }
+    const remountKbSkill = (): void => {
+      unregisterKbSkill?.()
+      unregisterKbSkill = undefined
+      unregisterKbSkill = registerKbContextSkill(skillsCtx, getKbContext())
+    }
 
     remountSkills()
+    remountKbSkill()
     const stopSkillWatch = watchNetxConnection(() => { remountSkills() })
+    const stopKbWatch = watchKbContext(() => { remountKbSkill() })
     skillsCtx.effect(() => () => {
       skillGeneration += 1
       stopSkillWatch()
+      stopKbWatch()
       unregisterSkills?.()
       unregisterSkills = undefined
+      unregisterKbSkill?.()
+      unregisterKbSkill = undefined
     }, `${options.name}: dispose skills`)
   })
 

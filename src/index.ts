@@ -1,8 +1,9 @@
 /**
- * Host-plane Netx Ops: settings (apiUrl / lang / alarm push / capability groups)
- * + credentials (NETX_API_TOKEN) publish a connection snapshot. The Ops preset
- * mounts selected `netx__*` groups via `dsh-netxops/tools`; groups marked public
- * also register on the host tool/skill layer for other presets.
+ * Host-plane Netx Ops: settings (apiUrl / lang / alarm push / capability groups /
+ * optional knowledge-base root) + credentials (NETX_API_TOKEN) publish a
+ * connection snapshot. The Ops preset mounts selected `netx__*` groups via
+ * `dsh-netxops/tools`; groups marked public also register on the host tool/skill
+ * layer for other presets.
  *
  * When「关键告警推送」is on, this host dials out to netx's fixed-IP alarm hub and
  * opens/follows a sticky DSH session (im / WhatsApp is optional and separate).
@@ -10,6 +11,10 @@
  * Ops can download every durable session on this Host as one ZIP
  * (`GET /api/netxops.sessions.export`) for HQ analysis — including cloud Hosts,
  * where the browser receives the archive.
+ *
+ * Knowledge base (P1): settings `kbRoot` → locate/validate MANIFEST.json →
+ * `process.env.KB_*` + dynamic `kb-context` skill. Unconfigured/error degrades
+ * to pure netx (no invented operator).
  *
  * @module dsh-netxops
  */
@@ -39,6 +44,15 @@ import {
 } from './netx/capability-groups.ts'
 import { registerGroupSkills } from './netx/group-skills.ts'
 import { resolveImTargets } from './netx/im-targets.ts'
+import { registerKbContextSkill } from './netx/kb-context-skill.ts'
+import { resolveKbRoot } from './netx/kb-manifest.ts'
+import {
+  applyKbEnv,
+  getKbContext,
+  publishKbContext,
+  resetKbContext,
+  watchKbContext,
+} from './netx/kb-runtime.ts'
 import { publishNetxConnection, getNetxConnection, watchNetxConnection } from './netx/runtime.ts'
 import {
   getSessionsExportStatus,
@@ -115,6 +129,12 @@ export interface Config {
   groupTopologyInPreset: boolean
   /** Publish topology tools/skills to other presets (default off). */
   groupTopologyPublic: boolean
+  /**
+   * Absolute (or Host-local) path to an operator-subset knowledge package.
+   * Empty = unconfigured. Plugin locates `MANIFEST.json` (≤3 levels) and
+   * injects `KB_*` + `kb-context` skill.
+   */
+  kbRoot: string
 }
 
 export const Config: z<Config> = z.object({
@@ -134,6 +154,7 @@ export const Config: z<Config> = z.object({
   groupOpsPublic: z.boolean().default(false),
   groupTopologyInPreset: z.boolean().default(false),
   groupTopologyPublic: z.boolean().default(false),
+  kbRoot: z.string().default(''),
 })
 
 /** Package root (parent of `lib/` or `src/` depending on launch). */
@@ -297,6 +318,20 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         toolCallTimeoutMs: current.toolCallTimeoutMs,
         groups,
       })
+      const kb = resolveKbRoot(current.kbRoot ?? '')
+      publishKbContext(kb)
+      applyKbEnv(kb)
+      if (kb.status === 'configured') {
+        ctx.logger.info(
+          'netxops: knowledge base configured → %s (%s / %s v%s)',
+          kb.realRoot,
+          kb.operatorName,
+          kb.country,
+          kb.version,
+        )
+      } else if (kb.status === 'error') {
+        ctx.logger.warn('netxops: knowledge base error — %s', kb.errorMessage)
+      }
       restartAlarmPush(current, apiUrl, token)
       if (!tokenConfigured) {
         ctx.logger.warn(
@@ -364,6 +399,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   ctx.inject(['skills'], (skillsCtx) => {
     let unregisterSkills: (() => void) | undefined
+    let unregisterKbSkill: (() => void) | undefined
     let generation = 0
     const remountPublicSkills = (): void => {
       const gen = ++generation
@@ -386,19 +422,36 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         skillsCtx.logger.warn('netxops: public skill register failed: %s', error)
       })
     }
+    const remountKbSkill = (): void => {
+      unregisterKbSkill?.()
+      unregisterKbSkill = undefined
+      const snapshot = getKbContext()
+      unregisterKbSkill = registerKbContextSkill(skillsCtx, snapshot)
+      skillsCtx.logger.info(
+        'netxops: kb-context skill status=%s',
+        snapshot.status,
+      )
+    }
     remountPublicSkills()
+    remountKbSkill()
     const stopWatch = watchNetxConnection(() => { remountPublicSkills() })
+    const stopKbWatch = watchKbContext(() => { remountKbSkill() })
     skillsCtx.effect(() => () => {
       generation += 1
       stopWatch()
+      stopKbWatch()
       unregisterSkills?.()
+      unregisterKbSkill?.()
     }, 'netxops: dispose public skills')
   })
 
   // Browser card: alarm-push status + IM catalog (RPC) and all-sessions ZIP (Fetch).
   ctx.inject(['connection'], (connCtx) => {
     const connection = connCtx.connection as {
-      rpc?: { handle?: (channel: string, handler: (endpoint: string) => Promise<unknown>) => (() => void) | Promise<void> }
+      rpc?: { handle?: (
+        channel: string,
+        handler: (endpoint: string, payload?: unknown) => Promise<unknown>,
+      ) => (() => void) | Promise<void> }
       fetch?: {
         register?: (route: {
           readonly path: string
@@ -414,9 +467,16 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       connCtx.effect(() => {
         const dispose = rpc.handle(
           NETXOPS_RPC_CHANNEL,
-          async (endpoint: string) => {
+          async (endpoint: string, payload?: unknown) => {
             if (endpoint === 'alarm-push.status') {
               return { ok: true, value: getAlarmPushStatus() }
+            }
+            if (endpoint === 'kb.status') {
+              return { ok: true, value: getKbContext() }
+            }
+            if (endpoint === 'kb.resolve') {
+              const path = extractKbResolvePath(payload)
+              return { ok: true, value: resolveKbRoot(path) }
             }
             if (endpoint === 'sessions.export.status') {
               const value = await getSessionsExportStatus(ctx)
@@ -492,5 +552,19 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     stopAlarmPush = undefined
     resetAlarmSession()
     resetAlarmPushStatus()
+    resetKbContext()
   }, 'netxops: dispose host bridge')
+}
+
+/** Pull `path` from either `{ path }` or `{ args: { path } }` RPC payloads. */
+function extractKbResolvePath(payload: unknown): string {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return ''
+  const row = payload as Record<string, unknown>
+  if (typeof row.path === 'string') return row.path
+  const args = row.args
+  if (args !== null && typeof args === 'object' && !Array.isArray(args)) {
+    const path = (args as Record<string, unknown>).path
+    if (typeof path === 'string') return path
+  }
+  return ''
 }

@@ -19,6 +19,7 @@ import {
   type ImDeliveryTarget,
 } from '../netx/im-targets.ts'
 import { alarmPushTone, type AlarmPushPhase } from './alarm-push-status-view.ts'
+import { kbStatusTone, type KbSnapshot } from './kb-status-view.ts'
 import { ensureStyles } from './styles.ts'
 import { sessionsExportReasonLocaleKey } from './sessions-export-view.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -38,10 +39,12 @@ function phaseLocaleKey(phase: AlarmPushPhase): NetxopsLocaleKey {
 }
 
 function StatusBadge(props: {
-  phase: AlarmPushPhase
+  phase?: AlarmPushPhase
+  tone?: 'ok' | 'warn' | 'err' | 'neutral'
   label: string
 }) {
-  const tone = alarmPushTone(props.phase)
+  const tone = props.tone
+    ?? (props.phase !== undefined ? alarmPushTone(props.phase) : 'neutral')
   const className = tone === 'ok'
     ? 'dsh-nx-status dsh-nx-statusOk'
     : tone === 'warn'
@@ -50,6 +53,23 @@ function StatusBadge(props: {
         ? 'dsh-nx-status dsh-nx-statusErr'
         : 'dsh-nx-status'
   return <span className={className}>{props.label}</span>
+}
+
+function kbBadgeLabel(
+  t: (key: NetxopsLocaleKey) => string,
+  snapshot: KbSnapshot | null,
+): string {
+  if (!snapshot || snapshot.status === 'unconfigured') {
+    return t('kbStatusUnconfigured')
+  }
+  if (snapshot.status === 'error') {
+    return fillTemplate(t('kbStatusError'), { detail: snapshot.errorMessage || 'error' })
+  }
+  return fillTemplate(t('kbStatusConfigured'), {
+    operator: snapshot.operatorName,
+    country: snapshot.country,
+    version: snapshot.version,
+  })
 }
 
 function fillTemplate(template: string, vars: Record<string, string>): string {
@@ -459,6 +479,68 @@ export function NetxopsCard(props: NetxopsCardProps) {
             props.edit('groupTopologyPublic', checked ? 'true' : 'false')
           }}
         />
+      </div>
+
+      <div className="dsh-nx-settings-card">
+        <h3>{t('sectionKnowledge')}</h3>
+        <div className="dsh-nx-settings-field">
+          <div className="dsh-nx-field-head">
+            <label htmlFor="netxops-kb-root">{t('kbRoot')}</label>
+            <span className="dsh-nx-badges">
+              <StatusBadge
+                tone={kbStatusTone(state.kbStatus?.status ?? 'unconfigured')}
+                label={kbBadgeLabel(t, state.kbStatus)}
+              />
+              {state.kbRoot.overridden
+                ? (
+                  <>
+                    <span className="dsh-nx-badge">{t('overridden')}</span>
+                    <button
+                      type="button"
+                      className="dsh-nx-reset"
+                      disabled={disabled}
+                      onClick={() => { props.resetField('kbRoot') }}
+                    >
+                      {t('reset')}
+                    </button>
+                  </>
+                )
+                : null}
+            </span>
+          </div>
+          <div className="dsh-nx-pathRow">
+            <input
+              id="netxops-kb-root"
+              className={state.kbRoot.invalid ? 'dsh-nx-inputInvalid' : undefined}
+              type="text"
+              value={state.kbRoot.text}
+              disabled={disabled}
+              aria-invalid={state.kbRoot.invalid || undefined}
+              onChange={(event) => { props.edit('kbRoot', event.target.value) }}
+            />
+            <button
+              type="button"
+              className="dsh-nx-btn"
+              disabled={disabled || !state.kbDirectoryPickerReady}
+              onClick={() => { props.browseKbRoot() }}
+            >
+              {t('kbBrowse')}
+            </button>
+          </div>
+          <p className={state.kbRoot.invalid ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
+            {state.kbRoot.invalid
+              ? t('invalid')
+              : state.kbDirectoryPickerReady
+                ? t('kbRootHint')
+                : t('kbBrowseUnavailable')}
+          </p>
+          {state.kbStatus?.status === 'error' && state.kbStatus.errorMessage
+            ? <p className="dsh-nx-invalid" role="status">{state.kbStatus.errorMessage}</p>
+            : null}
+          {state.kbStatus?.status === 'configured' && state.kbStatus.realRoot
+            ? <p className="dsh-nx-hint">{state.kbStatus.realRoot}</p>
+            : null}
+        </div>
       </div>
 
       <div className="dsh-nx-settings-card">

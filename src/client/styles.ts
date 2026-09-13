@@ -41,7 +41,9 @@ const CSS = `
 .dsh-nx-groupTitle{font-size:13px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary,#1f2329)}
 .dsh-nx-groupChecks{display:flex;flex-direction:column;gap:8px;padding-left:2px}
 .dsh-nx-imTargetList{display:flex;flex-direction:column;gap:8px;padding:4px 0 2px}
-.dsh-nx-settings-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.dsh-nx-pathRow{display:flex;gap:8px;align-items:stretch}
+.dsh-nx-pathRow>input{flex:1;min-width:0}
+.dsh-nx-pathRow>.dsh-nx-btn{flex:none;align-self:stretch}
 .dsh-nx-settings-msg{font-size:12px;color:var(--dsw-alias-label-secondary,#646a73)}
 .dsh-nx-settings-msg.ok{color:var(--dsw-alias-state-success-primary,#20a162)}
 .dsh-nx-settings-msg.err{color:var(--dsw-alias-state-error-primary,#d54941)}

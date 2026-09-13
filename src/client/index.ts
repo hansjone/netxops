@@ -65,7 +65,7 @@ export function apply(ctx: ClientContext): void {
     }, 'netxops: credential invalidations')
   })
 
-  // Soft-inject Connection so the card can poll host WSS status.
+  // Soft-inject Connection so the card can poll host WSS status + KB status.
   ctx.inject(['connection'], (connCtx) => {
     const call = connCtx.connection?.rpc?.call?.bind(connCtx.connection.rpc)
     if (typeof call !== 'function') {
@@ -76,6 +76,20 @@ export function apply(ctx: ClientContext): void {
     connCtx.effect(() => () => {
       card.setAlarmPushRpc(undefined)
     }, 'netxops: clear alarm-push rpc')
+  })
+
+  // Soft-inject Host directory picker for knowledge-base browse.
+  ctx.inject(['remote.directoryPicker'], (dpCtx) => {
+    const picker = (dpCtx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
+      .remote?.directoryPicker
+    if (!picker || typeof picker.pick !== 'function') {
+      dpCtx.logger.warn('netxops: remote.directoryPicker.pick unavailable — browse button disabled')
+      return
+    }
+    card.setDirectoryPicker(picker)
+    dpCtx.effect(() => () => {
+      card.setDirectoryPicker(undefined)
+    }, 'netxops: clear directory picker')
   })
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
