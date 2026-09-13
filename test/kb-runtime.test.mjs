@@ -25,7 +25,13 @@ test('publishKbContext updates store', () => {
     operatorName: 'IOH',
     country: 'ID',
     version: '1',
-    content: { regions: true, theory: false, packet: false, skills: false },
+    content: {
+      hasRegions: true,
+      hasTheory: false,
+      hasPacket: false,
+      hasCommon: false,
+      hasSkills: false,
+    },
     errorMessage: '',
   })
   const snap = getKbContext()
@@ -34,6 +40,7 @@ test('publishKbContext updates store', () => {
   applyKbEnv(snap)
   assert.equal(process.env.KB_OPERATOR, 'IOH')
   assert.equal(process.env.KB_COUNTRY, 'ID')
-  assert.ok(process.env.KB_CONTENT?.includes('"regions":true'))
+  assert.ok(process.env.KB_CONTENT?.includes('"hasRegions":true'))
+  assert.equal(process.env.KB_CONTENT?.includes('"regions"'), false)
   resetKbContext()
 })

@@ -1,14 +1,21 @@
-# Knowledge base (P1)
+# Knowledge base
 
 Operator-subset knowledge packages are wired through **netxops settings**, not into the netx API or `netx-ops` skill text.
+
+**Role split**
+
+| Surface | Responsibility |
+|---------|----------------|
+| `netx-ops` | Live netx evidence (alarms / inventory / CLI) — **pure netx**, no KB playbooks |
+| `kb-context` | Identity annotation from MANIFEST (`KB_*`) |
+| `_skills/kb-*` | Operator KB triage / ingest / retrieve / export / package |
 
 ## Setup
 
 1. Settings → Plugins → **Netx Ops** → **知识库 / Knowledge base**
-2. Set **知识包根目录** to a folder that contains (or uniquely nests ≤3 levels) a `MANIFEST.json`
-3. Save — Host injects env + a `kb-context` skill for new sessions
-
-Browse uses Host `remote.directoryPicker` when available; otherwise paste an absolute path.
+2. Browse (or paste) a folder that contains (or uniquely nests ≤3 levels) a `MANIFEST.json` — browse auto-saves
+3. Leave **知识库技能 → 在 Netx Ops 预设中启用** on (default) so `_skills/kb-*` register into Netx Ops sessions
+4. Optionally enable **对其他预设公开** to publish those pack skills on the host public skill layer
 
 ## MANIFEST v1.0 (plugin checks)
 
@@ -18,7 +25,7 @@ Browse uses Host `remote.directoryPicker` when available; otherwise paste an abs
 | `packageType` | must be `"operator-subset"` |
 | `operator.name` / `operator.country` | required non-empty strings |
 | `version` | required non-empty string |
-| `content.*` | object of booleans; missing keys → `false` (`regions` / `theory` / `packet` / `skills` known) |
+| `content.*` | booleans; contract keys `hasRegions` / `hasTheory` / `hasPacket` / `hasCommon` / `hasSkills` (missing → `false`). Legacy short keys `regions`/`theory`/`packet`/`skills` map to `has*` when the contract key is absent |
 
 Location: `${kbRoot}/MANIFEST.json`, else recurse ≤3 levels and **exactly one** hit. Zero or multiple → error.
 
@@ -28,17 +35,36 @@ Authoritative packaging prose lives in the workspace contract notes (`插件` / 
 
 | Channel | Fields |
 |---------|--------|
-| `process.env` | `KB_ROOT`, `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON), `KB_STATUS` |
+| `process.env` | `KB_ROOT`, `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON of `has*`), `KB_STATUS` |
 | Skill `kb-context` | Same identity for the model (markdown table) |
+| Skills from `_skills/` | Registered when `configured` **and** `hasSkills` **and** the inPreset/public toggle for that plane |
 
 RPC (channel `/netxops`): `kb.status` (saved snapshot), `kb.resolve` with `{ path }` (preview unsaved paths).
+
+## Pack skill registration
+
+When `KB_STATUS=configured` and `content.hasSkills=true`, the plugin scans:
+
+```text
+${realRoot}/_skills/*/SKILL.md
+```
+
+and registers each valid frontmatter skill (`provider: netxops-kb-pack`).
+
+| Setting | Default | Plane |
+|---------|---------|-------|
+| `groupKbInPreset` | `true` | Netx Ops preset sessions |
+| `groupKbPublic` | `false` | Host public skills (other presets) |
+
+Invalid or missing `_skills` directories are skipped (ops continues).
 
 ## Degradation matrix
 
 | Condition | `KB_STATUS` | Behavior |
 |-----------|-------------|----------|
-| Empty `kbRoot` | `unconfigured` | Pure netx; skill says do not invent an operator |
+| Empty `kbRoot` | `unconfigured` | Pure netx; no invented operator; no kb-* packs |
 | Missing / ambiguous / invalid MANIFEST | `error` | Pure netx; badge shows error detail |
-| Valid MANIFEST | `configured` | Paths + operator identity available |
+| Valid MANIFEST, `hasSkills=false` | `configured` | Identity only (`kb-context` + env) |
+| Valid + `hasSkills` + toggles | `configured` | Identity + `_skills/kb-*` on the enabled plane(s) |
 
-**Never** invent an operator when status is not `configured`. P2 knowledge-base skill packs (case search, etc.) are out of scope for this release.
+**Never** invent an operator when status is not `configured`.

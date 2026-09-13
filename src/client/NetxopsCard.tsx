@@ -549,6 +549,20 @@ export function NetxopsCard(props: NetxopsCardProps) {
             ? <p className="dsh-nx-hint">{state.kbStatus.realRoot}</p>
             : null}
         </div>
+        <CapabilityGroupBlock
+          title={t('groupKb')}
+          inPresetLabel={t('groupInPreset')}
+          publicLabel={t('groupPublic')}
+          inPreset={state.groupKbInPreset}
+          published={state.groupKbPublic}
+          disabled={disabled}
+          onEditInPreset={(checked) => {
+            props.edit('groupKbInPreset', checked ? 'true' : 'false')
+          }}
+          onEditPublic={(checked) => {
+            props.edit('groupKbPublic', checked ? 'true' : 'false')
+          }}
+        />
       </div>
 
       <div className="dsh-nx-settings-card">

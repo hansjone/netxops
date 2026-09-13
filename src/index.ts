@@ -12,9 +12,10 @@
  * (`GET /api/netxops.sessions.export`) for HQ analysis — including cloud Hosts,
  * where the browser receives the archive.
  *
- * Knowledge base (P1): settings `kbRoot` → locate/validate MANIFEST.json →
- * `process.env.KB_*` + dynamic `kb-context` skill. Unconfigured/error degrades
- * to pure netx (no invented operator).
+ * Knowledge base: settings `kbRoot` → locate/validate MANIFEST.json →
+ * `process.env.KB_*` + dynamic `kb-context` + optional `_skills/kb-*` packs
+ * (default Netx Ops preset; optional public). Unconfigured/error degrades to
+ * pure netx (no invented operator).
  *
  * @module dsh-netxops
  */
@@ -46,6 +47,7 @@ import { registerGroupSkills } from './netx/group-skills.ts'
 import { resolveImTargets } from './netx/im-targets.ts'
 import { registerKbContextSkill } from './netx/kb-context-skill.ts'
 import { resolveKbRoot } from './netx/kb-manifest.ts'
+import { registerKbPackSkills } from './netx/kb-pack-skills.ts'
 import {
   applyKbEnv,
   getKbContext,
@@ -132,9 +134,13 @@ export interface Config {
   /**
    * Absolute (or Host-local) path to an operator-subset knowledge package.
    * Empty = unconfigured. Plugin locates `MANIFEST.json` (≤3 levels) and
-   * injects `KB_*` + `kb-context` skill.
+   * injects `KB_*` + `kb-context` skill + optional `_skills` packs.
    */
   kbRoot: string
+  /** Mount subset `_skills/kb-*` into the Netx Ops preset (default on). */
+  groupKbInPreset: boolean
+  /** Publish subset `_skills/kb-*` to other presets (default off). */
+  groupKbPublic: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -155,6 +161,8 @@ export const Config: z<Config> = z.object({
   groupTopologyInPreset: z.boolean().default(false),
   groupTopologyPublic: z.boolean().default(false),
   kbRoot: z.string().default(''),
+  groupKbInPreset: z.boolean().default(true),
+  groupKbPublic: z.boolean().default(false),
 })
 
 /** Package root (parent of `lib/` or `src/` depending on launch). */
@@ -317,6 +325,8 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         lang: current.lang,
         toolCallTimeoutMs: current.toolCallTimeoutMs,
         groups,
+        groupKbInPreset: current.groupKbInPreset !== false,
+        groupKbPublic: current.groupKbPublic === true,
       })
       const kb = resolveKbRoot(current.kbRoot ?? '')
       publishKbContext(kb)
@@ -400,7 +410,9 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   ctx.inject(['skills'], (skillsCtx) => {
     let unregisterSkills: (() => void) | undefined
     let unregisterKbSkill: (() => void) | undefined
+    let unregisterKbPack: (() => void) | undefined
     let generation = 0
+    let packGeneration = 0
     const remountPublicSkills = (): void => {
       const gen = ++generation
       unregisterSkills?.()
@@ -432,16 +444,44 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         snapshot.status,
       )
     }
+    const remountKbPack = (): void => {
+      const gen = ++packGeneration
+      unregisterKbPack?.()
+      unregisterKbPack = undefined
+      const connection = getNetxConnection()
+      const enabled = connection?.groupKbPublic === true
+      void registerKbPackSkills(skillsCtx, getKbContext(), {
+        enabled,
+        providerLabel: 'netxops-kb-pack-public',
+      }).then((dispose) => {
+        if (gen !== packGeneration) {
+          dispose()
+          return
+        }
+        unregisterKbPack = dispose
+      }).catch((error) => {
+        skillsCtx.logger.warn('netxops: public kb pack skill register failed: %s', error)
+      })
+    }
     remountPublicSkills()
     remountKbSkill()
-    const stopWatch = watchNetxConnection(() => { remountPublicSkills() })
-    const stopKbWatch = watchKbContext(() => { remountKbSkill() })
+    remountKbPack()
+    const stopWatch = watchNetxConnection(() => {
+      remountPublicSkills()
+      remountKbPack()
+    })
+    const stopKbWatch = watchKbContext(() => {
+      remountKbSkill()
+      remountKbPack()
+    })
     skillsCtx.effect(() => () => {
       generation += 1
+      packGeneration += 1
       stopWatch()
       stopKbWatch()
       unregisterSkills?.()
       unregisterKbSkill?.()
+      unregisterKbPack?.()
     }, 'netxops: dispose public skills')
   })
 

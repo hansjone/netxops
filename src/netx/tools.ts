@@ -22,6 +22,13 @@ export interface NetxToolConnection {
   toolCallTimeoutMs: number
   /** Capability-group exposure; omitted → package defaults. */
   groups?: NetxCapabilityGroups
+  /**
+   * Mount operator-subset `_skills/kb-*` into the Netx Ops preset (default true).
+   * Gated also by KB configured + content.hasSkills.
+   */
+  groupKbInPreset?: boolean
+  /** Mount kb pack skills on the host public skill layer (default false). */
+  groupKbPublic?: boolean
 }
 
 type Handler = (client: NetxClient, args: NetxJson, signal?: AbortSignal) => Promise<NetxJson>

@@ -14,12 +14,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 
-/** Known content flags; unknown keys are preserved when boolean. */
+/** Known content flags (MANIFEST contract v1.0); unknown boolean keys may be preserved. */
 export interface KbContentFlags {
-  regions: boolean
-  theory: boolean
-  packet: boolean
-  skills: boolean
+  hasRegions: boolean
+  hasTheory: boolean
+  hasPacket: boolean
+  hasCommon: boolean
+  hasSkills: boolean
   [key: string]: boolean
 }
 
@@ -37,10 +38,20 @@ export interface KbSnapshot {
 }
 
 const EMPTY_CONTENT: KbContentFlags = {
-  regions: false,
-  theory: false,
-  packet: false,
-  skills: false,
+  hasRegions: false,
+  hasTheory: false,
+  hasPacket: false,
+  hasCommon: false,
+  hasSkills: false,
+}
+
+/** Legacy short keys → contract `has*` (one-release compat). */
+const LEGACY_CONTENT_KEY: Record<string, keyof KbContentFlags> = {
+  regions: 'hasRegions',
+  theory: 'hasTheory',
+  packet: 'hasPacket',
+  skills: 'hasSkills',
+  common: 'hasCommon',
 }
 
 /** Empty / unconfigured snapshot (kbRoot blank). */
@@ -165,8 +176,17 @@ function parseContent(raw: unknown): KbContentFlags {
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('MANIFEST content must be an object')
   }
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    out[key] = value === true
+  const row = raw as Record<string, unknown>
+  const present = new Set(Object.keys(row))
+  for (const [key, value] of Object.entries(row)) {
+    const on = value === true
+    const mapped = LEGACY_CONTENT_KEY[key]
+    if (mapped !== undefined) {
+      // Short keys only fill has* when the contract key is absent (no dual truth).
+      if (on && !present.has(mapped)) out[mapped] = true
+      continue
+    }
+    out[key] = on
   }
   return out
 }

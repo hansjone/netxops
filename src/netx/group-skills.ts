@@ -21,6 +21,8 @@ interface ParsedSkill {
   directory: string
 }
 
+export type { ParsedSkill }
+
 /**
  * Package `presets/netxops/skills` root, or a shared netx skills checkout.
  *
@@ -95,7 +97,10 @@ function stripQuotes(value: string): string {
   return value
 }
 
-async function loadSkillBundle(dir: string): Promise<ParsedSkill | null> {
+/**
+ * Load one skill directory (`SKILL.md` + frontmatter). Exported for KB pack loader.
+ */
+export async function loadSkillBundle(dir: string): Promise<ParsedSkill | null> {
   const skillPath = join(dir, 'SKILL.md')
   let raw: string
   try {

@@ -30,3 +30,6 @@
         groupOpsPublic: false
         groupTopologyInPreset: false
         groupTopologyPublic: false
+        kbRoot: ''
+        groupKbInPreset: true
+        groupKbPublic: false

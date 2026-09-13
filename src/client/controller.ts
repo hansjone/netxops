@@ -57,6 +57,10 @@ export interface NetxopsSettings {
   nmsProvider?: string
   /** Operator-subset knowledge package root (Host-local path). */
   kbRoot?: string
+  /** Mount `_skills/kb-*` into Netx Ops preset. */
+  groupKbInPreset?: boolean
+  /** Publish `_skills/kb-*` to other presets. */
+  groupKbPublic?: boolean
 }
 
 interface CredentialState {
@@ -75,6 +79,8 @@ export interface NetxopsCardState extends CardShell {
   groupTopologyPublic: CardFieldState
   nmsProvider: CardFieldState
   kbRoot: CardFieldState
+  groupKbInPreset: CardFieldState
+  groupKbPublic: CardFieldState
   alarmPushEnabled: CardFieldState
   alarmDeliverDsh: CardFieldState
   alarmDeliverIm: CardFieldState
@@ -172,6 +178,8 @@ export class NetxopsCardController {
         booleanField('groupOpsPublic'),
         booleanField('groupTopologyInPreset'),
         booleanField('groupTopologyPublic'),
+        booleanFieldPersistFalse('groupKbInPreset'),
+        booleanField('groupKbPublic'),
         booleanField('alarmPushEnabled'),
         booleanFieldPersistFalse('alarmDeliverDsh'),
         booleanField('alarmDeliverIm'),
@@ -519,6 +527,8 @@ export class NetxopsCardController {
       groupOpsPublic: this.form.field('groupOpsPublic'),
       groupTopologyInPreset: this.form.field('groupTopologyInPreset'),
       groupTopologyPublic: this.form.field('groupTopologyPublic'),
+      groupKbInPreset: this.form.field('groupKbInPreset'),
+      groupKbPublic: this.form.field('groupKbPublic'),
       alarmPushEnabled: this.form.field('alarmPushEnabled'),
       alarmDeliverDsh: this.form.field('alarmDeliverDsh'),
       alarmDeliverIm: this.form.field('alarmDeliverIm'),

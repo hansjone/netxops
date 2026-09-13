@@ -20,7 +20,7 @@ function validManifest(overrides = {}) {
     packageType: 'operator-subset',
     operator: { name: 'IOH', country: 'ID' },
     version: '2026.09.01',
-    content: { regions: true, theory: false, packet: true },
+    content: { hasRegions: true, hasTheory: false, hasPacket: true },
     ...overrides,
   }, null, 2)
 }
@@ -50,10 +50,12 @@ test('direct MANIFEST at kbRoot', () => {
     assert.equal(snap.operatorName, 'IOH')
     assert.equal(snap.country, 'ID')
     assert.equal(snap.version, '2026.09.01')
-    assert.equal(snap.content.regions, true)
-    assert.equal(snap.content.theory, false)
-    assert.equal(snap.content.packet, true)
-    assert.equal(snap.content.skills, false)
+    assert.equal(snap.content.hasRegions, true)
+    assert.equal(snap.content.hasTheory, false)
+    assert.equal(snap.content.hasPacket, true)
+    assert.equal(snap.content.hasSkills, false)
+    assert.equal(snap.content.hasCommon, false)
+    assert.equal('regions' in snap.content, false)
   })
 })
 
@@ -118,11 +120,28 @@ test('wrong schemaVersion / packageType rejected', () => {
   )
 })
 
+test('legacy short content keys map to has*; no dual truth', () => {
+  const parsed = parseManifest(validManifest({ content: { regions: true, packet: true } }))
+  assert.equal(parsed.content.hasRegions, true)
+  assert.equal(parsed.content.hasPacket, true)
+  assert.equal(parsed.content.hasTheory, false)
+  assert.equal('regions' in parsed.content, false)
+  assert.equal('packet' in parsed.content, false)
+})
+
+test('contract has* wins over legacy short key', () => {
+  const parsed = parseManifest(validManifest({
+    content: { hasRegions: false, regions: true },
+  }))
+  assert.equal(parsed.content.hasRegions, false)
+  assert.equal('regions' in parsed.content, false)
+})
+
 test('content missing keys default false; missing content object fails', () => {
-  const parsed = parseManifest(validManifest({ content: { regions: true } }))
-  assert.equal(parsed.content.regions, true)
-  assert.equal(parsed.content.theory, false)
-  assert.equal(parsed.content.packet, false)
+  const parsed = parseManifest(validManifest({ content: { hasRegions: true } }))
+  assert.equal(parsed.content.hasRegions, true)
+  assert.equal(parsed.content.hasTheory, false)
+  assert.equal(parsed.content.hasPacket, false)
   const withoutContent = JSON.stringify({
     schemaVersion: '1.0',
     packageType: 'operator-subset',
@@ -170,5 +189,6 @@ test('contract content flags hasRegions etc. are accepted', () => {
     assert.equal(snap.status, 'configured')
     assert.equal(snap.content.hasRegions, true)
     assert.equal(snap.content.hasSkills, true)
+    assert.equal(snap.content.hasCommon, true)
   })
 })

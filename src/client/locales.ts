@@ -17,6 +17,7 @@ export type NetxopsLocaleKey =
   | 'nmsProviderHint'
   | 'groupOps'
   | 'groupTopology'
+  | 'groupKb'
   | 'groupInPreset'
   | 'groupPublic'
   | 'kbRoot'
@@ -89,10 +90,11 @@ export const en: Record<NetxopsLocaleKey, string> = {
   nmsProviderHint: 'zte-ume',
   groupOps: 'ops',
   groupTopology: 'topology',
+  groupKb: 'Knowledge skills',
   groupInPreset: 'In Netx Ops preset',
   groupPublic: 'Publish to other presets',
   kbRoot: 'Package root',
-  kbRootHint: 'Folder with MANIFEST.json (operator-subset v1.0). Browse auto-saves.',
+  kbRootHint: 'Folder with MANIFEST.json (operator-subset v1.0). Browse auto-saves. Pack skills load from _skills/ when hasSkills.',
   kbBrowse: 'Browse…',
   kbBrowseUnavailable: 'Directory picker unavailable — paste an absolute folder path, then Save.',
   kbBrowseFailed: 'Browse failed: {detail}',
@@ -162,10 +164,11 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   nmsProviderHint: 'zte-ume',
   groupOps: 'ops',
   groupTopology: 'topology',
+  groupKb: '知识库技能',
   groupInPreset: '在 Netx Ops 预设中启用',
   groupPublic: '对其他预设公开',
   kbRoot: '知识包根目录',
-  kbRootHint: '含 MANIFEST.json 的运营商子集包（v1.0）。浏览选目录后会自动保存。',
+  kbRootHint: '含 MANIFEST.json 的运营商子集包（v1.0）。浏览选目录后会自动保存；hasSkills 时加载 _skills/。',
   kbBrowse: '浏览…',
   kbBrowseUnavailable: '目录选择器不可用 — 请粘贴绝对目录路径后点保存。',
   kbBrowseFailed: '浏览失败：{detail}',

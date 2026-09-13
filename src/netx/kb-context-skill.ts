@@ -32,7 +32,11 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
         `| kbVersion | ${snapshot.version} |`,
         `| kbContent (on) | ${flags} |`,
         '',
-        'Environment mirrors: `KB_ROOT`, `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT`, `KB_STATUS`.',
+        'Environment mirrors: KB_ROOT, KB_OPERATOR, KB_COUNTRY, KB_VERSION, KB_CONTENT, KB_STATUS.',
+        '',
+        'Business playbooks (kb-troubleshoot, kb-retrieve, …) register from',
+        `${snapshot.realRoot}/_skills/ when hasSkills is true — use those skills for KB triage;`,
+        'keep netx-ops for live netx evidence only.',
       ].join('\n'),
     }
   }
@@ -47,7 +51,7 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
     content: [
       '## Knowledge base (unavailable)',
       '',
-      `kbStatus=\`${snapshot.status}\`. ${reason}`,
+      `kbStatus=${snapshot.status}. ${reason}`,
       '',
       '**Do not invent an operator, country, or KB paths.**',
       'Use only netx tools / live evidence (alarms, inventory, CLI, topology).',

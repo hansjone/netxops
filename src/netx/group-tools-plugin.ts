@@ -11,6 +11,7 @@ import {
 } from './capability-groups.ts'
 import { registerGroupSkills } from './group-skills.ts'
 import { registerKbContextSkill } from './kb-context-skill.ts'
+import { registerKbPackSkills } from './kb-pack-skills.ts'
 import { getKbContext, watchKbContext } from './kb-runtime.ts'
 import { getNetxConnection, watchNetxConnection } from './runtime.ts'
 import { registerNetxTools } from './tools.ts'
@@ -75,6 +76,8 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
 
   ctx.inject(['skills'], (skillsCtx) => {
     let unregisterKbSkill: (() => void) | undefined
+    let unregisterKbPack: (() => void) | undefined
+    let packGeneration = 0
     const remountSkills = (): void => {
       const gen = ++skillGeneration
       unregisterSkills?.()
@@ -96,19 +99,48 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       unregisterKbSkill = undefined
       unregisterKbSkill = registerKbContextSkill(skillsCtx, getKbContext())
     }
+    const remountKbPack = (): void => {
+      const gen = ++packGeneration
+      unregisterKbPack?.()
+      unregisterKbPack = undefined
+      const connection = getNetxConnection()
+      const enabled = connection?.groupKbInPreset !== false
+      void registerKbPackSkills(skillsCtx, getKbContext(), {
+        enabled,
+        providerLabel: `${options.name}-kb-pack`,
+      }).then((dispose) => {
+        if (gen !== packGeneration) {
+          dispose()
+          return
+        }
+        unregisterKbPack = dispose
+      }).catch((error) => {
+        skillsCtx.logger.warn('%s: kb pack skill register failed: %s', options.name, error)
+      })
+    }
 
     remountSkills()
     remountKbSkill()
-    const stopSkillWatch = watchNetxConnection(() => { remountSkills() })
-    const stopKbWatch = watchKbContext(() => { remountKbSkill() })
+    remountKbPack()
+    const stopSkillWatch = watchNetxConnection(() => {
+      remountSkills()
+      remountKbPack()
+    })
+    const stopKbWatch = watchKbContext(() => {
+      remountKbSkill()
+      remountKbPack()
+    })
     skillsCtx.effect(() => () => {
       skillGeneration += 1
+      packGeneration += 1
       stopSkillWatch()
       stopKbWatch()
       unregisterSkills?.()
       unregisterSkills = undefined
       unregisterKbSkill?.()
       unregisterKbSkill = undefined
+      unregisterKbPack?.()
+      unregisterKbPack = undefined
     }, `${options.name}: dispose skills`)
   })
 
