@@ -20,6 +20,11 @@ import { getKbContext } from './kb-runtime.ts'
 const str = (description?: string) => ({ type: 'string' as const, ...(description ? { description } : {}) })
 const bool = (description?: string) => ({ type: 'boolean' as const, ...(description ? { description } : {}) })
 const num = (description?: string) => ({ type: 'number' as const, ...(description ? { description } : {}) })
+const reqStr = (description?: string) => ({
+  type: 'string' as const,
+  required: true as const,
+  ...(description ? { description } : {}),
+})
 
 function renderJson(_args: unknown, value: unknown) {
   return [{ type: 'text' as const, text: JSON.stringify(value, null, 0) }]
@@ -37,6 +42,7 @@ function liveSnapshot(): KbSnapshot {
 function tool(
   name: string,
   description: string,
+  /** DSH `defineTool` expects a flat property map — not a full JSON Schema object. */
   parameters: Record<string, unknown>,
   execute: (args: Record<string, unknown>) => Promise<unknown> | unknown,
 ) {
@@ -79,20 +85,16 @@ export function registerKbLocalTools(
         + 'Default create-only; set overwrite=true to replace same filename. '
         + 'Do not use workspace Write — KB is outside the sandbox.',
       {
-        type: 'object',
-        additionalProperties: false,
-        required: ['bucket', 'slug', 'body'],
-        properties: {
-          bucket: {
-            type: 'string',
-            enum: ['note', 'rca_review', 'ai_trace'],
-            description: 'Memory subdirectory',
-          },
-          slug: str('Short filename stem (no path separators)'),
-          body: str('Full markdown body'),
-          date: str('Optional YYYY-MM-DD (default today)'),
-          overwrite: bool('Replace if the target file already exists'),
+        bucket: {
+          type: 'string' as const,
+          required: true as const,
+          enum: ['note', 'rca_review', 'ai_trace'],
+          description: 'Memory subdirectory',
         },
+        slug: reqStr('Short filename stem (no path separators)'),
+        body: reqStr('Full markdown body'),
+        date: str('Optional YYYY-MM-DD (default today)'),
+        overwrite: bool('Replace if the target file already exists'),
       },
       (args) => createMemory(liveSnapshot(), {
         bucket: args.bucket as 'note' | 'rca_review' | 'ai_trace',
@@ -108,16 +110,11 @@ export function registerKbLocalTools(
         + 'Filename is forced to DRAFT-YYYYMMDD-…; body gets status: draft frontmatter if missing. '
         + 'Set overwrite=true to replace. Not for identity/ or formal RCA.',
       {
-        type: 'object',
-        additionalProperties: false,
-        required: ['slug', 'body'],
-        properties: {
-          slug: str('Case stem (DRAFT- prefix added if missing)'),
-          body: str('Markdown body (RCA-ish draft)'),
-          domain: str('Optional fault-domain subfolder under drafts/'),
-          date: str('Optional event date YYYY-MM-DD or YYYYMMDD'),
-          overwrite: bool('Replace if the target file already exists'),
-        },
+        slug: reqStr('Case stem (DRAFT- prefix added if missing)'),
+        body: reqStr('Markdown body (RCA-ish draft)'),
+        domain: str('Optional fault-domain subfolder under drafts/'),
+        date: str('Optional event date YYYY-MM-DD or YYYYMMDD'),
+        overwrite: bool('Replace if the target file already exists'),
       },
       (args) => createDraft(liveSnapshot(), {
         slug: String(args.slug ?? ''),
@@ -132,20 +129,16 @@ export function registerKbLocalTools(
       `Create (or overwrite) a suggestion under ${localRoot}/suggestions/{theory|improvement}/. `
         + 'Use for theory corrections or tool/process improvements — never rewrite identity/.',
       {
-        type: 'object',
-        additionalProperties: false,
-        required: ['kind', 'slug', 'body'],
-        properties: {
-          kind: {
-            type: 'string',
-            enum: ['theory', 'improvement'],
-            description: 'theory = knowledge fix; improvement = tools/skills/process',
-          },
-          slug: str('Short filename stem'),
-          body: str('Full markdown body'),
-          date: str('Optional YYYY-MM-DD (default today)'),
-          overwrite: bool('Replace if the target file already exists'),
+        kind: {
+          type: 'string' as const,
+          required: true as const,
+          enum: ['theory', 'improvement'],
+          description: 'theory = knowledge fix; improvement = tools/skills/process',
         },
+        slug: reqStr('Short filename stem'),
+        body: reqStr('Full markdown body'),
+        date: str('Optional YYYY-MM-DD (default today)'),
+        overwrite: bool('Replace if the target file already exists'),
       },
       (args) => createSuggestion(liveSnapshot(), {
         kind: args.kind as 'theory' | 'improvement',
@@ -161,13 +154,8 @@ export function registerKbLocalTools(
         + `(absolute path or path relative to ${localRoot}). `
         + 'Cannot touch identity/ or outside paths.local. Drafts keep status: draft.',
       {
-        type: 'object',
-        additionalProperties: false,
-        required: ['path', 'body'],
-        properties: {
-          path: str('Absolute path or path relative to KB local root'),
-          body: str('New full markdown body'),
-        },
+        path: reqStr('Absolute path or path relative to KB local root'),
+        body: reqStr('New full markdown body'),
       },
       (args) => updateLocalFile(liveSnapshot(), {
         path: String(args.path ?? ''),
@@ -179,12 +167,7 @@ export function registerKbLocalTools(
       `Delete one existing markdown under memories|drafts|suggestions `
         + `(absolute or relative to ${localRoot}). Refuses identity/ and escapes.`,
       {
-        type: 'object',
-        additionalProperties: false,
-        required: ['path'],
-        properties: {
-          path: str('Absolute path or path relative to KB local root'),
-        },
+        path: reqStr('Absolute path or path relative to KB local root'),
       },
       (args) => deleteLocalFile(liveSnapshot(), {
         path: String(args.path ?? ''),
@@ -195,16 +178,12 @@ export function registerKbLocalTools(
       `List recent .md files under ${localRoot} memories|drafts|suggestions (newest first). `
         + 'Does not include identity/. Read contents via absolute paths from the listing.',
       {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          root: {
-            type: 'string',
-            enum: ['memories', 'drafts', 'suggestions', 'all'],
-            description: 'Subtree to list (default all writable)',
-          },
-          limit: num('Max entries 1–200 (default 50)'),
+        root: {
+          type: 'string' as const,
+          enum: ['memories', 'drafts', 'suggestions', 'all'],
+          description: 'Subtree to list (default all writable)',
         },
+        limit: num('Max entries 1–200 (default 50)'),
       },
       (args) => listLocalFiles(liveSnapshot(), {
         root: (args.root as 'memories' | 'drafts' | 'suggestions' | 'all' | undefined) ?? 'all',
