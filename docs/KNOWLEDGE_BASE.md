@@ -7,7 +7,7 @@ Operator-subset knowledge packages are wired through **netxops settings**, not i
 | Surface | Responsibility |
 |---------|----------------|
 | `netx-ops` | Live netx evidence (alarms / inventory / CLI) — **pure netx**, no KB playbooks |
-| `kb-context` | Identity annotation from MANIFEST (`KB_*`) |
+| `kb-context` | MANIFEST annotation (`KB_*`) + dual-plane write rules |
 | `_skills/kb-*` | Shared operator KB triage / ingest / retrieve / export / package |
 | `paths.localSkills` | Operator-local skills (alongside `_skills/`; same toggles) |
 
@@ -38,9 +38,9 @@ Authoritative packaging prose lives in the workspace contract notes (`插件` / 
 | Channel | Fields |
 |---------|--------|
 | `process.env` | `KB_ROOT`, `KB_LOCAL` (when `paths.local` set), `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON of `has*`), `KB_STATUS` |
-| Skill `kb-context` | Same identity + `kbLocal` + local create/update/delete tool names |
+| Skill `kb-context` | Same MANIFEST fields + `kbLocal` + dual-plane write rules (refs / memories / drafts / suggestions) |
 | Skills from pack | Registered when `configured` **and** `hasSkills` **and** the inPreset/public toggle for that plane |
-| Local FS tools | When `configured` + `paths.local` + same KB toggles: `netx__kbWriteMemory` / `WriteDraft` / `WriteSuggestion` / `UpdateLocal` / `DeleteLocal` / `ListLocal` — jail under `memories\|drafts\|suggestions` only (`identity/` host persona, agent read-only) |
+| Local FS tools | When `configured` + `paths.local` + same KB toggles: `netx__kbWriteRef` / `WriteMemory` / `WriteDraft` / `WriteSuggestion` / `UpdateLocal` / `DeleteLocal` / `ListLocal` — jail under `refs\|memories\|drafts\|suggestions`. HQ pack is read-only; evolve site product knowledge with `kbWriteRef` (per-`host_name` PROFILE) and capture experience with `kbWriteMemory` as it appears. |
 
 RPC (channel `/netxops`): `kb.status` (saved snapshot), `kb.resolve` with `{ path }` (preview unsaved paths).
 

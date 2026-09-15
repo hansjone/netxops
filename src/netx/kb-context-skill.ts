@@ -22,12 +22,23 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
     const localGuide = localRoot
       ? [
           '',
-          '**Site-writable (`kbLocal`)**: use host tools `netx__kbWriteMemory`, `netx__kbWriteDraft`,',
-          '`netx__kbWriteSuggestion`, `netx__kbUpdateLocal`, `netx__kbDeleteLocal`, `netx__kbListLocal`.',
-          'They jail writes to `memories/` / `drafts/` / `suggestions/` only.',
-          'Do **not** use workspace Write/bash for KB paths (sandbox).',
-          '`identity/` is persona/policy for the host — **read-only for the agent**; never rewrite it;',
-          'file boundary issues as `suggestions/` instead.',
+          '### Dual plane (mandatory)',
+          '',
+          '- **HQ pack = read-only** (formal RCA, theory, packet, `_common`, `_skills`, shared cmdLib).',
+          `- **Writable evolution core**: \`${localRoot}\` → \`refs/\` | \`memories/\` | \`drafts/\` | \`suggestions/\`.`,
+          '- **All KB writes via host tools** (workspace Write/bash cannot reach KB):',
+          '  `netx__kbWriteRef` / `netx__kbWriteMemory` / `netx__kbWriteDraft` / `netx__kbWriteSuggestion` /',
+          '  `netx__kbUpdateLocal` / `netx__kbDeleteLocal` / `netx__kbListLocal`.',
+          '',
+          '### refs — site product knowledge (evolve every task)',
+          '- On any NE: **read** `refs/devices/<host_name>/` first; if missing, prove with netx then `kbWriteRef` to create/update.',
+          '- `area=devices` requires `device=<host_name>` (never UUID); primary file slug=`PROFILE`.',
+          '- Also: `inventory` (ledger), `topology`, `business`, `commands` (site-only), `handbooks`.',
+          '- Device facts → refs; episodic experience → memories (do not dump ledgers into diaries).',
+          '',
+          '### memories — write immediately when valuable',
+          '- `bucket=note` | `rca_review` | `ai_trace` — short beats lost.',
+          '- Open cases → `kbWriteDraft`. HQ pack gaps → `kbWriteSuggestion`.',
         ]
       : [
           '',
@@ -35,7 +46,7 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
         ]
     return {
       description:
-        'Operator knowledge-base context for this Host (paths + identity from MANIFEST).',
+        'Operator knowledge-base context for this Host (HQ pack + local evolution under paths.local).',
       content: [
         '## Knowledge base (configured)',
         '',

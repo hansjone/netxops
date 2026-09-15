@@ -35,13 +35,14 @@ Execution: HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.
 
 ## knowledge base → `groupKb*` (not ops/topology)
 
-Registered when KB is configured, MANIFEST has `paths.local`, and the KB in-preset / public toggle is on. Host-side FS writes (bypass workspace sandbox). Jail: `{kbLocal}/memories|drafts|suggestions` only — **not** `identity/`.
+Registered when KB is configured, MANIFEST has `paths.local`, and the KB in-preset / public toggle is on. Host-side FS writes (bypass workspace sandbox). Jail: `{kbLocal}/refs|memories|drafts|suggestions`.
 
 | Tool | Role |
 |------|------|
-| `kbWriteMemory` | New diary entry under `memories/{日常笔记\|排障复盘\|AI思维链}/` (`overwrite` optional) |
+| `kbWriteRef` | Site product KB under `refs/{inventory\|devices\|topology\|business\|commands\|handbooks}/`. `devices` requires `device=host_name`; primary profile slug=`PROFILE`. |
+| `kbWriteMemory` | Diary under `memories/{日常笔记\|排障复盘\|AI思维链}/` — write as soon as reusable experience appears. |
 | `kbWriteDraft` | New `DRAFT-…` under `drafts/` (+ `status: draft`) |
 | `kbWriteSuggestion` | New file under `suggestions/{theory\|improvement}/` |
 | `kbUpdateLocal` | Replace body of an existing jailed file |
 | `kbDeleteLocal` | Delete one jailed file |
-| `kbListLocal` | List recent `.md` under writable trees |
+| `kbListLocal` | List recent `.md` under writable trees (`root` may be `refs`) |

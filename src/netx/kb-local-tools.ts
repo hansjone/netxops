@@ -1,6 +1,6 @@
 /**
  * Host-side tools for writing under MANIFEST `paths.local`
- * (memories / drafts / suggestions). Bypasses workspace sandbox.
+ * (memories / drafts / suggestions / refs). Bypasses workspace sandbox.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -9,12 +9,13 @@ import type { KbSnapshot } from './kb-manifest.ts'
 import {
   createDraft,
   createMemory,
+  createRef,
   createSuggestion,
   deleteLocalFile,
   listLocalFiles,
   updateLocalFile,
 } from './kb-local-ops.ts'
-import { kbLocalToolsEnabled, resolveKbLocalRoot } from './kb-local-path.ts'
+import { kbLocalToolsEnabled, resolveKbLocalRoot, type RefArea } from './kb-local-path.ts'
 import { getKbContext } from './kb-runtime.ts'
 
 const str = (description?: string) => ({ type: 'string' as const, ...(description ? { description } : {}) })
@@ -42,7 +43,7 @@ function liveSnapshot(): KbSnapshot {
 function tool(
   name: string,
   description: string,
-  /** DSH `defineTool` expects a flat property map — not a full JSON Schema object. */
+  /** DSH `defineTool` expects a flat parameter map — not a full JSON Schema object. */
   parameters: Record<string, unknown>,
   execute: (args: Record<string, unknown>) => Promise<unknown> | unknown,
 ) {
@@ -108,7 +109,7 @@ export function registerKbLocalTools(
       'netx__kbWriteDraft',
       `Create (or overwrite) a DRAFT case under ${localRoot}/drafts/. `
         + 'Filename is forced to DRAFT-YYYYMMDD-…; body gets status: draft frontmatter if missing. '
-        + 'Set overwrite=true to replace. Not for identity/ or formal RCA.',
+        + 'Set overwrite=true to replace. Not for formal RCA.',
       {
         slug: reqStr('Case stem (DRAFT- prefix added if missing)'),
         body: reqStr('Markdown body (RCA-ish draft)'),
@@ -127,7 +128,7 @@ export function registerKbLocalTools(
     tool(
       'netx__kbWriteSuggestion',
       `Create (or overwrite) a suggestion under ${localRoot}/suggestions/{theory|improvement}/. `
-        + 'Use for theory corrections or tool/process improvements — never rewrite identity/.',
+        + 'Use for HQ pack/theory corrections or tool/process improvements.',
       {
         kind: {
           type: 'string' as const,
@@ -149,10 +150,36 @@ export function registerKbLocalTools(
       }),
     ),
     tool(
+      'netx__kbWriteRef',
+      `Create (or overwrite) site product-knowledge under ${localRoot}/refs/. `
+        + 'area=inventory|devices|topology|business|commands|handbooks. '
+        + 'For devices: require device=host_name; default slug PROFILE for the ops profile. '
+        + 'Use for NE ledger, per-device profiles, topology/business notes, site command books — not diaries.',
+      {
+        area: {
+          type: 'string' as const,
+          required: true as const,
+          enum: ['inventory', 'devices', 'topology', 'business', 'commands', 'handbooks'],
+          description: 'refs/ subtree',
+        },
+        slug: reqStr('Filename stem (e.g. PROFILE, neighbors, ledger)'),
+        body: reqStr('Full markdown body'),
+        device: str('Required when area=devices — host_name (never UUID)'),
+        overwrite: bool('Replace if the target file already exists'),
+      },
+      (args) => createRef(liveSnapshot(), {
+        area: args.area as RefArea,
+        slug: String(args.slug ?? ''),
+        body: String(args.body ?? ''),
+        device: args.device != null ? String(args.device) : undefined,
+        overwrite: args.overwrite === true,
+      }),
+    ),
+    tool(
       'netx__kbUpdateLocal',
-      `Replace the body of an existing file under memories|drafts|suggestions `
+      `Replace the body of an existing file under memories|drafts|suggestions|refs `
         + `(absolute path or path relative to ${localRoot}). `
-        + 'Cannot touch identity/ or outside paths.local. Drafts keep status: draft.',
+        + 'Drafts keep status: draft.',
       {
         path: reqStr('Absolute path or path relative to KB local root'),
         body: reqStr('New full markdown body'),
@@ -164,8 +191,8 @@ export function registerKbLocalTools(
     ),
     tool(
       'netx__kbDeleteLocal',
-      `Delete one existing markdown under memories|drafts|suggestions `
-        + `(absolute or relative to ${localRoot}). Refuses identity/ and escapes.`,
+      `Delete one existing markdown under memories|drafts|suggestions|refs `
+        + `(absolute or relative to ${localRoot}).`,
       {
         path: reqStr('Absolute path or path relative to KB local root'),
       },
@@ -175,18 +202,18 @@ export function registerKbLocalTools(
     ),
     tool(
       'netx__kbListLocal',
-      `List recent .md files under ${localRoot} memories|drafts|suggestions (newest first). `
-        + 'Does not include identity/. Read contents via absolute paths from the listing.',
+      `List recent .md files under ${localRoot} memories|drafts|suggestions|refs (newest first). `
+        + 'Read contents via absolute paths from the listing.',
       {
         root: {
           type: 'string' as const,
-          enum: ['memories', 'drafts', 'suggestions', 'all'],
+          enum: ['memories', 'drafts', 'suggestions', 'refs', 'all'],
           description: 'Subtree to list (default all writable)',
         },
         limit: num('Max entries 1–200 (default 50)'),
       },
       (args) => listLocalFiles(liveSnapshot(), {
-        root: (args.root as 'memories' | 'drafts' | 'suggestions' | 'all' | undefined) ?? 'all',
+        root: (args.root as 'memories' | 'drafts' | 'suggestions' | 'refs' | 'all' | undefined) ?? 'all',
         limit: typeof args.limit === 'number' ? args.limit : undefined,
       }),
     ),

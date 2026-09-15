@@ -1,6 +1,6 @@
 /**
  * Path jail for operator-subset `_local` agent writes.
- * Writable trees: memories / drafts / suggestions only (not identity / local_skills).
+ * Writable: memories / drafts / suggestions / refs (not local_skills).
  */
 
 import { existsSync, realpathSync, statSync } from 'node:fs'
@@ -12,12 +12,25 @@ export const KB_LOCAL_WRITABLE_ROOTS = Object.freeze([
   'memories',
   'drafts',
   'suggestions',
+  'refs',
 ] as const)
 
 export type KbLocalWritableRoot = (typeof KB_LOCAL_WRITABLE_ROOTS)[number]
 
 export type MemoryBucket = 'note' | 'rca_review' | 'ai_trace'
 export type SuggestionKind = 'theory' | 'improvement'
+
+/** Site product-knowledge areas under `refs/`. */
+export const REF_AREAS = Object.freeze([
+  'inventory',
+  'devices',
+  'topology',
+  'business',
+  'commands',
+  'handbooks',
+] as const)
+
+export type RefArea = (typeof REF_AREAS)[number]
 
 export const MEMORY_BUCKET_DIR: Readonly<Record<MemoryBucket, string>> = Object.freeze({
   note: '日常笔记',
@@ -108,6 +121,11 @@ export function suggestionFileName(opts: {
 }): string {
   const date = normalizeIsoDate(opts.date, opts.now)
   return `${date}-${sanitizeSlug(opts.slug)}.md`
+}
+
+export function refFileName(slug: string): string {
+  const base = sanitizeSlug(slug, 'note')
+  return base.toLowerCase().endsWith('.md') ? base : `${base}.md`
 }
 
 /**
@@ -206,4 +224,21 @@ export function draftDir(domain?: string): string {
   const d = domain?.trim()
   if (!d) return 'drafts'
   return join('drafts', sanitizeSlug(d, 'misc'))
+}
+
+/**
+ * `refs/<area>/…` — for `devices`, require `device` → `refs/devices/<device>/<file>`.
+ */
+export function refDir(area: RefArea, device?: string): string {
+  if (!(REF_AREAS as readonly string[]).includes(area)) {
+    throw new Error(`invalid refs area: ${area}`)
+  }
+  if (area === 'devices') {
+    const host = sanitizeSlug(device?.trim() || '', '')
+    if (!host) {
+      throw new Error('refs/devices requires device (host_name)')
+    }
+    return join('refs', 'devices', host)
+  }
+  return join('refs', area)
 }

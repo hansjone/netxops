@@ -18,12 +18,15 @@ import {
   draftFileName,
   memoryDir,
   memoryFileName,
+  refDir,
+  refFileName,
   resolveExistingWritableFile,
   resolveKbLocalRoot,
   resolveWritableLocalPath,
   suggestionDir,
   suggestionFileName,
   type MemoryBucket,
+  type RefArea,
   type SuggestionKind,
   KB_LOCAL_WRITABLE_ROOTS,
   type KbLocalWritableRoot,
@@ -168,7 +171,49 @@ export function createSuggestion(
 }
 
 /**
- * Replace body of an existing file under memories|drafts|suggestions.
+ * Create/overwrite site product-knowledge under `refs/`
+ * (inventory / devices / topology / business / commands / handbooks).
+ */
+export function createRef(
+  snapshot: KbSnapshot,
+  args: {
+    area: RefArea
+    slug: string
+    body: string
+    /** Required when area=devices — use host_name. */
+    device?: string
+    overwrite?: boolean
+  },
+): KbLocalWriteResult {
+  const localRoot = requireLocalRoot(snapshot)
+  const name = refFileName(args.slug)
+  const target = resolveWritableLocalPath(
+    localRoot,
+    refDir(args.area, args.device),
+    name,
+  )
+  if (existsSync(target.absolutePath) && !args.overwrite) {
+    throw new Error(
+      `file already exists (pass overwrite=true to replace): ${target.relativePath}`,
+    )
+  }
+  mkdirSync(dirname(target.absolutePath), { recursive: true })
+  const existed = existsSync(target.absolutePath)
+  writeFileSync(
+    target.absolutePath,
+    args.body.endsWith('\n') ? args.body : `${args.body}\n`,
+    'utf8',
+  )
+  return {
+    ok: true,
+    action: existed ? 'updated' : 'created',
+    absolutePath: target.absolutePath,
+    relativePath: target.relativePath,
+  }
+}
+
+/**
+ * Replace body of an existing file under memories|drafts|suggestions|refs.
  * Drafts keep/force `status: draft` in frontmatter.
  */
 export function updateLocalFile(

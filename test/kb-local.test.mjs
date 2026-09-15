@@ -3,7 +3,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -11,6 +11,7 @@ import test from 'node:test'
 import {
   createDraft,
   createMemory,
+  createRef,
   createSuggestion,
   deleteLocalFile,
   listLocalFiles,
@@ -62,13 +63,13 @@ test('draftFileName forces DRAFT- prefix', () => {
   assert.match(name, /^DRAFT-20260915-jakarta-down\.md$/)
 })
 
-test('resolveWritableLocalPath rejects identity', () => {
+test('resolveWritableLocalPath rejects non-writable roots', () => {
   withTemp((root) => {
     const local = join(root, '_local')
     mkdirSync(local, { recursive: true })
     assert.throws(
-      () => resolveWritableLocalPath(local, 'identity', '话术.md'),
-      /identity|allowed under/,
+      () => resolveWritableLocalPath(local, 'local_skills', 'x.md'),
+      /allowed under/,
     )
   })
 })
@@ -129,26 +130,50 @@ test('draft injects status: draft frontmatter', () => {
   })
 })
 
-test('suggestion + refuse identity path update', () => {
+test('createRef device PROFILE + list refs', () => {
   withTemp((root) => {
     const s = snap(root)
-    const idDir = join(root, '_local', 'identity')
-    mkdirSync(idDir, { recursive: true })
-    writeFileSync(join(idDir, '话术与边界.md'), 'secret\n', 'utf8')
-    createSuggestion(s, {
+    mkdirSync(join(root, '_local'), { recursive: true })
+    assert.throws(
+      () => createRef(s, { area: 'devices', slug: 'PROFILE', body: '# x\n' }),
+      /requires device/,
+    )
+    const created = createRef(s, {
+      area: 'devices',
+      device: 'JKT-PE-01',
+      slug: 'PROFILE',
+      body: '# JKT-PE-01\n\nrole: PE\n',
+    })
+    assert.match(created.relativePath, /^refs\/devices\/JKT-PE-01\/PROFILE\.md$/)
+    assert.equal(readFileSync(created.absolutePath, 'utf8'), '# JKT-PE-01\n\nrole: PE\n')
+
+    createRef(s, {
+      area: 'inventory',
+      slug: 'ledger',
+      body: '# ledger\n',
+    })
+    const listed = listLocalFiles(s, { root: 'refs' })
+    assert.equal(listed.entries.length, 2)
+
+    updateLocalFile(s, {
+      path: created.relativePath,
+      body: '# JKT-PE-01\n\nrole: PE\nupdated: true\n',
+    })
+    assert.match(readFileSync(created.absolutePath, 'utf8'), /updated: true/)
+  })
+})
+
+test('suggestion create works', () => {
+  withTemp((root) => {
+    const s = snap(root)
+    mkdirSync(join(root, '_local'), { recursive: true })
+    const created = createSuggestion(s, {
       kind: 'improvement',
       slug: 'tool-x',
       body: '# sug\n',
       date: '2026-09-15',
     })
-    assert.throws(
-      () => updateLocalFile(s, {
-        path: 'identity/话术与边界.md',
-        body: 'hacked\n',
-      }),
-      /identity|allowed under/,
-    )
-    assert.equal(readFileSync(join(idDir, '话术与边界.md'), 'utf8'), 'secret\n')
+    assert.match(created.relativePath, /suggestions\/improvement\//)
   })
 })
 
