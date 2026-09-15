@@ -35,8 +35,8 @@ import {
   publishAlarmPushStatus,
   resetAlarmPushStatus,
 } from './netx/alarm-push-status.ts'
-import { deliverAlarmToIm } from './netx/alarm-im.ts'
-import { deliverAlarmToSession, resetAlarmSession } from './netx/alarm-session.ts'
+import { dispatchAlarmToSinks } from './netx/alarm-dispatch.ts'
+import { resetAlarmSession } from './netx/alarm-session.ts'
 import {
   capabilityGroupsFromSettings,
   groupsForPlane,
@@ -307,18 +307,18 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       imBotId: current.imBotId ?? '',
       imTargetId: current.imTargetId ?? '',
     })
+    // Prefer target list presence; UI also mirrors this into alarmDeliverIm.
     const deliverIm = imTargets.length > 0
     stopAlarmPush = startAlarmPushClient({
       apiUrl,
       token,
       logger: ctx.logger,
       onAlarm: async (payload) => {
-        if (deliverDsh) {
-          await deliverAlarmToSession(ctx, payload, lang)
-        }
-        await deliverAlarmToIm(ctx, payload, {
-          enabled: deliverIm,
-          targets: imTargets,
+        // Parallel sinks: a stuck/failing DSH sticky session must not block WhatsApp/IM.
+        await dispatchAlarmToSinks(ctx, payload, {
+          deliverDsh,
+          deliverIm,
+          imTargets,
           lang,
         })
       },
