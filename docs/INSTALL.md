@@ -45,6 +45,7 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
    Capability groups: leave default for **ops**, or enable **topology** / **对其他预设公开** (new sessions after save).  
    Optional: **知识库** — set package root (MANIFEST v1.0); default mounts `_skills/kb-*` into Netx Ops; optional public. See [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md).
 2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
+   The Netx Ops preset is **standard + netxops tools/persona** (shell, search, plan, todo, web, workflows, … plus `netx__*`). Re-activate / reinstall the plugin so `$DSH_HOME/.agent-presets/netxops` is refreshed from the package.
 3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms / 「能否登录」.
 
 ## Key-alarm push

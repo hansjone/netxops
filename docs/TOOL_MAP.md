@@ -32,3 +32,16 @@ Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` 
 Canonical skill bodies: sibling **`netx/skills/`**. DSH loads them at runtime (`NETX_SKILLS_ROOT` or `../netx/skills`) or from `presets/netxops/skills` after sync.
 
 Execution: HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.
+
+## knowledge base → `groupKb*` (not ops/topology)
+
+Registered when KB is configured, MANIFEST has `paths.local`, and the KB in-preset / public toggle is on. Host-side FS writes (bypass workspace sandbox). Jail: `{kbLocal}/memories|drafts|suggestions` only — **not** `identity/`.
+
+| Tool | Role |
+|------|------|
+| `kbWriteMemory` | New diary entry under `memories/{日常笔记\|排障复盘\|AI思维链}/` (`overwrite` optional) |
+| `kbWriteDraft` | New `DRAFT-…` under `drafts/` (+ `status: draft`) |
+| `kbWriteSuggestion` | New file under `suggestions/{theory\|improvement}/` |
+| `kbUpdateLocal` | Replace body of an existing jailed file |
+| `kbDeleteLocal` | Delete one jailed file |
+| `kbListLocal` | List recent `.md` under writable trees |

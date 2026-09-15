@@ -37,9 +37,10 @@ Authoritative packaging prose lives in the workspace contract notes (`插件` / 
 
 | Channel | Fields |
 |---------|--------|
-| `process.env` | `KB_ROOT`, `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON of `has*`), `KB_STATUS` |
-| Skill `kb-context` | Same identity for the model (markdown table) |
+| `process.env` | `KB_ROOT`, `KB_LOCAL` (when `paths.local` set), `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON of `has*`), `KB_STATUS` |
+| Skill `kb-context` | Same identity + `kbLocal` + local create/update/delete tool names |
 | Skills from pack | Registered when `configured` **and** `hasSkills` **and** the inPreset/public toggle for that plane |
+| Local FS tools | When `configured` + `paths.local` + same KB toggles: `netx__kbWriteMemory` / `WriteDraft` / `WriteSuggestion` / `UpdateLocal` / `DeleteLocal` / `ListLocal` — jail under `memories\|drafts\|suggestions` only (`identity/` host persona, agent read-only) |
 
 RPC (channel `/netxops`): `kb.status` (saved snapshot), `kb.resolve` with `{ path }` (preview unsaved paths).
 

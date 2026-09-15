@@ -8,6 +8,7 @@
 
 import type { KbSnapshot } from './kb-manifest.ts'
 import { unconfiguredKbSnapshot } from './kb-manifest.ts'
+import { resolveKbLocalRoot } from './kb-local-path.ts'
 
 type Listener = () => void
 
@@ -20,6 +21,7 @@ const STORE_KEY = Symbol.for('dsh-netxops.kb-store')
 
 const ENV_KEYS = [
   'KB_ROOT',
+  'KB_LOCAL',
   'KB_OPERATOR',
   'KB_COUNTRY',
   'KB_VERSION',
@@ -83,6 +85,8 @@ export function applyKbEnv(snapshot: KbSnapshot): void {
   process.env.KB_STATUS = snapshot.status
   if (snapshot.status !== 'configured') return
   process.env.KB_ROOT = snapshot.realRoot
+  const local = resolveKbLocalRoot(snapshot)
+  if (local) process.env.KB_LOCAL = local
   process.env.KB_OPERATOR = snapshot.operatorName
   process.env.KB_COUNTRY = snapshot.country
   process.env.KB_VERSION = snapshot.version

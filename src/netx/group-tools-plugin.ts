@@ -11,6 +11,7 @@ import {
 } from './capability-groups.ts'
 import { registerGroupSkills } from './group-skills.ts'
 import { registerKbContextSkill } from './kb-context-skill.ts'
+import { registerKbLocalTools } from './kb-local-tools.ts'
 import { registerKbPackSkills } from './kb-pack-skills.ts'
 import { getKbContext, watchKbContext } from './kb-runtime.ts'
 import { getNetxConnection, watchNetxConnection } from './runtime.ts'
@@ -33,6 +34,7 @@ export interface GroupToolsPluginOptions {
  */
 export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOptions): void {
   let unregisterTools: (() => void) | undefined
+  let unregisterKbLocal: (() => void) | undefined
   let unregisterSkills: (() => void) | undefined
   let skillGeneration = 0
 
@@ -71,8 +73,22 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
     )
   }
 
+  const remountKbLocal = (): void => {
+    unregisterKbLocal?.()
+    unregisterKbLocal = undefined
+    const connection = getNetxConnection()
+    if (connection === undefined) return
+    if (connection.groupKbInPreset === false) return
+    unregisterKbLocal = registerKbLocalTools(ctx, getKbContext())
+  }
+
   remountTools()
-  const stopToolWatch = watchNetxConnection(() => { remountTools() })
+  remountKbLocal()
+  const stopToolWatch = watchNetxConnection(() => {
+    remountTools()
+    remountKbLocal()
+  })
+  const stopKbToolWatch = watchKbContext(() => { remountKbLocal() })
 
   ctx.inject(['skills'], (skillsCtx) => {
     let unregisterKbSkill: (() => void) | undefined
@@ -146,7 +162,10 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
 
   ctx.effect(() => () => {
     stopToolWatch()
+    stopKbToolWatch()
     unregisterTools?.()
     unregisterTools = undefined
+    unregisterKbLocal?.()
+    unregisterKbLocal = undefined
   }, `${options.name}: dispose tools`)
 }

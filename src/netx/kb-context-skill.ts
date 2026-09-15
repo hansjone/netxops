@@ -5,6 +5,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { KbSnapshot } from './kb-manifest.ts'
+import { resolveKbLocalRoot } from './kb-local-path.ts'
 
 const SKILL_NAME = 'kb-context'
 
@@ -14,6 +15,24 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
       .filter(([, on]) => on)
       .map(([key]) => key)
       .join(', ') || '(none)'
+    const localRoot = resolveKbLocalRoot(snapshot)
+    const localRow = localRoot
+      ? `| kbLocal | \`${localRoot}\` |`
+      : '| kbLocal | (MANIFEST paths.local missing) |'
+    const localGuide = localRoot
+      ? [
+          '',
+          '**Site-writable (`kbLocal`)**: use host tools `netx__kbWriteMemory`, `netx__kbWriteDraft`,',
+          '`netx__kbWriteSuggestion`, `netx__kbUpdateLocal`, `netx__kbDeleteLocal`, `netx__kbListLocal`.',
+          'They jail writes to `memories/` / `drafts/` / `suggestions/` only.',
+          'Do **not** use workspace Write/bash for KB paths (sandbox).',
+          '`identity/` is persona/policy for the host — **read-only for the agent**; never rewrite it;',
+          'file boundary issues as `suggestions/` instead.',
+        ]
+      : [
+          '',
+          'No local write tools until `paths.local` is present in MANIFEST.',
+        ]
     return {
       description:
         'Operator knowledge-base context for this Host (paths + identity from MANIFEST).',
@@ -27,12 +46,14 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
         `| --- | --- |`,
         `| kbStatus | configured |`,
         `| kbRoot | \`${snapshot.realRoot}\` |`,
+        localRow,
         `| kbOperator | ${snapshot.operatorName} |`,
         `| kbCountry | ${snapshot.country} |`,
         `| kbVersion | ${snapshot.version} |`,
         `| kbContent (on) | ${flags} |`,
+        ...localGuide,
         '',
-        'Environment mirrors: KB_ROOT, KB_OPERATOR, KB_COUNTRY, KB_VERSION, KB_CONTENT, KB_STATUS.',
+        'Environment mirrors: KB_ROOT, KB_LOCAL, KB_OPERATOR, KB_COUNTRY, KB_VERSION, KB_CONTENT, KB_STATUS.',
         '',
         'Business playbooks (kb-troubleshoot, kb-retrieve, …) register from',
         `${snapshot.realRoot}/_skills/ (or MANIFEST paths.skills) when hasSkills is true,`,

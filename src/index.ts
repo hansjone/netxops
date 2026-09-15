@@ -46,6 +46,7 @@ import { registerGroupSkills } from './netx/group-skills.ts'
 import { resolveImTargets } from './netx/im-targets.ts'
 import { registerKbContextSkill } from './netx/kb-context-skill.ts'
 import { resolveKbRoot } from './netx/kb-manifest.ts'
+import { registerKbLocalTools } from './netx/kb-local-tools.ts'
 import { registerKbPackSkills } from './netx/kb-pack-skills.ts'
 import {
   applyKbEnv,
@@ -481,6 +482,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   // Optional host-layer publish: groups with `public=true` become visible to other presets.
   ctx.inject(['tools'], (toolsCtx) => {
     let unregisterTools: (() => void) | undefined
+    let unregisterKbLocal: (() => void) | undefined
     const remountPublicTools = (): void => {
       unregisterTools?.()
       unregisterTools = undefined
@@ -493,11 +495,25 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         enabled.join(',') || '(none)',
       )
     }
+    const remountKbLocal = (): void => {
+      unregisterKbLocal?.()
+      unregisterKbLocal = undefined
+      const connection = getNetxConnection()
+      if (!connection || connection.groupKbPublic !== true) return
+      unregisterKbLocal = registerKbLocalTools(toolsCtx, getKbContext())
+    }
     remountPublicTools()
-    const stopWatch = watchNetxConnection(() => { remountPublicTools() })
+    remountKbLocal()
+    const stopWatch = watchNetxConnection(() => {
+      remountPublicTools()
+      remountKbLocal()
+    })
+    const stopKbWatch = watchKbContext(() => { remountKbLocal() })
     toolsCtx.effect(() => () => {
       stopWatch()
+      stopKbWatch()
       unregisterTools?.()
+      unregisterKbLocal?.()
     }, 'netxops: dispose public tools')
   })
 
