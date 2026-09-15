@@ -50,11 +50,14 @@ test('replyInstruction is empty for follow-user and forces otherwise', () => {
   assert.equal(replyInstruction('follow-user'), '')
   assert.match(replyInstruction('en'), /English/)
   assert.match(replyInstruction('en'), /Do not switch to the user's language/)
+  assert.match(replyInstruction('en'), /Never add Chinese glosses/)
   assert.match(replyInstruction('zh'), /简体中文/)
+  assert.match(replyInstruction('zh'), /Never add English glosses/)
 })
 
 test('replyReminder is empty for follow-user and reminds otherwise', () => {
   assert.equal(replyReminder('follow-user'), '')
   assert.match(replyReminder('en'), /Mandatory/)
-  assert.match(replyReminder('en'), /English/)
+  assert.match(replyReminder('en'), /No Chinese words/)
+  assert.match(replyReminder('zh'), /No English glosses/)
 })
