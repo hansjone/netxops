@@ -59,6 +59,7 @@ import {
   normalizeThinkingLanguage,
   readSystemLocalePreference,
   replyInstruction,
+  replyReminder,
   resolveThinkingLanguage,
   thinkingInstruction,
   thinkingReminder,
@@ -412,14 +413,34 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       context: (spec: { name: string, order: number, text: string | (() => string) }) => (() => void) | void
     }
     const systemPrompt = (promptCtx as { systemPrompt: PromptSurface }).systemPrompt
+    /** Prefer live settings document over cordis base config (survives UI saves). */
+    const liveConfig = (): Config => {
+      const settings = promptCtx.get('settings') as {
+        get?: (ns: string) => unknown
+      } | undefined
+      const section = typeof settings?.get === 'function'
+        ? (() => {
+          try {
+            return settings.get!(NETXOPS_SETTINGS_NAMESPACE)
+          } catch {
+            return undefined
+          }
+        })()
+        : undefined
+      if (section !== null && typeof section === 'object' && !Array.isArray(section)) {
+        return { ...source(), ...(section as Partial<Config>) }
+      }
+      return source()
+    }
     const effectiveThinking = (): ReturnType<typeof resolveThinkingLanguage> => {
       const settings = promptCtx.get('settings') as { get?: (ns: string) => unknown } | undefined
-      const current = source()
+      const current = liveConfig()
       return resolveThinkingLanguage(
         normalizeThinkingLanguage(current.thinkingLanguage),
         readSystemLocalePreference(settings),
       )
     }
+    const replySetting = (): string => normalizeReplyLanguage(liveConfig().replyLanguage)
     promptCtx.effect(() => {
       const disposers: Array<() => void> = []
       const push = (dispose: (() => void) | void): void => {
@@ -435,11 +456,22 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         order: 1000,
         text: () => thinkingReminder(effectiveThinking()),
       }))
+      // Late section + per-step context so reply language beats persona / user language.
       push(systemPrompt.section({
         name: 'netxops:reply-language',
-        order: 890,
-        text: () => replyInstruction(normalizeReplyLanguage(source().replyLanguage)),
+        order: 10150,
+        text: () => replyInstruction(replySetting()),
       }))
+      push(systemPrompt.context({
+        name: 'netxops:reply-language-reminder',
+        order: 1100,
+        text: () => replyReminder(replySetting()),
+      }))
+      promptCtx.logger.info(
+        'netxops: model language prompts registered (thinking=%s reply=%s)',
+        normalizeThinkingLanguage(liveConfig().thinkingLanguage),
+        replySetting(),
+      )
       return () => {
         for (const dispose of disposers.splice(0)) dispose()
       }

@@ -135,10 +135,26 @@ export function replyInstruction(setting: string | undefined | null): string {
   if (normalized === REPLY_LANGUAGE_DEFAULT) return ''
   const meta = REPLY_META[normalized]
   return [
-    '## Reply language requirement',
-    `Regardless of the language the user writes in, you must always write the entire reply in ${meta.native} (${meta.name}) —`,
-    'including explanations, summaries, body text, titles, and error descriptions.',
-    'Keep code, commands, file paths, API names, host names, and proper nouns in their original form; do not translate them.',
-    'This requirement outranks language hints in the user message or persona until the Netx Ops reply-language setting changes.',
+    '## Reply language requirement (mandatory)',
+    `The operator set Netx Ops reply language to ${meta.native} (${meta.name}).`,
+    `You MUST write the entire final reply in ${meta.name} only.`,
+    `Do not switch to the user's language even if they write in Chinese, English, or any other language.`,
+    'This includes titles, bullet labels (Result / Evidence / Next may stay as English keywords), explanations, summaries, warnings, and error text.',
+    'Keep code, commands, file paths, API names, host names, UUIDs, and proper nouns unchanged.',
+    'This rule outranks persona wording such as "follow the user language" and outranks language hints in the user message.',
+  ].join(' ')
+}
+
+/**
+ * Per-step reminder for forced reply language.
+ * Empty when `follow-user`. Appended after the user message each model call.
+ */
+export function replyReminder(setting: string | undefined | null): string {
+  const normalized = normalizeReplyLanguage(setting)
+  if (normalized === REPLY_LANGUAGE_DEFAULT) return ''
+  const meta = REPLY_META[normalized]
+  return [
+    `[Reply language] Mandatory: write your entire final answer in ${meta.native} (${meta.name}).`,
+    'Do not answer in the user\'s language. Code/paths/host names stay original.',
   ].join(' ')
 }

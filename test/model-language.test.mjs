@@ -6,6 +6,7 @@ import {
   normalizeReplyLanguage,
   normalizeThinkingLanguage,
   replyInstruction,
+  replyReminder,
   resolveThinkingLanguage,
   thinkingInstruction,
   thinkingReminder,
@@ -48,5 +49,12 @@ test('thinkingInstruction and reminder mention the target language', () => {
 test('replyInstruction is empty for follow-user and forces otherwise', () => {
   assert.equal(replyInstruction('follow-user'), '')
   assert.match(replyInstruction('en'), /English/)
+  assert.match(replyInstruction('en'), /Do not switch to the user's language/)
   assert.match(replyInstruction('zh'), /简体中文/)
+})
+
+test('replyReminder is empty for follow-user and reminds otherwise', () => {
+  assert.equal(replyReminder('follow-user'), '')
+  assert.match(replyReminder('en'), /Mandatory/)
+  assert.match(replyReminder('en'), /English/)
 })
