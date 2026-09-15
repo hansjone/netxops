@@ -42,6 +42,8 @@ const STATUS_POLL_MS = 2_000
 export interface NetxopsSettings {
   apiUrl?: string
   lang?: string
+  thinkingLanguage?: string
+  replyLanguage?: string
   tokenCredentialRef?: string
   alarmPushEnabled?: boolean
   alarmDeliverDsh?: boolean
@@ -73,6 +75,8 @@ interface CredentialState {
 export interface NetxopsCardState extends CardShell {
   apiUrl: CardFieldState
   lang: CardFieldState
+  thinkingLanguage: CardFieldState
+  replyLanguage: CardFieldState
   groupOpsInPreset: CardFieldState
   groupOpsPublic: CardFieldState
   groupTopologyInPreset: CardFieldState
@@ -172,6 +176,8 @@ export class NetxopsCardController {
       [
         textField('apiUrl'),
         textField('lang'),
+        textField('thinkingLanguage'),
+        textField('replyLanguage'),
         textField('nmsProvider'),
         textField('kbRoot'),
         booleanFieldPersistFalse('groupOpsInPreset'),
@@ -521,6 +527,8 @@ export class NetxopsCardController {
       ...this.form.shell(),
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
+      thinkingLanguage: this.form.field('thinkingLanguage'),
+      replyLanguage: this.form.field('replyLanguage'),
       nmsProvider: this.form.field('nmsProvider'),
       kbRoot: this.form.field('kbRoot'),
       groupOpsInPreset: this.form.field('groupOpsInPreset'),

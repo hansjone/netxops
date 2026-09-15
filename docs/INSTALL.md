@@ -8,7 +8,7 @@ One install wires **all of**:
 |-------|----------------|
 | Host tools | Capability groups **ops / topology** (one group ↔ one skill). Default ops in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-ops|topology` |
 | Companion plugins | **dsh-im-ops** + **dsh-ops-cron** — add as **direct** profile deps in the same command (DSH/pnpm blocks `github:` as transitive deps) |
-| Plugins card | Settings → Plugins → **Netx Ops** (URL / lang / token / capability groups) |
+| Plugins card | Settings → Plugins → **Netx Ops** (URL / API lang / thinking+reply language / token / capability groups) |
 | Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot); playbooks follow the same group toggles |
 
 You do **not** run `link-preset.ps1` for normal use. That script is only a manual fallback.

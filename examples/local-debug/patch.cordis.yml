@@ -22,6 +22,8 @@
       config:
         apiUrl: http://127.0.0.1:8890
         lang: zh
+        thinkingLanguage: auto
+        replyLanguage: follow-user
         tokenCredentialRef: NETX_API_TOKEN
         toolCallTimeoutMs: 120000
         installAgentPreset: true

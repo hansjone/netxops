@@ -11,7 +11,7 @@
 
 Adaptations: removed oclaw Admin / WhatsApp / `ume_alarm_xlsx_report` / wiki capture / skill_auto_install; fiber/offline recipes use Raw/aggregate tools only. DSH no longer spawns `python -m netx_mcp`. Model-facing NMS tools renamed to `*Nms*`; ZTE UME remains the `nmsProvider=zte-ume` adapter.
 
-**Config UX:** Settings → Plugins → **Netx Ops** card (`src/client/` → `lib/client.js`). Token via credentials `NETX_API_TOKEN`; `apiUrl` / `lang` / capability groups / `nmsProvider` via settings namespace `netxops`.
+**Config UX:** Settings → Plugins → **Netx Ops** card (`src/client/` → `lib/client.js`). Token via credentials `NETX_API_TOKEN`; `apiUrl` / `lang` / `thinkingLanguage` / `replyLanguage` / capability groups / `nmsProvider` via settings namespace `netxops`. Thinking/reply language inject Host-global `systemPrompt` (all presets).
 
 ## Stay in oclaw (until retired)
 

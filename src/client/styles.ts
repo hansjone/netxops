@@ -16,11 +16,14 @@ const CSS = `
 .dsh-nx-field-head>label,.dsh-nx-field-head>.dsh-nx-field-label{flex:1;min-width:0}
 .dsh-nx-settings-field input[type=text],
 .dsh-nx-settings-field input[type=password],
-.dsh-nx-settings-field input:not([type]){
+.dsh-nx-settings-field input:not([type]),
+.dsh-nx-settings-field select{
   box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2,#dfe1e5);border-radius:6px;font:inherit;font-size:13px;line-height:20px;background:var(--dsw-alias-bg-module-platform,#f4f5f7);color:inherit
 }
-.dsh-nx-settings-field input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#3370ff);outline-offset:1px}
-.dsh-nx-settings-field input:disabled{opacity:.55;cursor:default}
+.dsh-nx-settings-field input:focus-visible,
+.dsh-nx-settings-field select:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#3370ff);outline-offset:1px}
+.dsh-nx-settings-field input:disabled,
+.dsh-nx-settings-field select:disabled{opacity:.55;cursor:default}
 .dsh-nx-inputInvalid{border-color:var(--dsw-alias-state-error-primary,#d54941)!important}
 .dsh-nx-hint{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#8f959e)}
 .dsh-nx-invalid{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-state-error-primary,#d54941)}

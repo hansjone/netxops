@@ -1,9 +1,8 @@
 /**
- * Host-plane Netx Ops: settings (apiUrl / lang / alarm push / capability groups /
- * optional knowledge-base root) + credentials (NETX_API_TOKEN) publish a
- * connection snapshot. The Ops preset mounts selected `netx__*` groups via
- * `dsh-netxops/tools`; groups marked public also register on the host tool/skill
- * layer for other presets.
+ * Host-plane Netx Ops: settings (apiUrl / lang / thinking+reply language /
+ * alarm push / capability groups / optional knowledge-base root) + credentials
+ * (NETX_API_TOKEN) publish a connection snapshot. Thinking / reply language
+ * inject into Host `systemPrompt` and apply to **all** agent presets.
  *
  * When「关键告警推送」is on, this host dials out to netx's fixed-IP alarm hub and
  * opens/follows a sticky DSH session (im / WhatsApp is optional and separate).
@@ -55,6 +54,15 @@ import {
   resetKbContext,
   watchKbContext,
 } from './netx/kb-runtime.ts'
+import {
+  normalizeReplyLanguage,
+  normalizeThinkingLanguage,
+  readSystemLocalePreference,
+  replyInstruction,
+  resolveThinkingLanguage,
+  thinkingInstruction,
+  thinkingReminder,
+} from './netx/model-language.ts'
 import { publishNetxConnection, getNetxConnection, watchNetxConnection } from './netx/runtime.ts'
 import {
   getSessionsExportStatus,
@@ -86,8 +94,18 @@ export const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
 export interface Config {
   /** netx REST root (no trailing slash required). */
   apiUrl: string
-  /** Passed as `lang` query when starting with `en`. */
+  /** Passed as `lang` query when starting with `en` (API + alarm copy only). */
   lang: string
+  /**
+   * Model thinking / chain-of-thought language for **all** presets on this Host.
+   * `auto` follows DSH UI locale; otherwise `zh-CN` / `en`.
+   */
+  thinkingLanguage: string
+  /**
+   * Model final-reply language for **all** presets on this Host.
+   * `follow-user` = no forced reply language; otherwise `zh` / `en`.
+   */
+  replyLanguage: string
   /** Credential reference for the bearer token (never store the secret here). */
   tokenCredentialRef: string
   /** Per tool-call timeout (ms). */
@@ -146,6 +164,8 @@ export interface Config {
 export const Config: z<Config> = z.object({
   apiUrl: z.string().default('http://127.0.0.1:8890'),
   lang: z.string().default('zh'),
+  thinkingLanguage: z.string().default('auto'),
+  replyLanguage: z.string().default('follow-user'),
   tokenCredentialRef: z.string().role('credential-ref').default(DEFAULT_TOKEN_REF),
   toolCallTimeoutMs: z.number().step(1).min(1000).default(120_000),
   installAgentPreset: z.boolean().default(true),
@@ -382,6 +402,48 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   ctx.on('credentials/reference-updated', (ref) => {
     if (String(ref) === source().tokenCredentialRef) publish()
+  })
+
+  // Host-global model language: every preset on this Host inherits these
+  // systemPrompt sections (not scoped to the Netx Ops agent preset).
+  ctx.inject(['systemPrompt', 'settings'], (promptCtx) => {
+    type PromptSurface = {
+      section: (spec: { name: string, order: number, text: string | (() => string) }) => (() => void) | void
+      context: (spec: { name: string, order: number, text: string | (() => string) }) => (() => void) | void
+    }
+    const systemPrompt = (promptCtx as { systemPrompt: PromptSurface }).systemPrompt
+    const effectiveThinking = (): ReturnType<typeof resolveThinkingLanguage> => {
+      const settings = promptCtx.get('settings') as { get?: (ns: string) => unknown } | undefined
+      const current = source()
+      return resolveThinkingLanguage(
+        normalizeThinkingLanguage(current.thinkingLanguage),
+        readSystemLocalePreference(settings),
+      )
+    }
+    promptCtx.effect(() => {
+      const disposers: Array<() => void> = []
+      const push = (dispose: (() => void) | void): void => {
+        if (typeof dispose === 'function') disposers.push(dispose)
+      }
+      push(systemPrompt.section({
+        name: 'netxops:thinking-language',
+        order: 85,
+        text: () => thinkingInstruction(effectiveThinking()),
+      }))
+      push(systemPrompt.context({
+        name: 'netxops:thinking-language-reminder',
+        order: 1000,
+        text: () => thinkingReminder(effectiveThinking()),
+      }))
+      push(systemPrompt.section({
+        name: 'netxops:reply-language',
+        order: 890,
+        text: () => replyInstruction(normalizeReplyLanguage(source().replyLanguage)),
+      }))
+      return () => {
+        for (const dispose of disposers.splice(0)) dispose()
+      }
+    }, 'netxops: model language prompts')
   })
 
   // Optional host-layer publish: groups with `public=true` become visible to other presets.

@@ -12,6 +12,10 @@ export type NetxopsLocaleKey =
   | 'apiUrlHint'
   | 'lang'
   | 'langHint'
+  | 'thinkingLanguage'
+  | 'thinkingLanguageHint'
+  | 'replyLanguage'
+  | 'replyLanguageHint'
   | 'capabilityGroups'
   | 'nmsProvider'
   | 'nmsProviderHint'
@@ -83,8 +87,12 @@ export const en: Record<NetxopsLocaleKey, string> = {
   sectionExport: 'Session export',
   apiUrl: 'API URL',
   apiUrlHint: 'e.g. http://127.0.0.1:8890',
-  lang: 'Language',
-  langHint: 'zh / en',
+  lang: 'API / alarm language',
+  langHint: 'zh / en — netx API query + alarm prompt copy only (not model reply)',
+  thinkingLanguage: 'Thinking language',
+  thinkingLanguageHint: 'auto / zh-CN / en — model chain-of-thought for all presets',
+  replyLanguage: 'Reply language',
+  replyLanguageHint: 'follow-user / zh / en — final answers for all presets',
   capabilityGroups: 'Capability groups',
   nmsProvider: 'NMS provider',
   nmsProviderHint: 'zte-ume',
@@ -157,8 +165,12 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   sectionExport: '会话导出',
   apiUrl: 'API 地址',
   apiUrlHint: '例如 http://127.0.0.1:8890',
-  lang: '语言',
-  langHint: 'zh / en',
+  lang: 'API / 告警语言',
+  langHint: 'zh / en — 仅影响 netx API 与告警文案，不控制模型回复',
+  thinkingLanguage: '思考语言',
+  thinkingLanguageHint: 'auto / zh-CN / en — 全预设模型思考过程语言',
+  replyLanguage: '回复语言',
+  replyLanguageHint: 'follow-user / zh / en — 全预设最终回答语言',
   capabilityGroups: '能力组',
   nmsProvider: 'NMS 提供方',
   nmsProviderHint: 'zte-ume',

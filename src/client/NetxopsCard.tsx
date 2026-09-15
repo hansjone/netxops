@@ -155,6 +155,57 @@ function ValueField(props: {
   )
 }
 
+function SelectField(props: {
+  id: string
+  label: string
+  hint: string
+  field: CardFieldState
+  options: ReadonlyArray<{ value: string, label: string }>
+  overriddenLabel: string
+  resetLabel: string
+  invalidLabel: string
+  disabled: boolean
+  onEdit: (text: string) => void
+  onReset: () => void
+}) {
+  const known = props.options.some((row) => row.value === props.field.text)
+  return (
+    <div className="dsh-nx-settings-field">
+      <div className="dsh-nx-field-head">
+        <label htmlFor={props.id}>{props.label}</label>
+        {props.field.overridden
+          ? (
+            <span className="dsh-nx-badges">
+              <span className="dsh-nx-badge">{props.overriddenLabel}</span>
+              <button type="button" className="dsh-nx-reset" disabled={props.disabled} onClick={props.onReset}>
+                {props.resetLabel}
+              </button>
+            </span>
+          )
+          : null}
+      </div>
+      <select
+        id={props.id}
+        className={props.field.invalid ? 'dsh-nx-inputInvalid' : undefined}
+        value={props.field.text}
+        disabled={props.disabled}
+        aria-invalid={props.field.invalid || undefined}
+        onChange={(event) => { props.onEdit(event.target.value) }}
+      >
+        {!known && props.field.text
+          ? <option value={props.field.text}>{props.field.text}</option>
+          : null}
+        {props.options.map((row) => (
+          <option key={row.value} value={row.value}>{row.label}</option>
+        ))}
+      </select>
+      <p className={props.field.invalid ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
+        {props.field.invalid ? props.invalidLabel : props.hint}
+      </p>
+    </div>
+  )
+}
+
 function ImDeliveryPicker(props: {
   catalog: ImDeliveryCatalog
   targetsJson: string
@@ -434,6 +485,40 @@ export function NetxopsCard(props: NetxopsCardProps) {
           disabled={disabled}
           onEdit={(text) => { props.edit('lang', text) }}
           onReset={() => { props.resetField('lang') }}
+        />
+        <SelectField
+          id="netxops-thinking-language"
+          label={t('thinkingLanguage')}
+          hint={t('thinkingLanguageHint')}
+          field={state.thinkingLanguage}
+          options={[
+            { value: 'auto', label: 'auto' },
+            { value: 'zh-CN', label: 'zh-CN' },
+            { value: 'en', label: 'en' },
+          ]}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t('invalid')}
+          disabled={disabled}
+          onEdit={(text) => { props.edit('thinkingLanguage', text) }}
+          onReset={() => { props.resetField('thinkingLanguage') }}
+        />
+        <SelectField
+          id="netxops-reply-language"
+          label={t('replyLanguage')}
+          hint={t('replyLanguageHint')}
+          field={state.replyLanguage}
+          options={[
+            { value: 'follow-user', label: 'follow-user' },
+            { value: 'zh', label: 'zh' },
+            { value: 'en', label: 'en' },
+          ]}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t('invalid')}
+          disabled={disabled}
+          onEdit={(text) => { props.edit('replyLanguage', text) }}
+          onReset={() => { props.resetField('replyLanguage') }}
         />
         <ValueField
           id="netxops-nms-provider"
