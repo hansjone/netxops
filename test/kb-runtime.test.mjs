@@ -32,11 +32,14 @@ test('publishKbContext updates store', () => {
       hasCommon: false,
       hasSkills: false,
     },
+    paths: { skills: '_skills', localSkills: 'regions/ID/IOH/_local/local_skills' },
     errorMessage: '',
   })
   const snap = getKbContext()
   assert.equal(snap.status, 'configured')
   assert.equal(snap.operatorName, 'IOH')
+  assert.equal(snap.paths.skills, '_skills')
+  assert.equal(snap.paths.localSkills, 'regions/ID/IOH/_local/local_skills')
   applyKbEnv(snap)
   assert.equal(process.env.KB_OPERATOR, 'IOH')
   assert.equal(process.env.KB_COUNTRY, 'ID')

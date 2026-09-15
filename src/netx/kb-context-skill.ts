@@ -35,7 +35,8 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
         'Environment mirrors: KB_ROOT, KB_OPERATOR, KB_COUNTRY, KB_VERSION, KB_CONTENT, KB_STATUS.',
         '',
         'Business playbooks (kb-troubleshoot, kb-retrieve, …) register from',
-        `${snapshot.realRoot}/_skills/ when hasSkills is true — use those skills for KB triage;`,
+        `${snapshot.realRoot}/_skills/ (or MANIFEST paths.skills) when hasSkills is true,`,
+        'plus paths.localSkills when present — use those skills for KB triage;',
         'keep netx-ops for live netx evidence only.',
       ].join('\n'),
     }

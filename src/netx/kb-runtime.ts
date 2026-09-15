@@ -39,7 +39,12 @@ function store(): Store {
 
 /** @returns the last published KB snapshot. */
 export function getKbContext(): KbSnapshot {
-  return { ...store().snapshot, content: { ...store().snapshot.content } }
+  const snap = store().snapshot
+  return {
+    ...snap,
+    content: { ...snap.content },
+    paths: { ...snap.paths },
+  }
 }
 
 /**
@@ -51,6 +56,7 @@ export function publishKbContext(next: KbSnapshot): void {
   state.snapshot = {
     ...next,
     content: { ...next.content },
+    paths: { ...next.paths },
   }
   for (const listener of state.listeners) listener()
 }

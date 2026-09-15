@@ -11,6 +11,7 @@ import test from 'node:test'
 import {
   findManifest,
   parseManifest,
+  parsePaths,
   resolveKbRoot,
 } from '../src/netx/kb-manifest.ts'
 
@@ -190,5 +191,41 @@ test('contract content flags hasRegions etc. are accepted', () => {
     assert.equal(snap.content.hasRegions, true)
     assert.equal(snap.content.hasSkills, true)
     assert.equal(snap.content.hasCommon, true)
+    assert.deepEqual(snap.paths, {})
+  })
+})
+
+test('paths.skills / paths.localSkills parsed; blank skipped', () => {
+  const parsed = parseManifest(validManifest({
+    paths: {
+      skills: '_skills',
+      localSkills: 'regions/印尼-Indonesia/IOH/_local/local_skills',
+      rca: 'regions/印尼-Indonesia/IOH/00_有效RCA',
+      empty: '  ',
+      bad: 12,
+    },
+  }))
+  assert.equal(parsed.paths.skills, '_skills')
+  assert.equal(parsed.paths.localSkills, 'regions/印尼-Indonesia/IOH/_local/local_skills')
+  assert.equal(parsed.paths.rca, 'regions/印尼-Indonesia/IOH/00_有效RCA')
+  assert.equal(parsed.paths.empty, undefined)
+  assert.equal(parsed.paths.bad, undefined)
+})
+
+test('paths missing → empty object; invalid type rejected', () => {
+  assert.deepEqual(parsePaths(undefined), {})
+  assert.deepEqual(parsePaths(null), {})
+  assert.throws(() => parsePaths([]), /paths must be an object/)
+  withTemp((root) => {
+    writeFileSync(join(root, 'MANIFEST.json'), validManifest({
+      paths: {
+        skills: '_skills',
+        localSkills: 'regions/ID/IOH/_local/local_skills',
+      },
+    }), 'utf8')
+    const snap = resolveKbRoot(root)
+    assert.equal(snap.status, 'configured')
+    assert.equal(snap.paths.skills, '_skills')
+    assert.equal(snap.paths.localSkills, 'regions/ID/IOH/_local/local_skills')
   })
 })

@@ -31,6 +31,13 @@ export function asKbSnapshot(value: unknown): KbSnapshot {
       content[key] = flag === true
     }
   }
+  const pathsRaw = row.paths
+  const paths: Record<string, string> = {}
+  if (pathsRaw !== null && typeof pathsRaw === 'object' && !Array.isArray(pathsRaw)) {
+    for (const [key, value] of Object.entries(pathsRaw as Record<string, unknown>)) {
+      if (typeof value === 'string' && value.trim()) paths[key] = value.trim()
+    }
+  }
   return {
     status,
     realRoot: typeof row.realRoot === 'string' ? row.realRoot : '',
@@ -38,6 +45,7 @@ export function asKbSnapshot(value: unknown): KbSnapshot {
     country: typeof row.country === 'string' ? row.country : '',
     version: typeof row.version === 'string' ? row.version : '',
     content,
+    paths,
     errorMessage: typeof row.errorMessage === 'string' ? row.errorMessage : '',
   }
 }

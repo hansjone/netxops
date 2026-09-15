@@ -6,6 +6,7 @@
  * - packageType === "operator-subset"
  * - operator.name / operator.country, version required
  * - content.* boolean flags (missing → false)
+ * - paths.* optional relative dirs (packaging-generated; missing keys skipped)
  *
  * Location: `${kbRoot}/MANIFEST.json`, else recurse ≤ maxDepth and accept
  * exactly one hit (0 or >1 → error).
@@ -24,6 +25,18 @@ export interface KbContentFlags {
   [key: string]: boolean
 }
 
+/**
+ * Packaging-generated relative paths under the package root.
+ * Plugin uses `skills` / `localSkills` for skill registration; other keys are preserved.
+ */
+export interface KbPaths {
+  /** Shared skill packs (default `_skills` when absent). */
+  skills?: string
+  /** Operator-local skills (optional; missing/empty → skip). */
+  localSkills?: string
+  [key: string]: string | undefined
+}
+
 export type KbStatus = 'unconfigured' | 'configured' | 'error'
 
 export interface KbSnapshot {
@@ -34,6 +47,8 @@ export interface KbSnapshot {
   country: string
   version: string
   content: KbContentFlags
+  /** Relative paths from MANIFEST `paths` (empty when absent). */
+  paths: KbPaths
   errorMessage: string
 }
 
@@ -63,6 +78,7 @@ export function unconfiguredKbSnapshot(): KbSnapshot {
     country: '',
     version: '',
     content: { ...EMPTY_CONTENT },
+    paths: {},
     errorMessage: '',
   }
 }
@@ -75,6 +91,7 @@ function errorSnapshot(message: string): KbSnapshot {
     country: '',
     version: '',
     content: { ...EMPTY_CONTENT },
+    paths: {},
     errorMessage: message,
   }
 }
@@ -192,6 +209,25 @@ function parseContent(raw: unknown): KbContentFlags {
 }
 
 /**
+ * Parse optional MANIFEST `paths` map (relative dirs under package root).
+ * Missing / null → {}; non-string or blank values skipped; invalid type → error.
+ */
+export function parsePaths(raw: unknown): KbPaths {
+  if (raw === undefined || raw === null) return {}
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('MANIFEST paths must be an object')
+  }
+  const out: KbPaths = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (!trimmed) continue
+    out[key] = trimmed
+  }
+  return out
+}
+
+/**
  * Parse and validate MANIFEST JSON text (UTF-8).
  * @throws Error with a short message when invalid.
  */
@@ -200,6 +236,7 @@ export function parseManifest(raw: string): {
   country: string
   version: string
   content: KbContentFlags
+  paths: KbPaths
 } {
   let data: unknown
   try {
@@ -233,6 +270,7 @@ export function parseManifest(raw: string): {
     country: asNonEmptyString(op.country, 'operator.country'),
     version: asNonEmptyString(row.version, 'version'),
     content: parseContent(row.content),
+    paths: parsePaths(row.paths),
   }
 }
 
@@ -290,6 +328,7 @@ export function resolveKbRoot(kbRoot: string, maxDepth = 3): KbSnapshot {
       country: parsed.country,
       version: parsed.version,
       content: parsed.content,
+      paths: { ...parsed.paths },
       errorMessage: '',
     }
   } catch (error) {
