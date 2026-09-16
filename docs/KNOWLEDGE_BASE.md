@@ -42,7 +42,7 @@ Authoritative packaging prose lives in the workspace contract notes (`插件` / 
 | Skills from pack | Registered when `configured` **and** `hasSkills` **and** the inPreset/public toggle for that plane |
 | Local FS tools | When `configured` + `paths.local` + same KB toggles: `netx__kbWriteRef` / `WriteMemory` / `WriteDraft` / `WriteSuggestion` / `UpdateLocal` / `DeleteLocal` / `ListLocal` — jail under `refs\|memories\|drafts\|suggestions`. HQ pack is read-only; evolve site product knowledge with `kbWriteRef` (per-`host_name` PROFILE) and capture experience with `kbWriteMemory` as it appears. |
 
-RPC (channel `/netxops`): `kb.status` (saved snapshot), `kb.resolve` with `{ path }` (preview unsaved paths).
+RPC (channel `/netxops`): `kb.status` (published snapshot), `kb.reload` (re-resolve live `kbRoot` + republish), `kb.resolve` with `{ path }` (preview unsaved paths).
 
 ## Pack skill registration
 

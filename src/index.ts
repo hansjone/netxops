@@ -624,6 +624,28 @@ export function apply(ctx: Context, config: Config = Config({})): void {
             if (endpoint === 'kb.status') {
               return { ok: true, value: getKbContext() }
             }
+            if (endpoint === 'kb.reload') {
+              // Re-read live settings and publish — used by the settings card after
+              // browse/save so the badge does not stick on a stale unconfigured snapshot.
+              const current = source()
+              const kb = resolveKbRoot(current.kbRoot ?? '')
+              publishKbContext(kb)
+              applyKbEnv(kb)
+              if (kb.status === 'configured') {
+                connCtx.logger.info(
+                  'netxops: kb.reload → %s (%s / %s v%s)',
+                  kb.realRoot,
+                  kb.operatorName,
+                  kb.country,
+                  kb.version,
+                )
+              } else if (kb.status === 'error') {
+                connCtx.logger.warn('netxops: kb.reload error — %s', kb.errorMessage)
+              } else {
+                connCtx.logger.info('netxops: kb.reload → unconfigured (kbRoot empty)')
+              }
+              return { ok: true, value: kb }
+            }
             if (endpoint === 'kb.resolve') {
               const path = extractKbResolvePath(payload)
               return { ok: true, value: resolveKbRoot(path) }

@@ -17,6 +17,7 @@ import {
 } from './alarm-push-status-view.ts'
 import {
   fetchKbStatus,
+  reloadKbStatus,
   resolveKbPath,
   type KbSnapshot,
 } from './kb-status-view.ts'
@@ -155,7 +156,9 @@ export class NetxopsCardController {
   private kbDirectoryPicker: DirectoryPickerRemote | undefined
   private kbBrowseInFlight = false
   private kbStatusInFlight = false
+  private kbReloadInFlight = false
   private kbUiError: string | null = null
+  private lastSyncedKbRoot: string | undefined = undefined
   private imDeliveryCatalog: ImDeliveryCatalog = { ...EMPTY_IM_DELIVERY_CATALOG }
   private sessionsExportStatus: SessionsExportStatus | null = null
   private sessionsExportBusy = false
@@ -199,6 +202,7 @@ export class NetxopsCardController {
     scope.subscribe(() => {
       void this.readCredential()
       void this.refreshKbPreview()
+      void this.syncKbRootFromSettings()
     })
     void this.readCredential()
   }
@@ -246,7 +250,7 @@ export class NetxopsCardController {
     }
     this.startStatusPoll()
     void this.refreshAlarmPushStatus()
-    void this.refreshKbStatus()
+    void this.reloadKbFromHost()
     void this.refreshKbPreview()
     void this.refreshImDeliveryCatalog()
     void this.refreshSessionsExportStatus()
@@ -364,23 +368,56 @@ export class NetxopsCardController {
     this.kbStatusInFlight = true
     try {
       const next = await fetchKbStatus(call)
-      const prev = this.kbStatus
-      if (
-        prev
-        && prev.status === next.status
-        && prev.realRoot === next.realRoot
-        && prev.operatorName === next.operatorName
-        && prev.country === next.country
-        && prev.version === next.version
-        && prev.errorMessage === next.errorMessage
-      ) return
-      this.kbStatus = next
-      this.store.set(this.projection())
+      this.applyKbSnapshot(next)
     } catch {
       // Keep last good snapshot; next poll retries.
     } finally {
       this.kbStatusInFlight = false
     }
+  }
+
+  /**
+   * Ask Host to re-resolve kbRoot from live settings and republish.
+   * Prefer this after browse/save so the badge cannot stick on a stale snapshot.
+   */
+  private async reloadKbFromHost(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.kbReloadInFlight) return
+    this.kbReloadInFlight = true
+    try {
+      const next = await reloadKbStatus(call)
+      this.applyKbSnapshot(next)
+      this.lastSyncedKbRoot = (this.scope.getSnapshot().value?.kbRoot ?? '').trim()
+    } catch {
+      // Fall back to published status poll.
+      void this.refreshKbStatus()
+    } finally {
+      this.kbReloadInFlight = false
+    }
+  }
+
+  private applyKbSnapshot(next: KbSnapshot): void {
+    const prev = this.kbStatus
+    if (
+      prev
+      && prev.status === next.status
+      && prev.realRoot === next.realRoot
+      && prev.operatorName === next.operatorName
+      && prev.country === next.country
+      && prev.version === next.version
+      && prev.errorMessage === next.errorMessage
+    ) return
+    this.kbStatus = next
+    this.store.set(this.projection())
+  }
+
+  /** When settings document kbRoot changes, force Host reload (covers footer Save / Reset). */
+  private async syncKbRootFromSettings(): Promise<void> {
+    if (this.rpcCall === undefined) return
+    const saved = (this.scope.getSnapshot().value?.kbRoot ?? '').trim()
+    if (saved === this.lastSyncedKbRoot) return
+    this.lastSyncedKbRoot = saved
+    await this.reloadKbFromHost()
   }
 
   private async refreshKbPreview(): Promise<void> {
@@ -417,6 +454,38 @@ export class NetxopsCardController {
   }
 
   /**
+   * Persist kbRoot then force Host reload so the badge matches the bound package.
+   */
+  private async commitKbRoot(path: string): Promise<void> {
+    const trimmed = path.trim()
+    this.kbUiError = null
+    this.store.set(this.projection())
+    await this.form.save()
+    const shell = this.form.shell()
+    const saved = (this.scope.getSnapshot().value?.kbRoot ?? '').trim()
+    if (shell.failed || saved !== trimmed) {
+      this.kbUiError = saved === trimmed
+        ? 'kbRoot save failed'
+        : `kbRoot save did not land (saved="${saved || '(empty)'}")`
+      this.store.set(this.projection())
+      const call = this.rpcCall
+      if (call !== undefined && trimmed !== '') {
+        try {
+          this.kbPreview = await resolveKbPath(call, trimmed)
+          this.store.set(this.projection())
+        } catch {
+          // keep error banner
+        }
+      }
+      return
+    }
+    this.kbPreview = null
+    this.lastSyncedKbRoot = undefined
+    await this.reloadKbFromHost()
+    void this.refreshKbPreview()
+  }
+
+  /**
    * Open the Host OS directory chooser (or /api directoryPicker/pick fallback)
    * and write the path into kbRoot.
    */
@@ -428,12 +497,7 @@ export class NetxopsCardController {
 
     const applyPath = (path: string): void => {
       this.form.actions().edit('kbRoot', path)
-      void this.refreshKbPreview()
-      // Selecting a folder should land immediately — don't require a separate Save.
-      void this.form.save().then(() => {
-        void this.refreshKbStatus()
-        void this.refreshKbPreview()
-      })
+      void this.commitKbRoot(path)
     }
 
     const fail = (error: unknown): void => {

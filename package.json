@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.37",
+  "version": "0.1.38",
   "description": "DeepSeek Harness Netx Ops: ops/topology + IM delivery + session export + knowledge-base MANIFEST/_skills + localSkills",
   "license": "MIT",
   "type": "module",

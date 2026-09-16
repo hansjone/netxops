@@ -218,7 +218,9 @@ export class CardForm<T> {
 
   private async store(field: string, value: unknown): Promise<boolean> {
     await this.scope.set(field, value)
-    return this.userLayer()?.[field] === value
+    // `settings.mutate` can settle without throwing on a refused write; confirm
+    // via the resolved section value (user layer alone can lag or omit keys).
+    return this.sectionValue(field) === value || this.userLayer()?.[field] === value
   }
 
   private stage(field: string, edit: StagedEdit): void {

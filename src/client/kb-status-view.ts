@@ -10,6 +10,7 @@ import type { AlarmPushRpcCall } from './alarm-push-status-view.ts'
 export const NETXOPS_RPC_CHANNEL = '/netxops'
 
 export const KB_STATUS_ENDPOINT = 'kb.status'
+export const KB_RELOAD_ENDPOINT = 'kb.reload'
 export const KB_RESOLVE_ENDPOINT = 'kb.resolve'
 
 export type { KbSnapshot, KbStatus }
@@ -50,6 +51,10 @@ export function asKbSnapshot(value: unknown): KbSnapshot {
   }
 }
 
+function asRpcOk(result: unknown): result is { ok: true; value?: unknown } {
+  return result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === true
+}
+
 /**
  * Fetch the published KB snapshot from the Host.
  */
@@ -58,10 +63,37 @@ export async function fetchKbStatus(
   signal?: AbortSignal,
 ): Promise<KbSnapshot> {
   const result = await call(NETXOPS_RPC_CHANNEL, KB_STATUS_ENDPOINT, {}, signal)
-  if (result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === true) {
-    return asKbSnapshot((result as { value?: unknown }).value)
+  if (asRpcOk(result)) {
+    return asKbSnapshot(result.value)
   }
-  return unconfiguredKbSnapshot()
+  // Do not pretend "unconfigured" on transport/shape miss — keep empty identity
+  // but mark error so the badge is not stuck on the soft "pure netx" copy.
+  if (result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === false) {
+    const message = String(
+      (result as { error?: { message?: string } }).error?.message ?? 'kb.status rpc failed',
+    )
+    return { ...unconfiguredKbSnapshot(), status: 'error', errorMessage: message }
+  }
+  return {
+    ...unconfiguredKbSnapshot(),
+    status: 'error',
+    errorMessage: 'kb.status unavailable',
+  }
+}
+
+/**
+ * Force Host to re-resolve `kbRoot` from live settings and republish.
+ */
+export async function reloadKbStatus(
+  call: AlarmPushRpcCall,
+  signal?: AbortSignal,
+): Promise<KbSnapshot> {
+  const result = await call(NETXOPS_RPC_CHANNEL, KB_RELOAD_ENDPOINT, {}, signal)
+  if (asRpcOk(result)) {
+    return asKbSnapshot(result.value)
+  }
+  // Older hosts without kb.reload — fall back to status / resolve.
+  return fetchKbStatus(call, signal)
 }
 
 /**
@@ -74,13 +106,17 @@ export async function resolveKbPath(
 ): Promise<KbSnapshot> {
   // Prefer flat `{ path }` (netxops channel); also try `{ args: { path } }`.
   let result = await call(NETXOPS_RPC_CHANNEL, KB_RESOLVE_ENDPOINT, { path }, signal)
-  if (!(result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === true)) {
+  if (!asRpcOk(result)) {
     result = await call(NETXOPS_RPC_CHANNEL, KB_RESOLVE_ENDPOINT, { args: { path } }, signal)
   }
-  if (result !== null && typeof result === 'object' && (result as { ok?: boolean }).ok === true) {
-    return asKbSnapshot((result as { value?: unknown }).value)
+  if (asRpcOk(result)) {
+    return asKbSnapshot(result.value)
   }
-  return unconfiguredKbSnapshot()
+  return {
+    ...unconfiguredKbSnapshot(),
+    status: 'error',
+    errorMessage: 'kb.resolve unavailable',
+  }
 }
 
 /** Badge tone for the settings card. */
