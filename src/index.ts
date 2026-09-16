@@ -72,6 +72,7 @@ import {
   sessionsExportHeadResponse,
   sessionsExportResponse,
 } from './netx/session-export.ts'
+import { mountNetxopsWebRoute } from './netx/netxops-web-rpc.ts'
 import { registerNetxTools } from './netx/tools.ts'
 
 /** Cordis plugin name. */
@@ -595,7 +596,112 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     }, 'netxops: dispose public skills')
   })
 
-  // Browser card: alarm-push status + IM catalog (RPC) and all-sessions ZIP (Fetch).
+  const handleNetxopsRpc = async (endpoint: string, payload?: unknown): Promise<unknown> => {
+    if (endpoint === 'alarm-push.status') {
+      return { ok: true, value: getAlarmPushStatus() }
+    }
+    if (endpoint === 'kb.status') {
+      return { ok: true, value: getKbContext() }
+    }
+    if (endpoint === 'kb.reload') {
+      const current = source()
+      const kb = resolveKbRoot(current.kbRoot ?? '')
+      publishKbContext(kb)
+      applyKbEnv(kb)
+      if (kb.status === 'configured') {
+        ctx.logger.info(
+          'netxops: kb.reload → %s (%s / %s v%s)',
+          kb.realRoot,
+          kb.operatorName,
+          kb.country,
+          kb.version,
+        )
+      } else if (kb.status === 'error') {
+        ctx.logger.warn('netxops: kb.reload error — %s', kb.errorMessage)
+      } else {
+        ctx.logger.info('netxops: kb.reload → unconfigured (kbRoot empty)')
+      }
+      return { ok: true, value: kb }
+    }
+    if (endpoint === 'kb.resolve') {
+      const path = extractKbResolvePath(payload)
+      return { ok: true, value: resolveKbRoot(path) }
+    }
+    if (endpoint === 'sessions.export.status') {
+      const value = await getSessionsExportStatus(ctx)
+      return { ok: true, value }
+    }
+    if (endpoint === 'im-delivery.catalog') {
+      type DshImCatalog = { listDeliveryCatalog?: () => Promise<unknown> }
+      const fromGet = typeof (ctx as { get?: (name: string) => unknown }).get === 'function'
+        ? (ctx as { get: (name: string) => unknown }).get('dshIm') as DshImCatalog | undefined
+        : undefined
+      const im = fromGet ?? (ctx as { dshIm?: DshImCatalog }).dshIm
+      if (!im || typeof im.listDeliveryCatalog !== 'function') {
+        return {
+          ok: true,
+          value: {
+            available: false,
+            options: [],
+            reasonCode: 'im_catalog_unavailable',
+            hint: 'dsh-im-ops missing or outdated — install ≥ops.24 for delivery picker',
+          },
+        }
+      }
+      try {
+        const options = await im.listDeliveryCatalog()
+        return {
+          ok: true,
+          value: {
+            available: true,
+            options: Array.isArray(options) ? options : [],
+          },
+        }
+      } catch (error) {
+        return {
+          ok: true,
+          value: {
+            available: false,
+            options: [],
+            hint: error instanceof Error ? error.message : String(error),
+          },
+        }
+      }
+    }
+    return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
+  }
+
+  // DSH ≥0.1.5: mount /netxops on this plugin's webServer inject (connection.rpc.handle no longer registers).
+  ctx.inject(['webServer', 'connection'], (mountCtx) => {
+    mountCtx.effect(() => {
+      const direct = mountNetxopsWebRoute(
+        mountCtx,
+        NETXOPS_RPC_CHANNEL,
+        (endpoint, payload) => handleNetxopsRpc(endpoint, payload),
+      )
+      if (direct !== null) {
+        mountCtx.logger.info('netxops: /netxops rpc mounted on webServer')
+        return direct
+      }
+      type RpcHandle = (
+        channel: string,
+        handler: (endpoint: string, payload?: unknown) => Promise<unknown>,
+      ) => (() => void) | Promise<void>
+      const rpc = (mountCtx.connection as { rpc?: { handle?: RpcHandle } } | undefined)?.rpc
+      if (rpc && typeof rpc.handle === 'function') {
+        mountCtx.logger.info('netxops: /netxops rpc mounted via connection.rpc.handle (legacy)')
+        const legacy = rpc.handle(
+          NETXOPS_RPC_CHANNEL,
+          (endpoint, payload) => handleNetxopsRpc(endpoint, payload),
+        )
+        return () => { void legacy() }
+      }
+      mountCtx.logger.warn('netxops: /netxops rpc unavailable — settings card status disabled')
+      return () => {}
+    }, 'netxops: /netxops web rpc')
+  })
+
+  // Browser card: sessions export download via shared /api Fetch route.
   ctx.inject(['connection'], (connCtx) => {
     const connection = connCtx.connection as {
       rpc?: { handle?: (
@@ -610,94 +716,6 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         }) => () => Promise<void>
       }
     } | undefined
-    const rpc = connection?.rpc
-    if (!rpc || typeof rpc.handle !== 'function') {
-      connCtx.logger.warn('netxops: connection.rpc.handle unavailable — alarm status UI disabled')
-    } else {
-      connCtx.effect(() => {
-        const dispose = rpc.handle(
-          NETXOPS_RPC_CHANNEL,
-          async (endpoint: string, payload?: unknown) => {
-            if (endpoint === 'alarm-push.status') {
-              return { ok: true, value: getAlarmPushStatus() }
-            }
-            if (endpoint === 'kb.status') {
-              return { ok: true, value: getKbContext() }
-            }
-            if (endpoint === 'kb.reload') {
-              // Re-read live settings and publish — used by the settings card after
-              // browse/save so the badge does not stick on a stale unconfigured snapshot.
-              const current = source()
-              const kb = resolveKbRoot(current.kbRoot ?? '')
-              publishKbContext(kb)
-              applyKbEnv(kb)
-              if (kb.status === 'configured') {
-                connCtx.logger.info(
-                  'netxops: kb.reload → %s (%s / %s v%s)',
-                  kb.realRoot,
-                  kb.operatorName,
-                  kb.country,
-                  kb.version,
-                )
-              } else if (kb.status === 'error') {
-                connCtx.logger.warn('netxops: kb.reload error — %s', kb.errorMessage)
-              } else {
-                connCtx.logger.info('netxops: kb.reload → unconfigured (kbRoot empty)')
-              }
-              return { ok: true, value: kb }
-            }
-            if (endpoint === 'kb.resolve') {
-              const path = extractKbResolvePath(payload)
-              return { ok: true, value: resolveKbRoot(path) }
-            }
-            if (endpoint === 'sessions.export.status') {
-              const value = await getSessionsExportStatus(ctx)
-              return { ok: true, value }
-            }
-            if (endpoint === 'im-delivery.catalog') {
-              type DshImCatalog = { listDeliveryCatalog?: () => Promise<unknown> }
-              const fromGet = typeof (ctx as { get?: (name: string) => unknown }).get === 'function'
-                ? (ctx as { get: (name: string) => unknown }).get('dshIm') as DshImCatalog | undefined
-                : undefined
-              const im = fromGet ?? (ctx as { dshIm?: DshImCatalog }).dshIm
-              if (!im || typeof im.listDeliveryCatalog !== 'function') {
-                return {
-                  ok: true,
-                  value: {
-                    available: false,
-                    options: [],
-                    reasonCode: 'im_catalog_unavailable',
-                    hint: 'dsh-im-ops missing or outdated — install ≥ops.24 for delivery picker',
-                  },
-                }
-              }
-              try {
-                const options = await im.listDeliveryCatalog()
-                return {
-                  ok: true,
-                  value: {
-                    available: true,
-                    options: Array.isArray(options) ? options : [],
-                  },
-                }
-              } catch (error) {
-                return {
-                  ok: true,
-                  value: {
-                    available: false,
-                    options: [],
-                    hint: error instanceof Error ? error.message : String(error),
-                  },
-                }
-              }
-            }
-            return { ok: false, error: { code: 'bad-request', message: 'Unknown endpoint.' } }
-          },
-        )
-        return () => { void dispose() }
-      }, 'netxops: alarm-push status rpc')
-    }
-
     const fetchApi = connection?.fetch
     if (!fetchApi || typeof fetchApi.register !== 'function') {
       connCtx.logger.warn('netxops: connection.fetch.register unavailable — sessions export download disabled')
