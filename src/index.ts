@@ -152,6 +152,10 @@ export interface Config {
   groupTopologyInPreset: boolean
   /** Publish topology tools/skills to other presets (default off). */
   groupTopologyPublic: boolean
+  /** biz-monitor (cutover / biz_state read) tools in the Netx Ops preset (default on). */
+  groupBizMonitorInPreset: boolean
+  /** Publish biz-monitor tools/skills to other presets (default off). */
+  groupBizMonitorPublic: boolean
   /**
    * Absolute (or Host-local) path to an operator-subset knowledge package.
    * Empty = unconfigured. Plugin locates `MANIFEST.json` (≤3 levels) and
@@ -183,6 +187,8 @@ export const Config: z<Config> = z.object({
   groupOpsPublic: z.boolean().default(false),
   groupTopologyInPreset: z.boolean().default(false),
   groupTopologyPublic: z.boolean().default(false),
+  groupBizMonitorInPreset: z.boolean().default(true),
+  groupBizMonitorPublic: z.boolean().default(false),
   kbRoot: z.string().default(''),
   groupKbInPreset: z.boolean().default(true),
   groupKbPublic: z.boolean().default(false),

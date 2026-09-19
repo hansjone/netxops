@@ -564,6 +564,20 @@ export function NetxopsCard(props: NetxopsCardProps) {
             props.edit('groupTopologyPublic', checked ? 'true' : 'false')
           }}
         />
+        <CapabilityGroupBlock
+          title={t('groupBizMonitor')}
+          inPresetLabel={t('groupInPreset')}
+          publicLabel={t('groupPublic')}
+          inPreset={state.groupBizMonitorInPreset}
+          published={state.groupBizMonitorPublic}
+          disabled={disabled}
+          onEditInPreset={(checked) => {
+            props.edit('groupBizMonitorInPreset', checked ? 'true' : 'false')
+          }}
+          onEditPublic={(checked) => {
+            props.edit('groupBizMonitorPublic', checked ? 'true' : 'false')
+          }}
+        />
       </div>
 
       <div className="dsh-nx-settings-card">

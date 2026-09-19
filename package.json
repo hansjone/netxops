@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.39",
+  "version": "0.1.40",
   "description": "DeepSeek Harness Netx Ops: ops/topology + IM delivery + session export + knowledge-base MANIFEST/_skills + localSkills",
   "license": "MIT",
   "type": "module",
@@ -13,6 +13,7 @@
     "./tools-nms": "./lib/agent-tools-nms.js",
     "./tools-common": "./lib/agent-tools-common.js",
     "./tools-topology": "./lib/agent-tools-topology.js",
+    "./tools-biz-monitor": "./lib/agent-tools-biz-monitor.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
@@ -24,6 +25,7 @@
     "lib/agent-tools-nms.js",
     "lib/agent-tools-common.js",
     "lib/agent-tools-topology.js",
+    "lib/agent-tools-biz-monitor.js",
     "lib/client.js",
     "presets/",
     "cordis.patch.yml",

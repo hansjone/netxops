@@ -316,6 +316,67 @@ export function registerNetxTools(
       },
       H.findTopologyPaths, getClient, t,
     ),
+    // ── bizMonitor group (cutover / biz_state read via netx REST) ─────────
+    tool(
+      'netx__getBizMonitorContext',
+      'Biz-monitor definition bundle: cutover project + monitor/compare templates + iface normalize + port mapping + related tasks/commands. Prefer project_id. Display keys are device-raw A/B.',
+      {
+        project_id: str('Cutover / biz-migration project id'),
+        task_id: str('biz_state task id (optional if project_id set)'),
+      },
+      H.getBizMonitorContext, getClient, t,
+    ),
+    tool(
+      'netx__getBizMonitorBoard',
+      'Cutover batch board: project/batch status, evaluate run summary, sheet cards, verdict counts, metric_batches.',
+      {
+        batch_id: { type: 'string' as const, required: true as const },
+        run_id: str('Optional evaluate run id'),
+      },
+      H.getBizMonitorBoard, getClient, t,
+    ),
+    tool(
+      'netx__listBizMonitorReds',
+      'Open/carried red tickets. Each item has old_key/new_key (raw A/B) and evidence (device, collect time, show command, iface raw→norm→map).',
+      {
+        project_id: { type: 'string' as const, required: true as const },
+        status: str('open|carried|resolved or empty=all'),
+        limit: num(),
+      },
+      H.listBizMonitorReds, getClient, t,
+    ),
+    tool(
+      'netx__getBizMonitorDiffs',
+      'Paged evaluate diffs. Rows expose old_key/new_key (raw A/B), match_* keys, status, evidence with show commands.',
+      {
+        run_id: { type: 'string' as const, required: true as const },
+        metric_id: str(),
+        sheet_id: str(),
+        verdict: str(),
+        color: str('e.g. red'),
+        q: str(),
+        limit: num(),
+        offset: num(),
+      },
+      H.getBizMonitorDiffs, getClient, t,
+    ),
+    tool(
+      'netx__getBizCollectBatch',
+      'One biz_state collect batch: commands (raw_command, parse_status, preview), parsed metrics.',
+      {
+        batch_id: { type: 'string' as const, required: true as const },
+      },
+      H.getBizCollectBatch, getClient, t,
+    ),
+    tool(
+      'netx__getBizCollectCommandRaw',
+      'Full CLI raw_text for one collect command inside a batch (deep dive).',
+      {
+        batch_id: { type: 'string' as const, required: true as const },
+        command_id: { type: 'string' as const, required: true as const },
+      },
+      H.getBizCollectCommandRaw, getClient, t,
+    ),
     // ── topology group (netx-topology canvas / fabric) ─────────────────────
     tool(
       'netx__getTopologyTree',

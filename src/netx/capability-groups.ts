@@ -5,10 +5,11 @@
  *
  * - `ops` → skill `netx-ops` — NMS alarms/inventory/SQL + managed CLI + findTopologyPaths
  * - `topology` → skill `netx-topology` — canvas / fabric / dual_unit / layout
+ * - `bizMonitor` → skill `netx-biz-monitor` — cutover / biz_state read + overnight analysis
  */
 
 /** Stable group ids used in settings, skill dirs, and registration filters. */
-export type NetxCapabilityGroupId = 'ops' | 'topology'
+export type NetxCapabilityGroupId = 'ops' | 'topology' | 'bizMonitor'
 
 /** Per-group exposure knobs. */
 export interface NetxGroupExposure {
@@ -27,14 +28,17 @@ export interface NetxCapabilityGroupSettingsFields {
   groupOpsPublic: boolean
   groupTopologyInPreset: boolean
   groupTopologyPublic: boolean
+  groupBizMonitorInPreset: boolean
+  groupBizMonitorPublic: boolean
 }
 
 /**
- * Default: ops in Ops preset; topology and all public off.
+ * Default: ops in Ops preset; topology / bizMonitor and all public off.
  */
 export const DEFAULT_CAPABILITY_GROUPS: NetxCapabilityGroups = Object.freeze({
   ops: Object.freeze({ inPreset: true, public: false }),
   topology: Object.freeze({ inPreset: false, public: false }),
+  bizMonitor: Object.freeze({ inPreset: true, public: false }),
 })
 
 /**
@@ -76,17 +80,27 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
     'netx__analyzeTopologyViewLayout',
     'netx__sinkTopologyDualUnits',
   ]),
+  bizMonitor: Object.freeze([
+    'netx__getBizMonitorContext',
+    'netx__getBizMonitorBoard',
+    'netx__listBizMonitorReds',
+    'netx__getBizMonitorDiffs',
+    'netx__getBizCollectBatch',
+    'netx__getBizCollectCommandRaw',
+  ]),
 })
 
 /** Skill directory name under skills root / `presets/netxops/skills/<group>/`. */
 export const SKILL_DIR_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, string>> = Object.freeze({
   ops: 'ops',
   topology: 'topology',
+  bizMonitor: 'biz-monitor',
 })
 
 export const CAPABILITY_GROUP_IDS: readonly NetxCapabilityGroupId[] = Object.freeze([
   'ops',
   'topology',
+  'bizMonitor',
 ])
 
 /**
@@ -126,6 +140,11 @@ export function capabilityGroupsFromSettings(
     }
   }
 
+  let bizMonitorInPreset = true
+  if (src.groupBizMonitorInPreset !== undefined) {
+    bizMonitorInPreset = src.groupBizMonitorInPreset !== false
+  }
+
   return {
     ops: {
       inPreset: opsInPreset,
@@ -139,6 +158,10 @@ export function capabilityGroupsFromSettings(
         || src.groupTopologyLayoutInPreset === true,
       public: src.groupTopologyPublic === true
         || src.groupTopologyLayoutPublic === true,
+    },
+    bizMonitor: {
+      inPreset: bizMonitorInPreset,
+      public: src.groupBizMonitorPublic === true,
     },
   }
 }
@@ -177,9 +200,9 @@ export function groupsForced(
  * Tool name allow-list for the given groups.
  */
 export function toolNamesForGroups(groupIds: readonly NetxCapabilityGroupId[]): Set<string> {
-  const names = new Set<string>()
+  const out = new Set<string>()
   for (const id of groupIds) {
-    for (const tool of TOOLS_BY_GROUP[id]) names.add(tool)
+    for (const name of TOOLS_BY_GROUP[id] ?? []) out.add(name)
   }
-  return names
+  return out
 }

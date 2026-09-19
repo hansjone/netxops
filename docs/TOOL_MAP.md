@@ -6,9 +6,10 @@ Tools register by capability group. **One group ↔ one skill.**
 |-------|-------|------------------------|
 | **ops** | `netx-ops` | on |
 | **topology** | `netx-topology` | off |
+| **bizMonitor** | `netx-biz-monitor` | on |
 
 Public flags mount the same group on the host for other presets.
-Forced mounts: `dsh-netxops/tools-ops` | `tools-topology` (legacy aliases: `tools-nms` / `tools-common` → ops).
+Forced mounts: `dsh-netxops/tools-ops` | `tools-topology` | `tools-biz-monitor` (legacy aliases: `tools-nms` / `tools-common` → ops).
 
 Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` still hits `/v1/ume/*`.
 
@@ -19,6 +20,17 @@ Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` 
 | `queryNmsAlarms` … `sqlQueryNms` | Alarm + inventory + SQL |
 | `listManagedNe` / `getManagedNe` / `execManagedNe` / `listCliTargets` | Managed CLI (login / show) |
 | `findTopologyPaths` | Fabric path lookup |
+
+## bizMonitor → `netx-biz-monitor`
+
+Host tools call netx REST directly (**not** netx-mcp). Token needs `biz-monitor:read`.
+
+| Tool | Role |
+|------|------|
+| `getBizMonitorContext` | Project + templates + normalize + port map + tasks |
+| `getBizMonitorBoard` | Batch / evaluate progress |
+| `listBizMonitorReds` / `getBizMonitorDiffs` | Reds & diffs with evidence (raw A/B + show cmd) |
+| `getBizCollectBatch` / `getBizCollectCommandRaw` | Collect audit + full CLI raw |
 
 ## topology → `netx-topology`
 

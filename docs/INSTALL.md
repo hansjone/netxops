@@ -1,4 +1,4 @@
-﻿# Install Netx Ops on DeepSeek Harness
+# Install Netx Ops on DeepSeek Harness
 
 ## What `dsh plugin add` gives you
 
@@ -16,9 +16,9 @@ You do **not** run `link-preset.ps1` for normal use. That script is only a manua
 ## Still required outside the npm package
 
 1. **netx API** reachable (default `http://127.0.0.1:8890`) — the data plane.
-2. **API token** with scopes matching the tools you use (`alarms:read`, `ne:read`, `ne:exec`, `sql:query`, …).
+2. **API token** with scopes matching the tools you use (`alarms:read`, `ne:read`, `ne:exec`, `biz-monitor:read`, `sql:query`, …).
 
-No local Python / `netx_mcp` install is required for DSH. (OpenClaw and other MCP hosts can still use `python -m netx_mcp` separately.)
+No local Python / `netx_mcp` install is required for DSH. (OpenClaw and other MCP hosts can still use `python -m netx_mcp` separately for NMS/CLI — **not** for biz-monitor; that is netxops host tools only.)
 
 ## Clone / `pnpm install`（仓库源码）
 
@@ -67,7 +67,7 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
 1. Plugins card **Netx Ops** visible.
 2. With key-alarm push on: card badge shows **Connected** (or reconnecting / auth failed with detail).
 3. Agent presets → Custom → **Netx Ops**.
-4. Tools include `netx__queryNmsAlarms` / `netx__execManagedNe` / `netx__findTopologyPaths` (**ops** → skill `netx-ops`). Canvas / dual_unit need **topology** (`netx-topology`).
+4. Tools include `netx__queryNmsAlarms` / `netx__execManagedNe` / `netx__findTopologyPaths` (**ops** → skill `netx-ops`). Cutover analysis: `netx__getBizMonitorContext` … (**bizMonitor** → `netx-biz-monitor`). Canvas / dual_unit need **topology** (`netx-topology`).
 5. Export section shows a session count; **下载 ZIP** starts a browser download.
 6. Optional knowledge-base badge shows operator/country/version when `kbRoot` + MANIFEST are valid.
 

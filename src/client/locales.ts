@@ -21,6 +21,7 @@ export type NetxopsLocaleKey =
   | 'nmsProviderHint'
   | 'groupOps'
   | 'groupTopology'
+  | 'groupBizMonitor'
   | 'groupKb'
   | 'groupInPreset'
   | 'groupPublic'
@@ -98,6 +99,7 @@ export const en: Record<NetxopsLocaleKey, string> = {
   nmsProviderHint: 'zte-ume',
   groupOps: 'ops',
   groupTopology: 'topology',
+  groupBizMonitor: 'bizMonitor',
   groupKb: 'Knowledge skills',
   groupInPreset: 'In Netx Ops preset',
   groupPublic: 'Publish to other presets',
@@ -176,6 +178,7 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   nmsProviderHint: 'zte-ume',
   groupOps: 'ops',
   groupTopology: 'topology',
+  groupBizMonitor: 'bizMonitor',
   groupKb: '知识库技能',
   groupInPreset: '在 Netx Ops 预设中启用',
   groupPublic: '对其他预设公开',

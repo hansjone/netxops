@@ -17,7 +17,7 @@ $src = Join-Path $NetxRoot "skills"
 $dst = Join-Path $opsRoot "presets\netxops\skills"
 if (-not (Test-Path $src)) { throw "missing $src" }
 
-foreach ($group in @("ops", "topology")) {
+foreach ($group in @("ops", "topology", "biz-monitor")) {
   $from = Join-Path $src $group
   $to = Join-Path $dst $group
   if (-not (Test-Path $from)) { throw "missing group $from" }

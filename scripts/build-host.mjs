@@ -34,6 +34,7 @@ const entries = [
   { entry: join(root, 'src/agent-tools-nms.ts'), out: join(outDir, 'agent-tools-nms.js') },
   { entry: join(root, 'src/agent-tools-common.ts'), out: join(outDir, 'agent-tools-common.js') },
   { entry: join(root, 'src/agent-tools-topology.ts'), out: join(outDir, 'agent-tools-topology.js') },
+  { entry: join(root, 'src/agent-tools-biz-monitor.ts'), out: join(outDir, 'agent-tools-biz-monitor.js') },
 ]
 
 mkdirSync(outDir, { recursive: true })

@@ -15,19 +15,21 @@ import {
   TOOLS_BY_GROUP,
 } from '../src/netx/capability-groups.ts'
 
-test('defaults: ops in preset; topology and public off', () => {
+test('defaults: ops + bizMonitor in preset; topology and public off', () => {
   assert.deepEqual(DEFAULT_CAPABILITY_GROUPS, {
     ops: { inPreset: true, public: false },
     topology: { inPreset: false, public: false },
+    bizMonitor: { inPreset: true, public: false },
   })
-  assert.deepEqual(groupsForPlane(undefined, 'preset'), ['ops'])
+  assert.deepEqual(groupsForPlane(undefined, 'preset'), ['ops', 'bizMonitor'])
   assert.deepEqual(groupsForPlane(undefined, 'public'), [])
 })
 
-test('one group one skill dir; ops owns NMS + managed CLI; topology owns canvas', () => {
+test('one group one skill dir; ops owns NMS + managed CLI; topology owns canvas; bizMonitor owns cutover read', () => {
   assert.deepEqual(SKILL_DIR_BY_GROUP, {
     ops: 'ops',
     topology: 'topology',
+    bizMonitor: 'biz-monitor',
   })
   assert.ok(TOOLS_BY_GROUP.ops.includes('netx__findTopologyPaths'))
   assert.ok(TOOLS_BY_GROUP.ops.includes('netx__execManagedNe'))
@@ -36,11 +38,14 @@ test('one group one skill dir; ops owns NMS + managed CLI; topology owns canvas'
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__layoutTopologyView'))
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__suggestSinkHubs'))
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__sinkTopologyDualUnits'))
+  assert.ok(TOOLS_BY_GROUP.bizMonitor.includes('netx__getBizMonitorContext'))
+  assert.ok(TOOLS_BY_GROUP.bizMonitor.includes('netx__getBizCollectCommandRaw'))
 })
 
 test('capabilityGroupsFromSettings honors explicit false for inPreset defaults', () => {
   const groups = capabilityGroupsFromSettings({
     groupOpsInPreset: false,
+    groupBizMonitorInPreset: false,
     groupTopologyInPreset: true,
     groupTopologyPublic: true,
   })
@@ -49,6 +54,7 @@ test('capabilityGroupsFromSettings honors explicit false for inPreset defaults',
   assert.ok(toolNamesForGroups(['topology']).has('netx__layoutTopologyView'))
   assert.ok(toolNamesForGroups(['topology']).has('netx__sinkTopologyDualUnits'))
   assert.equal(toolNamesForGroups(['topology']).has('netx__queryNmsAlarms'), false)
+  assert.equal(toolNamesForGroups(['topology']).has('netx__getBizMonitorContext'), false)
 })
 
 test('legacy groupNms/common/managedNe map to ops; legacy layout flags OR into topology', () => {
@@ -61,6 +67,7 @@ test('legacy groupNms/common/managedNe map to ops; legacy layout flags OR into t
   assert.equal(groups.ops.inPreset, false)
   assert.equal(groups.ops.public, true)
   assert.equal(groups.topology.inPreset, true)
+  assert.equal(groups.bizMonitor.inPreset, true)
 })
 
 test('legacy any-true turns ops inPreset on', () => {
@@ -74,4 +81,5 @@ test('legacy any-true turns ops inPreset on', () => {
 test('groupsForced ignores settings for per-export mounts', () => {
   assert.deepEqual(groupsForced(['ops']), ['ops'])
   assert.deepEqual(groupsForced(['ops', 'topology']), ['ops', 'topology'])
+  assert.deepEqual(groupsForced(['bizMonitor']), ['bizMonitor'])
 })

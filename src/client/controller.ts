@@ -57,6 +57,8 @@ export interface NetxopsSettings {
   groupOpsPublic?: boolean
   groupTopologyInPreset?: boolean
   groupTopologyPublic?: boolean
+  groupBizMonitorInPreset?: boolean
+  groupBizMonitorPublic?: boolean
   nmsProvider?: string
   /** Operator-subset knowledge package root (Host-local path). */
   kbRoot?: string
@@ -82,6 +84,8 @@ export interface NetxopsCardState extends CardShell {
   groupOpsPublic: CardFieldState
   groupTopologyInPreset: CardFieldState
   groupTopologyPublic: CardFieldState
+  groupBizMonitorInPreset: CardFieldState
+  groupBizMonitorPublic: CardFieldState
   nmsProvider: CardFieldState
   kbRoot: CardFieldState
   groupKbInPreset: CardFieldState
@@ -187,6 +191,8 @@ export class NetxopsCardController {
         booleanField('groupOpsPublic'),
         booleanField('groupTopologyInPreset'),
         booleanField('groupTopologyPublic'),
+        booleanFieldPersistFalse('groupBizMonitorInPreset'),
+        booleanField('groupBizMonitorPublic'),
         booleanFieldPersistFalse('groupKbInPreset'),
         booleanField('groupKbPublic'),
         booleanField('alarmPushEnabled'),
@@ -599,6 +605,8 @@ export class NetxopsCardController {
       groupOpsPublic: this.form.field('groupOpsPublic'),
       groupTopologyInPreset: this.form.field('groupTopologyInPreset'),
       groupTopologyPublic: this.form.field('groupTopologyPublic'),
+      groupBizMonitorInPreset: this.form.field('groupBizMonitorInPreset'),
+      groupBizMonitorPublic: this.form.field('groupBizMonitorPublic'),
       groupKbInPreset: this.form.field('groupKbInPreset'),
       groupKbPublic: this.form.field('groupKbPublic'),
       alarmPushEnabled: this.form.field('alarmPushEnabled'),

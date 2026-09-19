@@ -330,3 +330,101 @@ export async function findTopologyPaths(client: NetxClient, args: NetxJson, sign
   else body.to_managed_ne_id = toMid
   return client.post('/v1/topology/fabric/paths', body, signal, 30_000)
 }
+
+// ── bizMonitor group (cutover / biz_state read) ─────────────────────────────
+
+/** Fat cutover / biz_state definition bundle (templates, mapping, tasks). */
+export async function getBizMonitorContext(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const projectId = str(args, 'project_id').trim()
+  const taskId = str(args, 'task_id').trim()
+  if (!projectId && !taskId) {
+    return { ok: false, error: 'project_id_or_task_id_required' }
+  }
+  const params: Record<string, string | number | boolean> = {}
+  if (projectId) params.project_id = projectId
+  if (taskId) params.task_id = taskId
+  return client.get('/v1/biz-migration/monitor-context', params, signal)
+}
+
+/** Cutover batch board + latest evaluate run summary. */
+export async function getBizMonitorBoard(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const batchId = str(args, 'batch_id').trim()
+  if (!batchId) return { ok: false, error: 'batch_id_required' }
+  const params: Record<string, string | number | boolean> = {}
+  const runId = str(args, 'run_id').trim()
+  if (runId) params.run_id = runId
+  return client.get(`/v1/biz-migration/batches/${encodeURIComponent(batchId)}/board`, params, signal)
+}
+
+/** Red tickets with evidence (raw A/B + show command). */
+export async function listBizMonitorReds(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const projectId = str(args, 'project_id').trim()
+  if (!projectId) return { ok: false, error: 'project_id_required' }
+  const params: Record<string, string | number | boolean> = {}
+  putStr(params, args, ['status'])
+  const limit = num(args, 'limit')
+  if (limit !== undefined) params.limit = clampInt(limit, 200, 1, 500)
+  return client.get(
+    `/v1/biz-migration/projects/${encodeURIComponent(projectId)}/red-tickets`,
+    params,
+    signal,
+  )
+}
+
+/** Paged evaluate diffs (old_key/new_key = device-raw A/B). */
+export async function getBizMonitorDiffs(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const runId = str(args, 'run_id').trim()
+  if (!runId) return { ok: false, error: 'run_id_required' }
+  const params: Record<string, string | number | boolean> = {}
+  putStr(params, args, ['metric_id', 'sheet_id', 'verdict', 'color', 'q'])
+  const limit = num(args, 'limit')
+  if (limit !== undefined) params.limit = clampInt(limit, 200, 1, 500)
+  const offset = num(args, 'offset')
+  if (offset !== undefined) params.offset = clampInt(offset, 0, 0, Number.MAX_SAFE_INTEGER)
+  return client.get(`/v1/biz-migration/runs/${encodeURIComponent(runId)}/diffs`, params, signal)
+}
+
+/** One biz_state collect batch (commands + metrics). */
+export async function getBizCollectBatch(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const batchId = str(args, 'batch_id').trim()
+  if (!batchId) return { ok: false, error: 'batch_id_required' }
+  return client.get(`/v1/biz-state/batches/${encodeURIComponent(batchId)}`, {}, signal)
+}
+
+/** Full CLI raw_text for one collect command. */
+export async function getBizCollectCommandRaw(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const batchId = str(args, 'batch_id').trim()
+  const commandId = str(args, 'command_id').trim()
+  if (!batchId || !commandId) {
+    return { ok: false, error: 'batch_id_and_command_id_required' }
+  }
+  return client.get(
+    `/v1/biz-state/batches/${encodeURIComponent(batchId)}/commands/${encodeURIComponent(commandId)}`,
+    {},
+    signal,
+  )
+}
