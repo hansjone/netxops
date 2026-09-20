@@ -333,6 +333,128 @@ export async function findTopologyPaths(client: NetxClient, args: NetxJson, sign
 
 // ── bizMonitor group (cutover / biz_state read) ─────────────────────────────
 
+function taskBriefNe(brief: unknown): string {
+  const rec = asRecord(brief)
+  const name = typeof rec.ne_name === 'string' ? rec.ne_name.trim() : ''
+  const ip = typeof rec.ne_ip === 'string' ? rec.ne_ip.trim() : ''
+  if (name && ip) return `${name} (${ip})`
+  return name || ip
+}
+
+function slimMigrationProject(row: NetxJson): NetxJson {
+  const mt = asRecord(row.monitor_template)
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    note: row.note,
+    monitor_template_id: row.monitor_template_id,
+    monitor_template_name: typeof mt.name === 'string' ? mt.name : '',
+    old_task_id: row.old_task_id,
+    new_task_id: row.new_task_id,
+    old_hf_task_id: row.old_hf_task_id,
+    new_hf_task_id: row.new_hf_task_id,
+    old_ne: taskBriefNe(row.old_task),
+    new_ne: taskBriefNe(row.new_task),
+    hf_interval_sec: row.hf_interval_sec,
+    hf_start_at: row.hf_start_at,
+    hf_end_at: row.hf_end_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function matchesBizMonitorQ(row: NetxJson, q: string): boolean {
+  if (!q) return true
+  const hay = [
+    row.id, row.name, row.note, row.status, row.ne_name, row.ne_ip, row.ne_id,
+    row.old_ne, row.new_ne, row.monitor_template_name, row.purpose, row.vendor,
+  ]
+    .map((v) => (typeof v === 'string' || typeof v === 'number' ? String(v).toLowerCase() : ''))
+    .join(' ')
+  return hay.includes(q)
+}
+
+/**
+ * Catalog entry: list cutover projects and/or biz_state tasks (no project_id required).
+ * Use this first when the user did not give an id; then call getBizMonitorContext.
+ */
+export async function listBizMonitors(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const kindRaw = str(args, 'kind', 'all').trim().toLowerCase() || 'all'
+  const kind = kindRaw === 'project' ? 'projects'
+    : kindRaw === 'task' ? 'tasks'
+      : kindRaw
+  if (kind !== 'all' && kind !== 'projects' && kind !== 'tasks') {
+    return { ok: false, error: 'kind_invalid', detail: 'kind must be all|projects|tasks' }
+  }
+  const purpose = str(args, 'purpose').trim()
+  const status = str(args, 'status').trim().toLowerCase()
+  const q = str(args, 'q').trim().toLowerCase()
+  const limit = clampInt(num(args, 'limit') ?? 100, 100, 1, 500)
+
+  const wantProjects = kind === 'all' || kind === 'projects'
+  const wantTasks = kind === 'all' || kind === 'tasks'
+
+  const fetches: Array<Promise<NetxJson>> = []
+  if (wantProjects) fetches.push(client.get('/v1/biz-migration/projects', {}, signal))
+  else fetches.push(Promise.resolve({ ok: true, data: { items: [] } }))
+  if (wantTasks) {
+    const params: Record<string, string | number | boolean> = {}
+    if (purpose) params.purpose = purpose
+    fetches.push(client.get('/v1/biz-state/tasks', params, signal))
+  } else {
+    fetches.push(Promise.resolve({ ok: true, data: { items: [] } }))
+  }
+
+  const [projRes, taskRes] = await Promise.all(fetches)
+  if (wantProjects && projRes.ok === false) return projRes
+  if (wantTasks && taskRes.ok === false) return taskRes
+
+  const projItems = Array.isArray(asRecord(projRes.data).items)
+    ? (asRecord(projRes.data).items as unknown[])
+    : []
+  const taskItems = Array.isArray(asRecord(taskRes.data).items)
+    ? (asRecord(taskRes.data).items as unknown[])
+    : []
+
+  let projects = projItems
+    .map((row) => slimMigrationProject(asRecord(row)))
+    .filter((row) => {
+      if (status && String(row.status || '').toLowerCase() !== status) return false
+      return matchesBizMonitorQ(row, q)
+    })
+  let tasks = taskItems
+    .map((row) => asRecord(row))
+    .filter((row) => {
+      if (status && String(row.status || '').toLowerCase() !== status) return false
+      return matchesBizMonitorQ(row, q)
+    })
+
+  const projectsTotal = projects.length
+  const tasksTotal = tasks.length
+  projects = projects.slice(0, limit)
+  tasks = tasks.slice(0, limit)
+
+  return {
+    ok: true,
+    data: {
+      kind,
+      projects: wantProjects ? projects : undefined,
+      tasks: wantTasks ? tasks : undefined,
+      counts: {
+        projects: wantProjects ? projectsTotal : 0,
+        tasks: wantTasks ? tasksTotal : 0,
+        projects_returned: wantProjects ? projects.length : 0,
+        tasks_returned: wantTasks ? tasks.length : 0,
+      },
+      next: 'Pass project_id (or task_id) to netx__getBizMonitorContext for the full definition bundle.',
+    },
+  }
+}
+
 /** Fat cutover / biz_state definition bundle (templates, mapping, tasks). */
 export async function getBizMonitorContext(
   client: NetxClient,

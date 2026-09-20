@@ -81,6 +81,7 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
     'netx__sinkTopologyDualUnits',
   ]),
   bizMonitor: Object.freeze([
+    'netx__listBizMonitors',
     'netx__getBizMonitorContext',
     'netx__getBizMonitorBoard',
     'netx__listBizMonitorReds',

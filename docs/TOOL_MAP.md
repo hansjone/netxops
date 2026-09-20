@@ -27,6 +27,7 @@ Host tools call netx REST directly (**not** netx-mcp). Token needs `biz-monitor:
 
 | Tool | Role |
 |------|------|
+| `listBizMonitors` | Catalog: cutover projects + biz_state tasks (no id required) |
 | `getBizMonitorContext` | Project + templates + normalize + port map + tasks |
 | `getBizMonitorBoard` | Batch / evaluate progress |
 | `listBizMonitorReds` / `getBizMonitorDiffs` | Reds & diffs with evidence (raw A/B + show cmd) |

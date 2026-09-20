@@ -318,8 +318,20 @@ export function registerNetxTools(
     ),
     // ── bizMonitor group (cutover / biz_state read via netx REST) ─────────
     tool(
+      'netx__listBizMonitors',
+      'Catalog: list cutover/monitor-compare projects and biz_state monitor tasks. No project_id needed — call this first when the user did not give an id, then use getBizMonitorContext.',
+      {
+        kind: str('all | projects | tasks (default all)'),
+        purpose: str('Filter tasks: portrait | cutover_hf | empty=all'),
+        status: str('Filter by status (e.g. active / paused)'),
+        q: str('Keyword on name / ne_name / note / id'),
+        limit: num('Max rows per list (default 100, max 500)'),
+      },
+      H.listBizMonitors, getClient, t,
+    ),
+    tool(
       'netx__getBizMonitorContext',
-      'Biz-monitor definition bundle: cutover project + monitor/compare templates + iface normalize + port mapping + related tasks/commands. Prefer project_id. Display keys are device-raw A/B.',
+      'Biz-monitor definition bundle: cutover project + monitor/compare templates + iface normalize + port mapping + related tasks/commands. Prefer project_id from listBizMonitors. Display keys are device-raw A/B.',
       {
         project_id: str('Cutover / biz-migration project id'),
         task_id: str('biz_state task id (optional if project_id set)'),
