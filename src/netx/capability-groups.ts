@@ -82,6 +82,7 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
   ]),
   bizMonitor: Object.freeze([
     'netx__listBizMonitors',
+    'netx__listBizMonitorBatches',
     'netx__getBizMonitorContext',
     'netx__getBizMonitorBoard',
     'netx__listBizMonitorReds',

@@ -319,7 +319,7 @@ export function registerNetxTools(
     // ── bizMonitor group (cutover / biz_state read via netx REST) ─────────
     tool(
       'netx__listBizMonitors',
-      'Catalog: list cutover/monitor-compare projects and biz_state monitor tasks. No project_id needed — call this first when the user did not give an id, then use getBizMonitorContext.',
+      'Catalog: list cutover/monitor-compare projects and biz_state monitor tasks. No project_id needed — call this first when the user did not give an id, then listBizMonitorBatches / getBizMonitorContext.',
       {
         kind: str('all | projects | tasks (default all)'),
         purpose: str('Filter tasks: portrait | cutover_hf | empty=all'),
@@ -328,6 +328,21 @@ export function registerNetxTools(
         limit: num('Max rows per list (default 100, max 500)'),
       },
       H.listBizMonitors, getClient, t,
+    ),
+    tool(
+      'netx__listBizMonitorBatches',
+      'List batch ids for further analysis. project_id → cutover batches; task_id → biz_state collect batches; batch_id + kind=runs → evaluate runs. Optional include_runs attaches recent runs onto cutover batches.',
+      {
+        kind: str('auto | all | cutover | collect | runs (default auto)'),
+        project_id: str('Cutover project id → cutover_batches'),
+        task_id: str('biz_state task id → collect_batches'),
+        batch_id: str('Cutover batch id (filter or kind=runs)'),
+        include_runs: bool('Attach recent evaluate runs onto listed cutover batches'),
+        status: str('Filter batch status'),
+        limit: num('Max batches (default 50)'),
+        runs_limit: num('Max runs per batch when include_runs / kind=runs (default 10)'),
+      },
+      H.listBizMonitorBatches, getClient, t,
     ),
     tool(
       'netx__getBizMonitorContext',

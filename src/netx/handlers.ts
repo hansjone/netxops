@@ -450,7 +450,220 @@ export async function listBizMonitors(
         projects_returned: wantProjects ? projects.length : 0,
         tasks_returned: wantTasks ? tasks.length : 0,
       },
-      next: 'Pass project_id (or task_id) to netx__getBizMonitorContext for the full definition bundle.',
+      next: 'Pass project_id (or task_id) to netx__getBizMonitorContext; then listBizMonitorBatches for batch_id / run_id.',
+    },
+  }
+}
+
+function slimCutoverBatch(row: NetxJson): NetxJson {
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    batch_label: row.batch_label,
+    status: row.status,
+    accept_status: row.accept_status,
+    accept_run_id: row.accept_run_id,
+    started_at: row.started_at,
+    ended_at: row.ended_at,
+    note: row.note,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function slimCollectBatch(row: NetxJson, taskId = ''): NetxJson {
+  return {
+    id: row.id,
+    task_id: row.task_id || taskId,
+    status: row.status,
+    ne_name: row.ne_name,
+    command_count: row.command_count,
+    row_count: row.row_count,
+    is_baseline: row.is_baseline,
+    protected: row.protected,
+    message: row.message,
+    started_at: row.started_at,
+    ended_at: row.ended_at,
+  }
+}
+
+function slimEvalRun(row: NetxJson): NetxJson {
+  const summary = asRecord(row.summary)
+  const progress = asRecord(summary.progress)
+  return {
+    id: row.id,
+    batch_id: row.batch_id,
+    purpose: row.purpose,
+    old_batch_id: row.old_batch_id,
+    new_batch_id: row.new_batch_id,
+    created_at: row.created_at,
+    anomaly: summary.anomaly,
+    progress_ok: progress.ok ?? summary.progress_ok,
+    progress_total: progress.total ?? summary.progress_total,
+  }
+}
+
+/**
+ * List cutover batches, biz_state collect batches, and/or evaluate runs.
+ * Needs project_id and/or task_id and/or cutover batch_id (for runs).
+ */
+export async function listBizMonitorBatches(
+  client: NetxClient,
+  args: NetxJson,
+  signal?: AbortSignal,
+): Promise<NetxJson> {
+  const projectId = str(args, 'project_id').trim()
+  const taskId = str(args, 'task_id').trim()
+  const batchId = str(args, 'batch_id').trim()
+  const kindRaw = str(args, 'kind', 'auto').trim().toLowerCase() || 'auto'
+  const includeRuns = args.include_runs === true || args.include_runs === 'true' || args.include_runs === 1
+  const status = str(args, 'status').trim().toLowerCase()
+  const limit = clampInt(num(args, 'limit') ?? 50, 50, 1, 200)
+  const runsLimit = clampInt(num(args, 'runs_limit') ?? 10, 10, 1, 50)
+
+  let kind = kindRaw
+  if (kind === 'auto') {
+    if (batchId && !projectId && !taskId) kind = 'runs'
+    else if (projectId && !taskId) kind = 'cutover'
+    else if (taskId && !projectId) kind = 'collect'
+    else if (projectId && taskId) kind = 'all'
+    else if (batchId) kind = 'runs'
+    else {
+      return {
+        ok: false,
+        error: 'project_id_or_task_id_or_batch_id_required',
+        detail: 'Pass project_id (cutover batches), task_id (collect batches), and/or batch_id (evaluate runs).',
+      }
+    }
+  }
+  if (!['auto', 'all', 'cutover', 'collect', 'runs'].includes(kind)) {
+    return { ok: false, error: 'kind_invalid', detail: 'kind must be auto|all|cutover|collect|runs' }
+  }
+
+  const wantCutover = kind === 'all' || kind === 'cutover'
+  const wantCollect = kind === 'all' || kind === 'collect'
+  const wantRuns = kind === 'runs' || (includeRuns && (wantCutover || Boolean(batchId)))
+
+  if (wantCutover && !projectId) {
+    return { ok: false, error: 'project_id_required', detail: 'kind=cutover|all needs project_id' }
+  }
+  if (wantCollect && !taskId) {
+    return { ok: false, error: 'task_id_required', detail: 'kind=collect|all needs task_id' }
+  }
+  if (kind === 'runs' && !batchId) {
+    return { ok: false, error: 'batch_id_required', detail: 'kind=runs needs cutover batch_id' }
+  }
+
+  let cutoverBatches: NetxJson[] = []
+  let collectBatches: NetxJson[] = []
+  let runs: NetxJson[] = []
+
+  if (wantCutover) {
+    const res = await client.get(
+      `/v1/biz-migration/projects/${encodeURIComponent(projectId)}/batches`,
+      {},
+      signal,
+    )
+    if (res.ok === false) return res
+    const items = Array.isArray(asRecord(res.data).items)
+      ? (asRecord(res.data).items as unknown[])
+      : []
+    cutoverBatches = items
+      .map((row) => slimCutoverBatch(asRecord(row)))
+      .filter((row) => {
+        if (batchId && String(row.id || '') !== batchId) return false
+        if (status && String(row.status || '').toLowerCase() !== status) return false
+        return true
+      })
+      .slice(0, limit)
+  }
+
+  if (wantCollect) {
+    const res = await client.get(
+      `/v1/biz-state/tasks/${encodeURIComponent(taskId)}/batches`,
+      { limit },
+      signal,
+    )
+    if (res.ok === false) return res
+    const items = Array.isArray(asRecord(res.data).items)
+      ? (asRecord(res.data).items as unknown[])
+      : []
+    collectBatches = items
+      .map((row) => slimCollectBatch(asRecord(row), taskId))
+      .filter((row) => {
+        if (status && String(row.status || '').toLowerCase() !== status) return false
+        return true
+      })
+      .slice(0, limit)
+  }
+
+  if (wantRuns) {
+    const runBatchIds = kind === 'runs'
+      ? [batchId]
+      : cutoverBatches.map((b) => String(b.id || '').trim()).filter(Boolean).slice(0, includeRuns ? 5 : 0)
+    if (kind === 'runs' && batchId) {
+      const res = await client.get(
+        `/v1/biz-migration/batches/${encodeURIComponent(batchId)}/runs`,
+        { limit: runsLimit },
+        signal,
+      )
+      if (res.ok === false) return res
+      const items = Array.isArray(asRecord(res.data).items)
+        ? (asRecord(res.data).items as unknown[])
+        : []
+      runs = items.map((row) => slimEvalRun(asRecord(row))).slice(0, runsLimit)
+    } else if (includeRuns && runBatchIds.length > 0) {
+      const settled = await Promise.all(
+        runBatchIds.map(async (id) => {
+          const res = await client.get(
+            `/v1/biz-migration/batches/${encodeURIComponent(id)}/runs`,
+            { limit: runsLimit },
+            signal,
+          )
+          if (res.ok === false) return { batch_id: id, error: res, items: [] as NetxJson[] }
+          const items = Array.isArray(asRecord(res.data).items)
+            ? (asRecord(res.data).items as unknown[])
+            : []
+          return {
+            batch_id: id,
+            items: items.map((row) => slimEvalRun(asRecord(row))).slice(0, runsLimit),
+          }
+        }),
+      )
+      for (const block of settled) {
+        if ('error' in block && block.error) {
+          // Keep listing batches even if one runs fetch fails; attach error note.
+          const failed = cutoverBatches.find((b) => b.id === block.batch_id)
+          if (failed) failed.runs_error = asRecord(block.error).error || 'runs_fetch_failed'
+          continue
+        }
+        const target = cutoverBatches.find((b) => b.id === block.batch_id)
+        if (target) target.runs = block.items
+        for (const r of block.items) runs.push(r)
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    data: {
+      kind,
+      project_id: projectId || undefined,
+      task_id: taskId || undefined,
+      batch_id: batchId || undefined,
+      cutover_batches: wantCutover ? cutoverBatches : undefined,
+      collect_batches: wantCollect ? collectBatches : undefined,
+      runs: kind === 'runs' ? runs : undefined,
+      counts: {
+        cutover_batches: cutoverBatches.length,
+        collect_batches: collectBatches.length,
+        runs: runs.length,
+      },
+      next: wantCutover
+        ? 'Use cutover batch id with netx__getBizMonitorBoard / listBizMonitorBatches(kind=runs). Collect batch id → netx__getBizCollectBatch.'
+        : wantCollect
+          ? 'Pass collect batch id to netx__getBizCollectBatch / getBizCollectCommandRaw.'
+          : 'Pass run_id to netx__getBizMonitorDiffs or getBizMonitorBoard(run_id).',
     },
   }
 }
