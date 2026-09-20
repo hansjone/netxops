@@ -17,6 +17,7 @@ import {
 } from './kb-local-ops.ts'
 import { kbLocalToolsEnabled, resolveKbLocalRoot, type RefArea } from './kb-local-path.ts'
 import { getKbContext } from './kb-runtime.ts'
+import { toLosslessJson } from './json-safe.ts'
 
 const str = (description?: string) => ({ type: 'string' as const, ...(description ? { description } : {}) })
 const bool = (description?: string) => ({ type: 'boolean' as const, ...(description ? { description } : {}) })
@@ -56,7 +57,7 @@ function tool(
     isConcurrencySafe: () => false,
     async execute(args) {
       try {
-        return await execute(args as Record<string, unknown>)
+        return toLosslessJson(await execute(args as Record<string, unknown>))
       } catch (error) {
         throw new Error(error instanceof Error ? error.message : String(error))
       }

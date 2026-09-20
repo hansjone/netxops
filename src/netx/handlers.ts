@@ -3,6 +3,7 @@
  */
 
 import { type NetxClient, quoteNeId, type NetxJson } from './http.ts'
+import { omitUndefined } from './json-safe.ts'
 
 const EXEC_MAX_COMMANDS = 5
 
@@ -343,7 +344,7 @@ function taskBriefNe(brief: unknown): string {
 
 function slimMigrationProject(row: NetxJson): NetxJson {
   const mt = asRecord(row.monitor_template)
-  return {
+  return omitUndefined({
     id: row.id,
     name: row.name,
     status: row.status,
@@ -360,7 +361,7 @@ function slimMigrationProject(row: NetxJson): NetxJson {
     hf_start_at: row.hf_start_at,
     hf_end_at: row.hf_end_at,
     updated_at: row.updated_at,
-  }
+  })
 }
 
 function matchesBizMonitorQ(row: NetxJson, q: string): boolean {
@@ -440,7 +441,7 @@ export async function listBizMonitors(
 
   return {
     ok: true,
-    data: {
+    data: omitUndefined({
       kind,
       projects: wantProjects ? projects : undefined,
       tasks: wantTasks ? tasks : undefined,
@@ -451,12 +452,12 @@ export async function listBizMonitors(
         tasks_returned: wantTasks ? tasks.length : 0,
       },
       next: 'Pass project_id (or task_id) to netx__getBizMonitorContext; then listBizMonitorBatches for batch_id / run_id.',
-    },
+    }),
   }
 }
 
 function slimCutoverBatch(row: NetxJson): NetxJson {
-  return {
+  return omitUndefined({
     id: row.id,
     project_id: row.project_id,
     batch_label: row.batch_label,
@@ -468,13 +469,13 @@ function slimCutoverBatch(row: NetxJson): NetxJson {
     note: row.note,
     created_at: row.created_at,
     updated_at: row.updated_at,
-  }
+  })
 }
 
 function slimCollectBatch(row: NetxJson, taskId = ''): NetxJson {
-  return {
+  return omitUndefined({
     id: row.id,
-    task_id: row.task_id || taskId,
+    task_id: row.task_id || taskId || undefined,
     status: row.status,
     ne_name: row.ne_name,
     command_count: row.command_count,
@@ -484,13 +485,13 @@ function slimCollectBatch(row: NetxJson, taskId = ''): NetxJson {
     message: row.message,
     started_at: row.started_at,
     ended_at: row.ended_at,
-  }
+  })
 }
 
 function slimEvalRun(row: NetxJson): NetxJson {
   const summary = asRecord(row.summary)
   const progress = asRecord(summary.progress)
-  return {
+  return omitUndefined({
     id: row.id,
     batch_id: row.batch_id,
     purpose: row.purpose,
@@ -500,7 +501,7 @@ function slimEvalRun(row: NetxJson): NetxJson {
     anomaly: summary.anomaly,
     progress_ok: progress.ok ?? summary.progress_ok,
     progress_total: progress.total ?? summary.progress_total,
-  }
+  })
 }
 
 /**
@@ -646,7 +647,7 @@ export async function listBizMonitorBatches(
 
   return {
     ok: true,
-    data: {
+    data: omitUndefined({
       kind,
       project_id: projectId || undefined,
       task_id: taskId || undefined,
@@ -664,7 +665,7 @@ export async function listBizMonitorBatches(
         : wantCollect
           ? 'Pass collect batch id to netx__getBizCollectBatch / getBizCollectCommandRaw.'
           : 'Pass run_id to netx__getBizMonitorDiffs or getBizMonitorBoard(run_id).',
-    },
+    }),
   }
 }
 

@@ -39,6 +39,8 @@ test('one group one skill dir; ops owns NMS + managed CLI; topology owns canvas;
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__suggestSinkHubs'))
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__sinkTopologyDualUnits'))
   assert.ok(TOOLS_BY_GROUP.bizMonitor.includes('netx__getBizMonitorContext'))
+  assert.ok(TOOLS_BY_GROUP.bizMonitor.includes('netx__listBizMonitors'))
+  assert.ok(TOOLS_BY_GROUP.bizMonitor.includes('netx__listBizMonitorBatches'))
   assert.ok(TOOLS_BY_GROUP.bizMonitor.includes('netx__getBizCollectCommandRaw'))
 })
 

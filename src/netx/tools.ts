@@ -11,6 +11,7 @@ import {
   type NetxCapabilityGroups,
 } from './capability-groups.ts'
 import { createNetxClient, type NetxClient, type NetxJson } from './http.ts'
+import { toLosslessJson } from './json-safe.ts'
 import { getNetxConnection } from './runtime.ts'
 import * as H from './handlers.ts'
 import * as T from './topology-handlers.ts'
@@ -74,10 +75,13 @@ function tool(
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       const result = await handler(getClient(), args as NetxJson, exec.signal)
-      if (result.ok === false) {
-        throw new Error(JSON.stringify(result))
+      // DSH rejects tool results that contain `undefined` property holes
+      // ("value is not lossless JSON"). Round-trip strips them.
+      const safe = toLosslessJson(result)
+      if (result.ok === false || safe.ok === false) {
+        throw new Error(JSON.stringify(safe))
       }
-      return result
+      return safe
     },
   })
 }
