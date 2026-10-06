@@ -18,7 +18,7 @@ Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` 
 | Tool | Role |
 |------|------|
 | `queryNmsAlarms` … `sqlQueryNms` | Alarm + inventory + SQL |
-| `listManagedNe` / `getManagedNe` / `execManagedNe` / `listCliTargets` | Managed CLI (login / show) |
+| `listManagedNe` / `getManagedNe` / `execManagedNe` / `getNeExecJob` / `listCliTargets` | Managed CLI (login / show / async jobs) |
 | `findTopologyPaths` | Fabric path lookup |
 
 ## bizMonitor → `netx-biz-monitor`

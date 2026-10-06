@@ -5,7 +5,55 @@
 import { type NetxClient, quoteNeId, type NetxJson } from './http.ts'
 import { omitUndefined } from './json-safe.ts'
 
-const EXEC_MAX_COMMANDS = 5
+const EXEC_MAX_COMMANDS_CAP = 50
+const EXEC_MAX_COMMANDS_DEFAULT = 5
+
+function execMaxCommands(): number {
+  const raw = Number.parseInt(String(process.env.NETX_NE_EXEC_MAX_COMMANDS ?? ''), 10)
+  const n = Number.isFinite(raw) ? raw : EXEC_MAX_COMMANDS_DEFAULT
+  return Math.max(1, Math.min(EXEC_MAX_COMMANDS_CAP, n))
+}
+
+function asyncMinNes(): number {
+  const raw = Number.parseInt(String(process.env.NETX_NE_EXEC_ASYNC_MIN_NES ?? ''), 10)
+  const n = Number.isFinite(raw) ? raw : 4
+  return Math.max(0, Math.min(50, n))
+}
+
+function truthyAsyncFlag(raw: unknown): boolean | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw === 'boolean') return raw
+  const text = String(raw).trim().toLowerCase()
+  if (!text) return undefined
+  if (['1', 'true', 'yes', 'on'].includes(text)) return true
+  if (['0', 'false', 'no', 'off'].includes(text)) return false
+  return undefined
+}
+
+function countExecNeTargets(args: NetxJson): number {
+  let n = 0
+  for (const key of ['ne_ids', 'nms_ne_ids', 'ume_ne_ids'] as const) {
+    const val = strList(args, key)
+    if (val.length > 0) n = Math.max(n, val.length)
+  }
+  const targets = args.targets
+  if (Array.isArray(targets)) {
+    n = Math.max(n, targets.filter(t => typeof t === 'object' && t !== null && !Array.isArray(t)).length)
+  }
+  if (n === 0) {
+    if (str(args, 'ne_id').trim() || nmsOrUme(args, 'nms_ne_id', 'ume_ne_id')) return 1
+  }
+  return n
+}
+
+function shouldRunExecAsync(args: NetxJson): boolean {
+  const flag = truthyAsyncFlag(args.async)
+  if (flag === false) return false
+  if (flag === true) return true
+  const minN = asyncMinNes()
+  if (minN <= 0) return false
+  return countExecNeTargets(args) >= minN
+}
 
 const UME_RAW_FIELD_PRESETS: Record<string, string[]> = {
   brief: [
@@ -218,6 +266,8 @@ export async function getManagedNe(client: NetxClient, args: NetxJson, signal?: 
 }
 
 export async function execManagedNe(client: NetxClient, args: NetxJson, signal?: AbortSignal): Promise<NetxJson> {
+  const maxCmds = execMaxCommands()
+  const wantAsync = shouldRunExecAsync(args)
   const targetsRaw = args.targets
   const neIds = strList(args, 'ne_ids')
   const umeNeIds = nmsOrUmeList(args, 'nms_ne_ids', 'ume_ne_ids')
@@ -249,7 +299,7 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
     if (neIds.length > 0) body.ne_ids = neIds
     if (umeNeIds.length > 0) body.ume_ne_ids = umeNeIds
     if (sharedCommands.length > 0) {
-      if (sharedCommands.length > EXEC_MAX_COMMANDS) {
+      if (sharedCommands.length > maxCmds) {
         return { ok: false, error: 'too_many_commands', error_code: 'too_many_commands' }
       }
       body.commands = sharedCommands
@@ -257,6 +307,12 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
     body.read_timeout_sec = clampInt(num(args, 'read_timeout_sec'), 60, 10, 120)
     const concurrency = num(args, 'concurrency')
     if (concurrency !== undefined) body.concurrency = clampInt(concurrency, 4, 1, 8)
+    if (wantAsync) {
+      const out = await client.post('/v1/managed-ne/exec-jobs', body, signal, 60_000)
+      if (out.ok !== true) return out
+      const data = asRecord(out.data)
+      return Object.keys(data).length > 0 ? data : out
+    }
     const out = await client.post('/v1/managed-ne/exec-batch', body, signal, 600_000)
     if (out.ok !== true) return out
     const data = asRecord(out.data)
@@ -279,7 +335,7 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
   if (sharedCommands.length === 0) {
     return { ok: false, error: 'commands_required', error_code: 'commands_required' }
   }
-  if (sharedCommands.length > EXEC_MAX_COMMANDS) {
+  if (sharedCommands.length > maxCmds) {
     return { ok: false, error: 'too_many_commands', error_code: 'too_many_commands' }
   }
   const body: NetxJson = {
@@ -288,6 +344,12 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
   }
   if (neId) body.ne_id = neId
   if (umeNeId) body.ume_ne_id = umeNeId
+  if (wantAsync) {
+    const out = await client.post('/v1/managed-ne/exec-jobs', body, signal, 60_000)
+    if (out.ok !== true) return out
+    const data = asRecord(out.data)
+    return Object.keys(data).length > 0 ? data : out
+  }
   const out = await client.post('/v1/managed-ne/exec', body, signal, 300_000)
   if (out.ok !== true) return out
   const data = asRecord(out.data)
@@ -295,6 +357,19 @@ export async function execManagedNe(client: NetxClient, args: NetxJson, signal?:
     return { ok: false, data, error: str(data, 'error', 'exec_failed') }
   }
   return { ok: true, data }
+}
+
+export async function getNeExecJob(client: NetxClient, args: NetxJson, signal?: AbortSignal): Promise<NetxJson> {
+  const jobId = str(args, 'job_id').trim()
+  if (!jobId) {
+    return {
+      ok: false,
+      error: 'job_id_required',
+      error_code: 'job_id_required',
+      hint: 'Pass job_id from execManagedNe async ack.',
+    }
+  }
+  return client.get(`/v1/managed-ne/exec-jobs/${quoteNeId(jobId)}`, undefined, signal)
 }
 
 export async function listCliTargets(client: NetxClient, args: NetxJson, signal?: AbortSignal): Promise<NetxJson> {

@@ -29,6 +29,8 @@
 | 证据 | `queryNmsAlarmsRaw(field_preset=evidence)` |
 | 清单 | `queryNmsNeInventory` / `getNmsNe` |
 | 多台 CLI | `execManagedNe(nms_ne_ids=…)` 或 `targets` |
+| 长任务 / ≥4 台 | `execManagedNe(async=true)` → `getNeExecJob(job_id=…)` |
+| 设备能力 | `getManagedNe` → 读 `capability.recommended_mode` |
 | 路径 | `findTopologyPaths` |
 | A<>B 光 | 两端 host → 路径 → 多台一批 optic CLI |
 

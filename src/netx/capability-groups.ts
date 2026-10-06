@@ -59,6 +59,7 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
     'netx__listManagedNe',
     'netx__getManagedNe',
     'netx__execManagedNe',
+    'netx__getNeExecJob',
     'netx__listCliTargets',
     'netx__findTopologyPaths',
   ]),

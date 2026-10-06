@@ -253,7 +253,7 @@ export function registerNetxTools(
     ),
     tool(
       'netx__getManagedNe',
-      'Get one managed NE by managed ne_id (from listManagedNe / listCliTargets source=managed). Do NOT pass NMS inventory UUID here.',
+      'Get one managed NE by managed ne_id (from listManagedNe / listCliTargets source=managed). Response includes capability (device_family, exec_policy_effective, recommended_mode, hints) — read before complex execManagedNe. Do NOT pass NMS inventory UUID here.',
       {
         ne_id: str('Managed NE id'),
         managed_ne_id: str('Alias for ne_id'),
@@ -263,7 +263,7 @@ export function registerNetxTools(
     ),
     tool(
       'netx__execManagedNe',
-      'Run read-only CLI via netx (show/display/ping/traceroute). Single NE: ne_id OR ume_ne_id + commands. Many NEs: ne_ids[]/ume_ne_ids[] + shared commands, or targets[{ume_ne_id|ne_id, commands}]. Do NOT loop one-NE calls for multi-NE work.',
+      'Run CLI via netx (readonly show/display/ping/traceroute; linux_shell on Linux/MikroTik allows scripts). Single NE: ne_id OR nms_ne_id + commands. Many NEs: ne_ids[]/nms_ne_ids[] + shared commands, or targets[{nms_ne_id|ne_id, commands}]. Do NOT loop one-NE calls for multi-NE work. Long or multi-NE: async=true (or auto when ≥4 NEs) returns job_id — poll getNeExecJob. Read getManagedNe.capability first.',
       {
         ne_id: str(),
         nms_ne_id: str('NMS inventory id; alias ume_ne_id'),
@@ -273,7 +273,7 @@ export function registerNetxTools(
         ume_ne_ids: strArr('Legacy alias of nms_ne_ids'),
         targets: {
           type: 'array' as const,
-          description: 'Per-NE command sets: each item is one NE (ne_id OR ume_ne_id) with commands[].',
+          description: 'Per-NE command sets: each item is one NE (ne_id OR nms_ne_id) with commands[].',
           items: {
             type: 'object' as const,
             additionalProperties: false,
@@ -288,9 +288,17 @@ export function registerNetxTools(
         commands: strArr('Commands for single NE, or shared commands for batch.'),
         read_timeout_sec: num('Per-command read timeout (default 60; use 90–120 for slow show).'),
         concurrency: num('Parallel NEs for batch mode (1–8, default 4).'),
-        async: bool('oclaw-only async hint; ignored by native REST client.'),
+        async: bool('true=background job_id + getNeExecJob; false=force sync; omit=auto for ~4+ NEs (NETX_NE_EXEC_ASYNC_MIN_NES).'),
       },
       H.execManagedNe, getClient, Math.max(t, 300_000),
+    ),
+    tool(
+      'netx__getNeExecJob',
+      'Poll a background execManagedNe job (job_id from async ack). When terminal=true, result holds exec/exec-batch payload. Do not busy-wait in the same turn.',
+      {
+        job_id: str('Job id from execManagedNe async response.'),
+      },
+      H.getNeExecJob, getClient, Math.max(t, 60_000),
     ),
     tool(
       'netx__listCliTargets',

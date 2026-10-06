@@ -33,6 +33,7 @@ test('one group one skill dir; ops owns NMS + managed CLI; topology owns canvas;
   })
   assert.ok(TOOLS_BY_GROUP.ops.includes('netx__findTopologyPaths'))
   assert.ok(TOOLS_BY_GROUP.ops.includes('netx__execManagedNe'))
+  assert.ok(TOOLS_BY_GROUP.ops.includes('netx__getNeExecJob'))
   assert.ok(TOOLS_BY_GROUP.ops.includes('netx__queryNmsAlarms'))
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__getTopologyTree'))
   assert.ok(TOOLS_BY_GROUP.topology.includes('netx__layoutTopologyView'))
