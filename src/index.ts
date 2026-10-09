@@ -19,16 +19,17 @@
  * @module dsh-netxops
  */
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-credentials'
 import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
+export {
+  ensureAgentPresetInstalled,
+  NETXOPS_PRESET_ID,
+} from './agent-preset-install.ts'
+import { ensureAgentPresetInstalled } from './agent-preset-install.ts'
 import { startAlarmPushClient } from './netx/alarm-push.ts'
 import {
   getAlarmPushStatus,
@@ -87,9 +88,6 @@ export const NETXOPS_RPC_CHANNEL = '/netxops'
 /** Settings / composition namespace (Plugins page join key). */
 export const NETXOPS_SETTINGS_NAMESPACE = 'netxops'
 
-/** Agent preset id under `$DSH_HOME/.agent-presets/`. */
-export const NETXOPS_PRESET_ID = 'netxops'
-
 /** Default credential reference for the netx API bearer token. */
 export const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
 
@@ -114,11 +112,9 @@ export interface Config {
   /** Per tool-call timeout (ms). */
   toolCallTimeoutMs: number
   /**
-   * On DSH ≤0.1.5: copy bundled preset into `$DSH_HOME/.agent-presets/netxops`
-   * (directory discovery). On DSH ≥0.2.0 that directory is dead — the
-   * declarative `@deepseek-ai/dsh-agent-preset` row in
-   * `presets/netxops.preset.patch.yml` is what the picker reads; the copy
-   * remains as a no-op fallback for older hosts.
+   * Compose `$DSH_HOME/.agent-presets/netxops` from the host shipped
+   * `standard` preset + Netx Ops persona/tools/skills (DSH has no preset
+   * inheritance). Disable only if you manage that directory yourself.
    */
   installAgentPreset: boolean
   /**
@@ -206,48 +202,6 @@ export const Config: z<Config> = z.object({
   groupKbInPreset: vol(z.boolean().default(true)),
   groupKbPublic: vol(z.boolean().default(false)),
 })
-
-/** Package root (parent of `lib/` or `src/` depending on launch). */
-function packageRoot(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), '..')
-}
-
-/** Harness home used by agent-presets' user root. */
-function resolveDshHome(): string {
-  const fromEnv = process.env.DSH_HOME?.trim()
-  if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv
-  return join(homedir(), '.dsh')
-}
-
-/**
- * Install the bundled Netx Ops preset as a real directory under the user
- * preset root (DSH ≤0.1.5 discovery). DSH ≥0.2.0 ignores this tree — use the
- * declarative patch row instead. DSH discovery skips Windows junctions
- * (`Dirent.isDirectory()` is false for reparse points), so a copy is required
- * — not `mklink /J`.
- * @param logger - cordis logger for non-fatal install failures.
- */
-export function ensureAgentPresetInstalled(logger: Context['logger']): void {
-  const src = join(packageRoot(), 'presets', NETXOPS_PRESET_ID)
-  const composition = join(src, 'agent.cordis.yml')
-  if (!existsSync(composition)) {
-    logger.warn('netxops: bundled preset missing at %s — skip user-preset install', src)
-    return
-  }
-  const destParent = join(resolveDshHome(), '.agent-presets')
-  const dest = join(destParent, NETXOPS_PRESET_ID)
-  try {
-    mkdirSync(destParent, { recursive: true })
-    if (existsSync(dest)) {
-      rmSync(dest, { recursive: true, force: true })
-    }
-    cpSync(src, dest, { recursive: true })
-    writeFileSync(join(dest, '.dsh-netxops-managed'), `${new Date().toISOString()}\n`, 'utf8')
-    logger.info('netxops: agent preset installed at %s', dest)
-  } catch (error) {
-    logger.error('netxops: failed to install agent preset: %s', error)
-  }
-}
 
 /**
  * Resolve bearer token from the credentials seam (or empty when unset).

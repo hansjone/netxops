@@ -1,60 +1,32 @@
 /**
- * Regenerate `presets/netxops.preset.patch.yml` from
- * `presets/netxops/{preset.yml,agent.cordis.yml}` so the declarative
- * `@deepseek-ai/dsh-agent-preset` row stays in sync with the directory
- * composition used on DSH ≤0.1.5.
+ * Legacy entrypoint kept for `bun run gen:preset-patch`.
  *
- * Also writes `cordis.bundle.patch.yml` = host cordis + preset patch.
- * DSH CLI `dsh.bundle.patch` is a single string path (not string[]); keep
- * sources split for editing but ship one concatenated entry for boot.
+ * Declarative `@deepseek-ai/dsh-agent-preset` patches were removed: Netx Ops
+ * now composes `$DSH_HOME/.agent-presets/netxops` from the host `standard`
+ * preset at apply time (see src/agent-preset-install.ts).
+ *
+ * Regenerates `cordis.bundle.patch.yml` as a copy of `cordis.patch.yml` so
+ * `dsh.bundle.patch` stays a single string path for CLI compatibility.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const cordis = readFileSync(join(root, 'presets/netxops/agent.cordis.yml'), 'utf8')
-const metaText = readFileSync(join(root, 'presets/netxops/preset.yml'), 'utf8')
+const host = join(root, 'cordis.patch.yml')
+const bundle = join(root, 'cordis.bundle.patch.yml')
+const legacyDeclarative = join(root, 'presets', 'netxops.preset.patch.yml')
 
-const name = (metaText.match(/^name:\s*(.+)$/m) || [])[1]?.trim() || 'Netx Ops'
-const description = (metaText.match(/^description:\s*(.+)$/m) || [])[1]?.trim() || ''
-const order = (metaText.match(/^order:\s*(\d+)/m) || [])[1] || '50'
+const text = readFileSync(host, 'utf8')
+const out = `# Alias of cordis.patch.yml for dsh.bundle.patch (single string).
+# Agent preset is composed from host \`standard\` at install — see
+# src/agent-preset-install.ts (no @deepseek-ai/dsh-agent-preset row).
 
-const pluginsBody = cordis
-  .split(/\r?\n/)
-  .map((line) => `        ${line}`)
-  .join('\n')
-
-const out = `# Declarative Netx Ops agent preset for DSH ≥0.2.0-rc.1.
-# Directory copy under ~/.dsh/.agent-presets is ignored on these hosts —
-# keep presets/netxops/agent.cordis.yml in sync with config.plugins below
-# (regenerate: bun run scripts/gen-preset-patch.mjs).
-
-- insert:
-    - id: preset-netxops
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: netxops
-        order: ${order}
-        name: ${JSON.stringify(name)}
-        description: ${JSON.stringify(description)}
-        plugins:
-${pluginsBody}
-`
-
-const dest = join(root, 'presets/netxops.preset.patch.yml')
-writeFileSync(dest, out)
-console.log(`wrote ${dest} (${out.length} bytes)`)
-
-const hostPatch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8').trimEnd()
-const bundle = `# Combined host + declarative preset for dsh.bundle.patch (single string).
-# Sources: cordis.patch.yml + presets/netxops.preset.patch.yml
-# Regenerate: bun run scripts/gen-preset-patch.mjs
-
-${hostPatch}
-
-${out.trimStart()}`
-const bundleDest = join(root, 'cordis.bundle.patch.yml')
-writeFileSync(bundleDest, bundle)
-console.log(`wrote ${bundleDest} (${bundle.length} bytes)`)
+${text.trimStart()}`
+writeFileSync(bundle, out)
+if (existsSync(legacyDeclarative)) {
+  unlinkSync(legacyDeclarative)
+  console.log(`removed obsolete ${legacyDeclarative}`)
+}
+console.log(`wrote ${bundle} (${out.length} bytes) — host-only; no declarative preset patch`)
