@@ -1,14 +1,14 @@
 # Netx Ops delta only — NOT a full agent composition.
 #
-# At Host apply, `ensureAgentPresetInstalled` copies the Harness shipped
-# `standard` preset into `$DSH_HOME/.agent-presets/netxops`, then:
+# At Host apply, `ensureAgentPresetInstalled` composes the host's shipped
+# `standard` (Desktop 0.2: dsh-web-app `standard.patch.yml`; web/CLI:
+# dsh-agent-presets directory) into `$DSH_HOME/.agent-presets/netxops`, then:
 #   1. replaces `persona` with presets/netxops/PERSONA.md
 #   2. ensures the `netxops-tools` row below is present
-#   3. copies presets/netxops/skills/
-#
-# DSH has no preset inheritance; composing from `standard` at install time is
-# how Netx Ops stays aligned with the running Harness without embedding (or
-# declaring via `@deepseek-ai/dsh-agent-preset`) a full standard tree.
+#   3. aligns workflow engine package to what the host can resolve
+#   4. copies presets/netxops/skills/
+# Desktop also syncs a declarative `@deepseek-ai/dsh-agent-preset` row into
+# the profile patch. DSH has no preset inheritance.
 
 - id: netxops-tools
   name: dsh-netxops/tools

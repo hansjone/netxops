@@ -9,7 +9,7 @@ One install wires **all of**:
 | Host tools | Capability groups **ops / topology** (one group ↔ one skill). Default ops in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-ops|topology` |
 | Companion plugins | **dsh-im-ops** + **dsh-ops-cron** — add as **direct** profile deps in the same command (DSH/pnpm blocks `github:` as transitive deps) |
 | Plugins card | Settings → Plugins → **Netx Ops** (URL / API lang / thinking+reply language / token / capability groups) |
-| Agent preset + skills | Settings → Agent presets → **Netx Ops**. Host composes from shipped **standard** + Netx Ops overlays (no preset inheritance): web uses `~/.dsh/.agent-presets/netxops`; Desktop 0.2 also syncs a declarative `@deepseek-ai/dsh-agent-preset` row into the profile patch. Restart Desktop once after upgrade. Playbooks follow the same group toggles |
+| Agent preset + skills | Settings → Agent presets → **Netx Ops**. Host composes from **this host's** shipped **standard** + Netx Ops overlays (no preset inheritance): Desktop 0.2 prefers `@deepseek-ai/dsh-web-app/presets/standard.patch.yml` (`workflow-ptc`); web/CLI use `dsh-agent-presets` directory standard. Web installs land in `~/.dsh/.agent-presets/netxops`; Desktop also syncs a declarative `@deepseek-ai/dsh-agent-preset` row into the profile patch. Restart Desktop once after upgrade. Playbooks follow the same group toggles |
 
 You do **not** run `link-preset.ps1` for normal use. That script is only a manual fallback.
 

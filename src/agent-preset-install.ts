@@ -4,11 +4,15 @@
  * - Web / source CLI (`@deepseek-ai/dsh-agent-presets`): directory under
  *   `$DSH_HOME/.agent-presets/netxops`.
  * - Desktop 0.2 (`@deepseek-ai/dsh-agent-preset` + registry): declarative
- *   insert row in `presets/netxops.preset.patch.yml`, synced into the desktop
- *   profile `cordis.patch.yml` on apply (not the package bundle — keeps web safe).
+ *   insert row synced into the desktop profile `cordis.patch.yml` on apply.
  *
- * Both are composed from the host shipped `standard` + Netx Ops overlays
- * (DSH has no preset `extends`).
+ * Both are composed from the **host's** shipped `standard` + Netx Ops overlays
+ * (DSH has no preset `extends`). Desktop 0.2 ships standard as
+ * `@deepseek-ai/dsh-web-app/presets/standard.patch.yml` (`workflow-ptc`); the
+ * CLI heal tree under `$DSH_HOME/profiles/node_modules` may still carry an
+ * older `dsh-agent-presets` standard (`workflow-worker-thread`). Prefer the
+ * Desktop patch when present, and refuse to write a composition whose package
+ * names cannot resolve from the host anchors.
  */
 
 import {
@@ -30,6 +34,9 @@ export const NETXOPS_PRESET_ID = 'netxops'
 const DESKTOP_PATCH_BEGIN = '# BEGIN dsh-netxops-preset (managed)'
 const DESKTOP_PATCH_END = '# END dsh-netxops-preset (managed)'
 
+/** Indent of plugin rows inside `dsh-web-app/presets/*.patch.yml`. */
+const PATCH_PLUGIN_INDENT = '          '
+
 function packageRoot(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..')
 }
@@ -40,23 +47,93 @@ function resolveDshHome(): string {
   return join(homedir(), '.dsh')
 }
 
-/** Locate the shipped `standard` preset directory on this machine. */
+function electronResourcesRoots(): string[] {
+  const roots: string[] = []
+  const rp = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+  if (typeof rp === 'string' && rp.length > 0) roots.push(rp)
+  // Packaged Desktop: `<install>/DeepSeek Harness.exe` beside `resources/`.
+  roots.push(join(dirname(process.execPath), 'resources'))
+  return roots
+}
+
+function readableFile(path: string): boolean {
+  try {
+    readFileSync(path, { encoding: 'utf8', flag: 'r' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Locate Desktop 0.2's declarative `standard` patch (`workflow-ptc`).
+ * Prefer Electron `app.asar` (what the running Desktop actually loads) over
+ * `$DSH_HOME/profiles/node_modules` (often the older CLI heal tree).
+ */
+export function resolveDesktopStandardPatchPath(): string | null {
+  const dshHome = resolveDshHome()
+  const envOverride = process.env.NETXOPS_STANDARD_PATCH?.trim()
+  const candidates: string[] = []
+  if (envOverride) candidates.push(envOverride)
+
+  for (const resources of electronResourcesRoots()) {
+    candidates.push(
+      join(resources, 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-web-app', 'presets', 'standard.patch.yml'),
+      join(resources, 'app.asar.unpacked', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-web-app', 'presets', 'standard.patch.yml'),
+    )
+  }
+
+  const requireAnchors = [
+    join(dshHome, 'profiles', 'desktop', 'package.json'),
+    join(dshHome, 'profiles', 'desktop', 'node_modules', 'dsh-netxops', 'package.json'),
+    join(packageRoot(), 'package.json'),
+    join(dshHome, 'profiles', 'node_modules', '@deepseek-ai', 'dsh-web-app', 'package.json'),
+    join(dshHome, 'profiles', 'web', 'package.json'),
+  ]
+  for (const anchor of requireAnchors) {
+    if (!existsSync(anchor)) continue
+    try {
+      const req = createRequire(anchor)
+      try {
+        candidates.push(req.resolve('@deepseek-ai/dsh-web-app/presets/standard.patch.yml'))
+      } catch {
+        // older web-app builds do not export the subpath
+      }
+      const pkg = dirname(req.resolve('@deepseek-ai/dsh-web-app/package.json'))
+      candidates.push(join(pkg, 'presets', 'standard.patch.yml'))
+    } catch {
+      // try next anchor
+    }
+  }
+
+  for (const path of candidates) {
+    if (readableFile(path)) return path
+  }
+  return null
+}
+
+/**
+ * Locate the shipped directory `standard` (`agent.cordis.yml`).
+ * Profile-local copies win over the shared `$DSH_HOME/profiles/node_modules`
+ * heal tree, which is frequently an older CLI generation than Desktop.
+ */
 export function resolveStandardPresetDir(): string | null {
   const dshHome = resolveDshHome()
   const candidates = [
-    join(dshHome, 'profiles', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
-    join(dshHome, 'profiles', 'web', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
     join(dshHome, 'profiles', 'desktop', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
+    join(dshHome, 'profiles', 'web', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
     // Source checkout used by `dsh` CLI / local Harness.
     join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'DeepSeekHarness', 'packages', 'preset', 'agent-presets', 'presets', 'standard'),
+    // Shared heal tree last — often lags Desktop 0.2.
+    join(dshHome, 'profiles', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
   ]
   for (const dir of candidates) {
     if (existsSync(join(dir, 'agent.cordis.yml'))) return dir
   }
   for (const nm of [
-    join(dshHome, 'profiles', 'node_modules'),
-    join(dshHome, 'profiles', 'web', 'node_modules'),
     join(dshHome, 'profiles', 'desktop', 'node_modules'),
+    join(dshHome, 'profiles', 'web', 'node_modules'),
+    join(dshHome, 'profiles', 'node_modules'),
   ]) {
     const pkgJson = join(nm, '@deepseek-ai', 'dsh-agent-presets', 'package.json')
     if (!existsSync(pkgJson)) continue
@@ -78,6 +155,193 @@ export function resolveStandardPresetDir(): string | null {
     // not resolvable from this package
   }
   return null
+}
+
+/** True when a packaged Desktop install is on disk (asar may be opaque to plain Node). */
+export function desktopRuntimeLikelyPresent(): boolean {
+  if (typeof process.versions.electron === 'string') return true
+  for (const resources of electronResourcesRoots()) {
+    if (existsSync(join(resources, 'app.asar'))) return true
+  }
+  const localAppData = process.env.LOCALAPPDATA?.trim()
+  if (localAppData) {
+    if (existsSync(join(localAppData, 'Programs', 'DeepSeek Harness', 'resources', 'app.asar'))) {
+      return true
+    }
+  }
+  return false
+}
+
+/** Host roots used for bare package health checks (same walk shape as DSH discovery). */
+export function hostResolveBases(): string[] {
+  const dshHome = resolveDshHome()
+  const bases: string[] = []
+  for (const resources of electronResourcesRoots()) {
+    bases.push(join(resources, 'app.asar', 'dsh', 'package.json'))
+    bases.push(join(resources, 'app.asar', 'dsh', 'node_modules'))
+  }
+  const localAppData = process.env.LOCALAPPDATA?.trim()
+  if (localAppData) {
+    const asarDsh = join(localAppData, 'Programs', 'DeepSeek Harness', 'resources', 'app.asar', 'dsh')
+    bases.push(join(asarDsh, 'package.json'), join(asarDsh, 'node_modules'))
+  }
+  bases.push(
+    join(dshHome, 'profiles', 'desktop', 'package.json'),
+    join(dshHome, 'profiles', 'desktop', 'node_modules'),
+    join(dshHome, 'profiles', 'web', 'package.json'),
+    join(dshHome, 'profiles', 'web', 'node_modules'),
+    join(dshHome, 'profiles', 'node_modules'),
+    join(packageRoot(), 'package.json'),
+  )
+  // Keep asar paths even when plain Node cannot stat them — Electron can.
+  return [...new Set(bases.filter((path) => path.includes('app.asar') || existsSync(path)))]
+}
+
+/**
+ * Whether a package (optionally with subpath) is installed above any base.
+ * Mirrors `@deepseek-ai/dsh-agent-presets` discovery `packageInstalled`.
+ */
+export function packageInstalledAbove(name: string, bases: readonly string[]): boolean {
+  if (name.startsWith('cordis:') || name.startsWith('node:')) return true
+  const pkg = name.split('/').slice(0, name.startsWith('@') ? 2 : 1).join('/')
+  for (const base of bases) {
+    let dir = base.endsWith('package.json') ? dirname(base) : base
+    for (;;) {
+      if (readableFile(join(dir, 'node_modules', pkg, 'package.json'))) return true
+      // Electron asar: packages live under `…/app.asar/dsh/node_modules`.
+      if (readableFile(join(dir, pkg, 'package.json'))) return true
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+    const requireAnchor = base.endsWith('package.json')
+      ? base
+      : existsSync(join(base, 'package.json'))
+        ? join(base, 'package.json')
+        : null
+    if (requireAnchor !== null) {
+      try {
+        createRequire(requireAnchor).resolve(`${pkg}/package.json`)
+        return true
+      } catch {
+        // try next base
+      }
+    }
+  }
+  return false
+}
+
+/** Package names referenced by top-level / nested `name:` rows in a composition. */
+export function collectCompositionPackageNames(yaml: string): string[] {
+  const names: string[] = []
+  for (const match of yaml.matchAll(/^\s*name:\s*(.+)$/gm)) {
+    let raw = match[1]!.trim()
+    if ((raw.startsWith("'") && raw.endsWith("'")) || (raw.startsWith('"') && raw.endsWith('"'))) {
+      raw = raw.slice(1, -1)
+    }
+    if (raw.length === 0) continue
+    if (raw.startsWith('./') || raw.startsWith('../') || raw.startsWith('file:')) continue
+    names.push(raw)
+  }
+  return [...new Set(names)]
+}
+
+export function unresolvableCompositionPackages(
+  yaml: string,
+  bases: readonly string[],
+): string[] {
+  return collectCompositionPackageNames(yaml).filter((name) => !packageInstalledAbove(name, bases))
+}
+
+function remapWorkflowToPtc(cordis: string): string {
+  return cordis
+    .replaceAll('- id: workflow-worker-thread', '- id: workflow-ptc')
+    .replaceAll('@deepseek-ai/dsh-workflow-worker-thread', '@deepseek-ai/dsh-workflow-ptc')
+}
+
+function remapWorkflowToWorkerThread(cordis: string): string {
+  return cordis
+    .replaceAll('- id: workflow-ptc', '- id: workflow-worker-thread')
+    .replaceAll('@deepseek-ai/dsh-workflow-ptc', '@deepseek-ai/dsh-workflow-worker-thread')
+}
+
+export type WorkflowHostKind = 'desktop' | 'web' | 'auto'
+
+/**
+ * Align workflow engine id/name with what the host can resolve.
+ * Desktop 0.2 ships `dsh-workflow-ptc`; older CLI standards name
+ * `dsh-workflow-worker-thread`. Pass `host: 'desktop' | 'web'` when composing
+ * for one surface so a dual-install machine does not poison the other.
+ */
+export function alignWorkflowEngineForHost(
+  cordis: string,
+  bases: readonly string[],
+  host: WorkflowHostKind = 'auto',
+): string {
+  const hasPtc = packageInstalledAbove('@deepseek-ai/dsh-workflow-ptc', bases)
+  const hasWorker = packageInstalledAbove('@deepseek-ai/dsh-workflow-worker-thread', bases)
+  const desktop = host === 'desktop' || (host === 'auto' && desktopRuntimeLikelyPresent())
+  if (hasPtc && !hasWorker) return remapWorkflowToPtc(cordis)
+  if (hasPtc && hasWorker && desktop) return remapWorkflowToPtc(cordis)
+  if (!hasPtc && hasWorker && desktop) {
+    // Plain Node cannot see into app.asar; Desktop 0.2 still only has ptc there.
+    return remapWorkflowToPtc(cordis)
+  }
+  if (!hasPtc && !hasWorker && desktop && cordis.includes('workflow-worker-thread')) {
+    return remapWorkflowToPtc(cordis)
+  }
+  if (hasWorker && !hasPtc && !desktop) return remapWorkflowToWorkerThread(cordis)
+  if (hasWorker && hasPtc && host === 'web') return remapWorkflowToWorkerThread(cordis)
+  return cordis
+}
+
+/** Pull the `plugins:` list body (already indented) out of a standard.patch.yml. */
+export function extractPluginsBodyFromStandardPatch(patchYaml: string): string {
+  const text = patchYaml.replace(/\r\n/g, '\n')
+  const marker = /^([ \t]*)plugins:\s*$/m
+  const match = marker.exec(text)
+  if (match === null) {
+    throw new Error('standard.patch.yml has no plugins: block')
+  }
+  const pluginsKeyIndent = match[1]!.length
+  const start = match.index + match[0].length
+  const rest = text.slice(start).replace(/^\n/, '')
+  const lines = rest.split('\n')
+  const body: string[] = []
+  for (const line of lines) {
+    if (line.trim() === '') {
+      body.push(line)
+      continue
+    }
+    const indent = line.match(/^[ \t]*/)?.[0].length ?? 0
+    if (indent <= pluginsKeyIndent) break
+    body.push(line)
+  }
+  while (body.length > 0 && body[body.length - 1]!.trim() === '') body.pop()
+  return body.join('\n')
+}
+
+/** Convert patch-indented plugins body into a top-level `agent.cordis.yml` list. */
+export function pluginsBodyToAgentCordis(pluginsBody: string): string {
+  const prefix = PATCH_PLUGIN_INDENT
+  return `${pluginsBody
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => {
+      if (line.length === 0) return ''
+      if (line.startsWith(prefix)) return line.slice(prefix.length)
+      return line.trimStart()
+    })
+    .join('\n')
+    .trimEnd()}\n`
+}
+
+function agentCordisToPluginsBody(agentCordis: string): string {
+  return agentCordis
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => (line.length === 0 ? '' : `${PATCH_PLUGIN_INDENT}${line}`))
+    .join('\n')
 }
 
 function replaceTopLevelEntry(cordis: string, id: string, replacement: string): string {
@@ -122,7 +386,12 @@ function personaEntryFromMarkdown(md: string): string {
 }
 
 export interface NetxopsPresetArtifacts {
-  standardDir: string
+  /** Human-readable source path (directory or patch file). */
+  standardSource: string
+  /** Kind of host standard used for composition. */
+  standardKind: 'desktop-patch' | 'directory'
+  /** Directory to seed `.agent-presets/netxops` from; null when patch-only. */
+  standardDir: string | null
   name: string
   description: string
   order: string
@@ -141,6 +410,10 @@ function readPresetMeta(metaPath: string): { name: string; description: string; 
   }
 }
 
+function desktopProfilePresent(): boolean {
+  return existsSync(join(resolveDshHome(), 'profiles', 'desktop'))
+}
+
 /** Compose standard + Netx Ops overlays into directory + declarative artifacts. */
 export function composeNetxopsPresetArtifacts(): NetxopsPresetArtifacts {
   const overlayRoot = join(packageRoot(), 'presets', NETXOPS_PRESET_ID)
@@ -149,28 +422,64 @@ export function composeNetxopsPresetArtifacts(): NetxopsPresetArtifacts {
   if (!existsSync(personaPath) || !existsSync(metaPath)) {
     throw new Error(`bundled preset overlay missing under ${overlayRoot}`)
   }
-  const standardDir = resolveStandardPresetDir()
-  if (standardDir === null) {
-    throw new Error('cannot find shipped standard preset (@deepseek-ai/dsh-agent-presets)')
-  }
   const meta = readPresetMeta(metaPath)
-  let agentCordis = replaceTopLevelEntry(
-    readFileSync(join(standardDir, 'agent.cordis.yml'), 'utf8'),
+  const bases = hostResolveBases()
+  const patchPath = resolveDesktopStandardPatchPath()
+  const usePatch = patchPath !== null && (
+    process.env.NETXOPS_PREFER_DESKTOP_PATCH !== '0'
+  ) && (
+    typeof process.versions.electron === 'string'
+    || process.env.NETXOPS_PREFER_DESKTOP_PATCH === '1'
+    || desktopProfilePresent()
+    || desktopRuntimeLikelyPresent()
+  )
+
+  let standardSource: string
+  let standardKind: 'desktop-patch' | 'directory'
+  let standardDir: string | null
+  let agentCordis: string
+
+  if (usePatch && patchPath !== null) {
+    standardSource = patchPath
+    standardKind = 'desktop-patch'
+    standardDir = null
+    agentCordis = pluginsBodyToAgentCordis(extractPluginsBodyFromStandardPatch(readFileSync(patchPath, 'utf8')))
+  } else {
+    const dir = resolveStandardPresetDir()
+    if (dir === null) {
+      throw new Error(
+        'cannot find host standard preset (Desktop standard.patch.yml or @deepseek-ai/dsh-agent-presets)',
+      )
+    }
+    standardSource = dir
+    standardKind = 'directory'
+    standardDir = dir
+    agentCordis = readFileSync(join(dir, 'agent.cordis.yml'), 'utf8')
+  }
+
+  agentCordis = replaceTopLevelEntry(
+    agentCordis,
     'persona',
     personaEntryFromMarkdown(readFileSync(personaPath, 'utf8')),
   )
   agentCordis = ensureNetxopsToolsRow(agentCordis)
+  agentCordis = alignWorkflowEngineForHost(agentCordis, bases)
   if (!agentCordis.endsWith('\n')) agentCordis += '\n'
 
-  // Match dsh-web-app/presets/*.patch.yml: plugins items are indented 10 spaces
-  // under `        plugins:` (8). Same-level `- id:` makes YAML treat them as
-  // siblings of `plugins` and the declaration fails to mount.
-  const pluginsBody = agentCordis
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => (line.length === 0 ? '' : `          ${line}`))
-    .join('\n')
+  const missing = unresolvableCompositionPackages(agentCordis, bases)
+    .filter((name) => !name.startsWith('dsh-netxops'))
+  // Packaged Desktop keeps most `@deepseek-ai/*` only inside app.asar; plain
+  // Node cannot probe them, but the Host can. Do not block the write for those.
+  const desktopAsar = desktopRuntimeLikelyPresent()
+  const blocking = missing.filter((name) => !(desktopAsar && name.startsWith('@deepseek-ai/')))
+  if (blocking.length > 0) {
+    throw new Error(
+      `composed Netx Ops preset names packages the host cannot resolve: ${blocking.join(', ')} `
+      + `(standard-source: ${standardSource})`,
+    )
+  }
 
+  const pluginsBody = agentCordisToPluginsBody(agentCordis)
   const declarativePatch = `# Declarative Netx Ops preset for Desktop 0.2 (@deepseek-ai/dsh-agent-preset).
 # Generated from host \`standard\` + presets/netxops overlays — do not hand-edit.
 # Regenerate: bun run scripts/gen-preset-patch.mjs
@@ -186,7 +495,7 @@ export function composeNetxopsPresetArtifacts(): NetxopsPresetArtifacts {
         plugins:
 ${pluginsBody}
 `
-  return { standardDir, ...meta, agentCordis, declarativePatch }
+  return { standardSource, standardKind, standardDir, ...meta, agentCordis, declarativePatch }
 }
 
 function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Context['logger']): void {
@@ -195,7 +504,10 @@ function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Conte
   const dest = join(destParent, NETXOPS_PRESET_ID)
   mkdirSync(destParent, { recursive: true })
   if (existsSync(dest)) rmSync(dest, { recursive: true, force: true })
-  cpSync(artifacts.standardDir, dest, { recursive: true })
+  mkdirSync(dest, { recursive: true })
+  if (artifacts.standardDir !== null && existsSync(artifacts.standardDir)) {
+    cpSync(artifacts.standardDir, dest, { recursive: true })
+  }
   writeFileSync(join(dest, 'preset.yml'), readFileSync(join(overlayRoot, 'preset.yml'), 'utf8'))
   writeFileSync(join(dest, 'PERSONA.md'), readFileSync(join(overlayRoot, 'PERSONA.md'), 'utf8'))
   writeFileSync(join(dest, 'agent.cordis.yml'), artifacts.agentCordis)
@@ -204,14 +516,18 @@ function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Conte
   writeFileSync(
     join(dest, '.dsh-netxops-managed'),
     [
-      'composed-from: standard',
-      `standard-source: ${artifacts.standardDir}`,
+      `composed-from: ${artifacts.standardKind}`,
+      `standard-source: ${artifacts.standardSource}`,
       `at: ${new Date().toISOString()}`,
       '',
     ].join('\n'),
     'utf8',
   )
-  logger.info('netxops: directory preset composed from standard → %s', dest)
+  logger.info(
+    'netxops: directory preset composed from %s → %s',
+    artifacts.standardSource,
+    dest,
+  )
 }
 
 /**

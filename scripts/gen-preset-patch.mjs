@@ -20,7 +20,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const artifacts = composeNetxopsPresetArtifacts()
 const declarativePath = join(root, 'presets', 'netxops.preset.patch.yml')
 writeFileSync(declarativePath, artifacts.declarativePatch)
-console.log(`wrote ${declarativePath} (${artifacts.declarativePatch.length} bytes) from ${artifacts.standardDir}`)
+console.log(
+  `wrote ${declarativePath} (${artifacts.declarativePatch.length} bytes) `
+  + `from ${artifacts.standardKind}: ${artifacts.standardSource}`,
+)
 
 const host = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')
 const bundle = `# Host-only bundle patch (web-safe).
