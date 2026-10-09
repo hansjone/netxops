@@ -9,7 +9,7 @@ One install wires **all of**:
 | Host tools | Capability groups **ops / topology** (one group ↔ one skill). Default ops in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-ops|topology` |
 | Companion plugins | **dsh-im-ops** + **dsh-ops-cron** — add as **direct** profile deps in the same command (DSH/pnpm blocks `github:` as transitive deps) |
 | Plugins card | Settings → Plugins → **Netx Ops** (URL / API lang / thinking+reply language / token / capability groups) |
-| Agent preset + skills | Settings → Agent presets → **Custom → Netx Ops** (copied into `~/.dsh/.agent-presets` on first boot); playbooks follow the same group toggles |
+| Agent preset + skills | Settings → Agent presets → **Netx Ops**. DSH ≥0.2.0: declarative `@deepseek-ai/dsh-agent-preset` patch row. DSH ≤0.1.5: copied into `~/.dsh/.agent-presets` on activate. Playbooks follow the same group toggles |
 
 You do **not** run `link-preset.ps1` for normal use. That script is only a manual fallback.
 
@@ -44,8 +44,8 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
    Optional: **导出全部会话** downloads `dsh-sessions-<host>-<utc>.zip` via `GET /api/netxops.sessions.export` (browser download; works for cloud Hosts).  
    Capability groups: leave default for **ops**, or enable **topology** / **对其他预设公开** (new sessions after save).  
    Optional: **知识库** — set package root (MANIFEST v1.0); default mounts `_skills/kb-*` into Netx Ops; optional public. See [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md).
-2. Restart or open Settings → **Agent presets** → Custom → **Netx Ops** should appear after the host plugin has activated once.
-   The Netx Ops preset is **standard + netxops tools/persona** (shell, search, plan, todo, web, workflows, … plus `netx__*`). Re-activate / reinstall the plugin so `$DSH_HOME/.agent-presets/netxops` is refreshed from the package.
+2. Restart after install/upgrade so the bundle patch layers apply. Open Settings → **Agent presets** → **Netx Ops** should appear.
+   The Netx Ops preset is **standard + netxops tools/persona** (shell, search, plan, todo, web, workflows, … plus `netx__*`). On DSH ≥0.2.0 the picker reads the declarative preset row (not `~/.dsh/.agent-presets`). On ≤0.1.5, re-activate so `$DSH_HOME/.agent-presets/netxops` is refreshed from the package.
 3. **New session → preset Netx Ops** → ask e.g. Critical Top / single-host alarms / 「能否登录」.
 
 ## Key-alarm push

@@ -271,4 +271,7 @@
 - id: present
   name: '@deepseek-ai/dsh-tool-present'
 
-# Host package dsh-netxops copies this preset to $DSH_HOME/.agent-presets/netxops on activate.
+# Host package dsh-netxops: on DSH ≤0.1.5 copies this tree to $DSH_HOME/.agent-presets/netxops;
+# on ≥0.2.0 the same composition is shipped as presets/netxops.preset.patch.yml
+# (`@deepseek-ai/dsh-agent-preset` declaration). Regenerate the patch after edits:
+#   bun run gen:preset-patch

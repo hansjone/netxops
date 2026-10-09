@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "description": "DeepSeek Harness Netx Ops: ops/topology + IM delivery + session export + knowledge-base MANIFEST/_skills + localSkills",
   "license": "MIT",
   "type": "module",
@@ -53,13 +53,17 @@
   },
   "homepage": "https://github.com/hansjone/netxops#readme",
   "scripts": {
-    "bundle": "bun run scripts/build-host.mjs && bun run scripts/build-client.mjs",
+    "bundle": "bun run scripts/gen-preset-patch.mjs && bun run scripts/build-host.mjs && bun run scripts/build-client.mjs",
     "bundle:host": "bun run scripts/build-host.mjs",
-    "bundle:client": "bun run scripts/build-client.mjs"
+    "bundle:client": "bun run scripts/build-client.mjs",
+    "gen:preset-patch": "bun run scripts/gen-preset-patch.mjs"
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/netxops.preset.patch.yml"
+      ]
     },
     "client": {
       "platform": "web",

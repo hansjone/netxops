@@ -114,8 +114,11 @@ export interface Config {
   /** Per tool-call timeout (ms). */
   toolCallTimeoutMs: number
   /**
-   * Copy bundled agent preset + skills into `$DSH_HOME/.agent-presets/netxops`
-   * on every activate (required for Settings → Agent presets).
+   * On DSH ≤0.1.5: copy bundled preset into `$DSH_HOME/.agent-presets/netxops`
+   * (directory discovery). On DSH ≥0.2.0 that directory is dead — the
+   * declarative `@deepseek-ai/dsh-agent-preset` row in
+   * `presets/netxops.preset.patch.yml` is what the picker reads; the copy
+   * remains as a no-op fallback for older hosts.
    */
   installAgentPreset: boolean
   /**
@@ -218,8 +221,10 @@ function resolveDshHome(): string {
 
 /**
  * Install the bundled Netx Ops preset as a real directory under the user
- * preset root. DSH discovery skips Windows junctions (`Dirent.isDirectory()`
- * is false for reparse points), so a copy is required — not `mklink /J`.
+ * preset root (DSH ≤0.1.5 discovery). DSH ≥0.2.0 ignores this tree — use the
+ * declarative patch row instead. DSH discovery skips Windows junctions
+ * (`Dirent.isDirectory()` is false for reparse points), so a copy is required
+ * — not `mklink /J`.
  * @param logger - cordis logger for non-fatal install failures.
  */
 export function ensureAgentPresetInstalled(logger: Context['logger']): void {
