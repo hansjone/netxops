@@ -3,6 +3,10 @@
  * `presets/netxops/{preset.yml,agent.cordis.yml}` so the declarative
  * `@deepseek-ai/dsh-agent-preset` row stays in sync with the directory
  * composition used on DSH ≤0.1.5.
+ *
+ * Also writes `cordis.bundle.patch.yml` = host cordis + preset patch.
+ * DSH CLI `dsh.bundle.patch` is a single string path (not string[]); keep
+ * sources split for editing but ship one concatenated entry for boot.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -42,3 +46,15 @@ ${pluginsBody}
 const dest = join(root, 'presets/netxops.preset.patch.yml')
 writeFileSync(dest, out)
 console.log(`wrote ${dest} (${out.length} bytes)`)
+
+const hostPatch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8').trimEnd()
+const bundle = `# Combined host + declarative preset for dsh.bundle.patch (single string).
+# Sources: cordis.patch.yml + presets/netxops.preset.patch.yml
+# Regenerate: bun run scripts/gen-preset-patch.mjs
+
+${hostPatch}
+
+${out.trimStart()}`
+const bundleDest = join(root, 'cordis.bundle.patch.yml')
+writeFileSync(bundleDest, bundle)
+console.log(`wrote ${bundleDest} (${bundle.length} bytes)`)
