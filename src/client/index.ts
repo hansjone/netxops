@@ -5,11 +5,11 @@
  * Do NOT hard-inject `settingsScope`: DSH ≥0.1.7 / 0.2.0 removed it
  * (`configForms` replaced it) and a hard wait kills web boot.
  *
- * Surfaces (dual-stack):
- * - DSH ≤0.1.5: `settings.section` + `settingsScope.bind({ namespace })`
- * - DSH ≥0.1.7 / 0.2.0: `plugins.item` via `configForms.whileServed` +
- *   `configForms.get(entryId)` (Plugins page). Also keep `settings.section`
- *   when that slot still exists so older shells keep a top-level nav entry.
+ * Surfaces (dual-stack), matching working plugins like dsh-im-ops:
+ * - Always register `settings.section` once a form scope is available
+ *   (Settings sidebar — what operators look for).
+ * - On ≥0.1.7 also register `plugins.item` via `configForms.whileServed`
+ *   (Plugins page companion card).
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -40,20 +40,33 @@ export const inject = [
 ]
 
 /**
- * Bare Loader entry id for this client half.
- * DSH 0.2.0 configForms namespaces are entry ids (not package names);
- * fiber scope keys may be prefixed with `:`.
+ * Candidate form namespaces for this host row.
+ * cordis.patch.yml uses `id: netxops` / `name: dsh-netxops`; Desktop may
+ * expose either the bare entry id or the package name.
  */
-function entryIdOf(ctx: ClientContext): string {
+function namespaceCandidates(ctx: ClientContext): string[] {
   const fiber = (ctx as {
-    fiber?: { entry?: { options?: { id?: string }, id?: string } }
+    fiber?: { entry?: { options?: { id?: string, name?: string }, id?: string } }
   }).fiber?.entry
-  const raw = fiber?.options?.id
-    ?? fiber?.id
-    ?? (ctx as { name?: string }).name
-    ?? NETXOPS_NS
-  const id = String(raw).replace(/^:/, '').trim()
-  return id.length > 0 ? id : NETXOPS_NS
+  const raw = [
+    fiber?.options?.id,
+    fiber?.id,
+    fiber?.options?.name,
+    (ctx as { name?: string }).name,
+    NETXOPS_NS,
+    'dsh-netxops',
+  ]
+  const out: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string' || !item.trim()) continue
+    const id = item.replace(/^:/, '').trim()
+    if (!id || out.includes(id)) continue
+    // Bare package name is not a configForms namespace; keep entry ids.
+    if (id === 'dsh-netxops' && !out.includes(NETXOPS_NS)) out.push(NETXOPS_NS)
+    out.push(id)
+  }
+  if (!out.includes(NETXOPS_NS)) out.push(NETXOPS_NS)
+  return out
 }
 
 type ConfigFormsLike = {
@@ -85,6 +98,8 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(LOCALE_NS) as (key: NetxopsLocaleKey) => string
   let card: NetxopsCardController | undefined
   let wiredExtras = false
+  let sectionRegistered = false
+  let pluginsItemId: string | undefined
 
   const ensureCard = (scope: SettingsFormScope<NetxopsSettings>): NetxopsCardController => {
     if (card) return card
@@ -96,9 +111,11 @@ export function apply(ctx: ClientContext): void {
     return card
   }
 
+  /** Settings sidebar page — same surface im-ops uses (must not wait on whileServed alone). */
   const registerSection = (owner: NetxopsCardController): (() => void) => {
+    if (sectionRegistered) return () => {}
     try {
-      return ctx.slots.inject('settings.section', () => ctx.slots.register({
+      const off = ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
         id: NETXOPS_NS,
         order: 24,
@@ -106,15 +123,22 @@ export function apply(ctx: ClientContext): void {
         locale: LOCALE_NS,
         inject: () => owner.inject(),
       }, NetxopsCard))
+      sectionRegistered = true
+      return () => {
+        sectionRegistered = false
+        off()
+      }
     } catch (error) {
       ctx.logger?.warn?.('netxops: settings.section unavailable: %s', error)
       return () => {}
     }
   }
 
+  /** Plugins-page companion card (DSH ≥0.1.7 / 0.2.0). */
   const registerPluginsItem = (owner: NetxopsCardController, id: string): (() => void) => {
+    if (pluginsItemId === id) return () => {}
     try {
-      return ctx.slots.inject('plugins.item', () => ctx.slots.register({
+      const off = ctx.slots.inject('plugins.item', () => ctx.slots.register({
         name: 'plugins.item',
         id,
         order: 24,
@@ -122,51 +146,89 @@ export function apply(ctx: ClientContext): void {
         locale: LOCALE_NS,
         inject: () => owner.inject(),
       }, NetxopsCard))
+      pluginsItemId = id
+      return () => {
+        if (pluginsItemId === id) pluginsItemId = undefined
+        off()
+      }
     } catch (error) {
       ctx.logger?.warn?.('netxops: plugins.item unavailable: %s', error)
       return () => {}
     }
   }
 
-  // DSH ≥0.1.7 / 0.2.0 — Plugins page via configForms.whileServed + get(entryId).
+  const mountUi = (
+    owner: NetxopsCardController,
+    ns: string,
+    opts: { section: boolean, pluginsItem: boolean },
+  ): (() => void) => {
+    const offs: Array<() => void> = []
+    if (opts.section) offs.push(registerSection(owner))
+    if (opts.pluginsItem) offs.push(registerPluginsItem(owner, ns))
+    return () => {
+      for (const off of offs) off()
+    }
+  }
+
+  const tryGetForm = (
+    forms: ConfigFormsLike,
+    candidates: readonly string[],
+  ): { ns: string, scope: SettingsFormScope<NetxopsSettings> } | undefined => {
+    if (typeof forms.get !== 'function') return undefined
+    for (const ns of candidates) {
+      try {
+        const scope = forms.get(ns)
+        if (scope && typeof scope.getSnapshot === 'function') return { ns, scope }
+      } catch {
+        // wrong ns — try next
+      }
+    }
+    return undefined
+  }
+
+  // DSH ≥0.1.7 / 0.2.0 — configForms.
   ctx.inject(['configForms'], (formsCtx) => {
     const forms = (formsCtx as { configForms?: ConfigFormsLike }).configForms
     if (!forms) {
       formsCtx.logger?.warn?.('netxops: configForms inject fired but service missing')
       return
     }
-    const entryId = entryIdOf(formsCtx)
-    const ns = entryId || NETXOPS_NS
+    const candidates = namespaceCandidates(formsCtx)
+    formsCtx.logger?.info?.('netxops: configForms candidates=%s', candidates.join(','))
 
-    if (typeof forms.whileServed === 'function' && typeof forms.get === 'function') {
-      formsCtx.logger?.info?.('netxops: settings card via configForms.whileServed (%s)', ns)
-      formsCtx.effect(() => forms.whileServed!([ns], (served) => {
-        if (!served.has(ns)) return () => {}
-        const owner = ensureCard(forms.get!(ns))
-        const offItem = registerPluginsItem(owner, ns)
-        // Keep top-level section when the shell still projects it.
-        const offSection = registerSection(owner)
-        return () => {
-          offItem()
-          offSection()
+    if (typeof forms.whileServed === 'function') {
+      formsCtx.effect(() => forms.whileServed!(candidates, (served) => {
+        const ns = candidates.find((id) => served.has(id))
+        if (!ns) {
+          formsCtx.logger?.warn?.(
+            'netxops: whileServed fired but none of %s are served (have=%s)',
+            candidates.join(','),
+            [...served].join(',') || '(empty)',
+          )
+          return () => {}
         }
-      }), 'netxops: plugins.item whileServed')
-      return
+        const hit = tryGetForm(forms, [ns, ...candidates])
+        if (!hit) {
+          formsCtx.logger?.warn?.('netxops: served %s but configForms.get failed', ns)
+          return () => {}
+        }
+        formsCtx.logger?.info?.('netxops: settings via whileServed (%s)', hit.ns)
+        const owner = ensureCard(hit.scope)
+        return mountUi(owner, hit.ns, { section: true, pluginsItem: true })
+      }), 'netxops: configForms whileServed')
     }
 
-    if (typeof forms.get === 'function') {
-      formsCtx.logger?.info?.('netxops: settings card via configForms.get (%s)', ns)
-      const owner = ensureCard(forms.get(ns))
-      formsCtx.effect(() => {
-        const offItem = registerPluginsItem(owner, ns)
-        const offSection = registerSection(owner)
-        return () => {
-          offItem()
-          offSection()
-        }
-      }, 'netxops: configForms slots')
-    } else {
-      formsCtx.logger?.warn?.('netxops: configForms present but .get missing')
+    // Eager fallback: do not leave Settings blank if whileServed is late/empty.
+    const immediate = tryGetForm(forms, candidates)
+    if (immediate) {
+      formsCtx.logger?.info?.('netxops: settings eager mount (%s)', immediate.ns)
+      const owner = ensureCard(immediate.scope)
+      formsCtx.effect(
+        () => mountUi(owner, immediate.ns, { section: true, pluginsItem: true }),
+        'netxops: configForms eager slots',
+      )
+    } else if (typeof forms.whileServed !== 'function') {
+      formsCtx.logger?.warn?.('netxops: configForms present but no get/whileServed match for %s', candidates.join(','))
     }
   })
 
