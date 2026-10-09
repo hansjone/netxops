@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.44",
+  "version": "0.1.45",
   "description": "DeepSeek Harness Netx Ops: ops/topology + IM delivery + session export + knowledge-base MANIFEST/_skills + localSkills",
   "license": "MIT",
   "type": "module",
@@ -56,7 +56,9 @@
     "bundle": "bun run scripts/gen-preset-patch.mjs && bun run scripts/build-host.mjs && bun run scripts/build-client.mjs",
     "bundle:host": "bun run scripts/build-host.mjs",
     "bundle:client": "bun run scripts/build-client.mjs",
-    "gen:preset-patch": "bun run scripts/gen-preset-patch.mjs"
+    "gen:preset-patch": "bun run scripts/gen-preset-patch.mjs",
+    "link:peers": "node scripts/link-dsh-peers.mjs --profile desktop",
+    "link:peers:ps1": "powershell -NoProfile -File ./scripts/link-dsh-peers.ps1"
   },
   "dsh": {
     "bundle": {

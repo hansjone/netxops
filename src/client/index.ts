@@ -6,10 +6,13 @@
  * (`configForms` replaced it) and a hard wait kills web boot.
  *
  * Surfaces (dual-stack), matching working plugins like dsh-im-ops:
- * - Always register `settings.section` once a form scope is available
- *   (Settings sidebar — what operators look for).
- * - On ≥0.1.7 also register `plugins.item` via `configForms.whileServed`
- *   (Plugins page companion card).
+ * - Always register `settings.section` in `apply` (Settings sidebar).
+ *   Gate only the form transport on `configForms` / `settingsScope` —
+ *   never gate the nav entry itself (Desktop 0.2 often never serves
+ *   our ns via whileServed, which previously hid the whole page).
+ * - Soft-attach real form scopes into a deferred memory scope so Save
+ *   still writes the host entry when the transport is ready.
+ * - On ≥0.1.7 also register `plugins.item` via `configForms.whileServed`.
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -81,6 +84,106 @@ type SettingsScopeLike = {
   bind?: (spec: { namespace: string }) => SettingsFormScope<NetxopsSettings>
 }
 
+type DeferredSettingsScope = SettingsFormScope<NetxopsSettings> & {
+  attach: (real: SettingsFormScope<NetxopsSettings>) => void
+}
+
+/** In-memory form so Settings nav can mount before configForms attaches. */
+function createMemoryScope(initial: NetxopsSettings): SettingsFormScope<NetxopsSettings> {
+  let value: NetxopsSettings = { ...initial }
+  let revision = 0
+  const listeners = new Set<() => void>()
+  const notify = (): void => {
+    for (const listener of listeners) listener()
+  }
+  return {
+    getSnapshot: () => ({
+      status: 'ready',
+      value,
+      writable: true,
+      revision,
+    }),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    set: async (field, next) => {
+      value = { ...value, [field]: next as never }
+      revision += 1
+      notify()
+      return true
+    },
+    unset: async (field) => {
+      const next = { ...value }
+      delete next[field as keyof NetxopsSettings]
+      value = next
+      revision += 1
+      notify()
+      return true
+    },
+  }
+}
+
+/** Swap the live transport without recreating the card controller. */
+function createDeferredScope(
+  fallback: SettingsFormScope<NetxopsSettings>,
+): DeferredSettingsScope {
+  let inner = fallback
+  const outerListeners = new Set<() => void>()
+  let innerOff: (() => void) | undefined
+  const relay = (): void => {
+    for (const listener of outerListeners) listener()
+  }
+  const bindInner = (): void => {
+    innerOff?.()
+    innerOff = inner.subscribe(relay)
+  }
+  bindInner()
+  return {
+    getSnapshot: () => inner.getSnapshot(),
+    subscribe: (listener) => {
+      outerListeners.add(listener)
+      return () => {
+        outerListeners.delete(listener)
+      }
+    },
+    set: (field, next) => inner.set(field, next),
+    unset: (field) => inner.unset(field),
+    attach: (real) => {
+      if (inner === real) return
+      inner = real
+      bindInner()
+      relay()
+    },
+  }
+}
+
+const MEMORY_DEFAULTS: NetxopsSettings = {
+  apiUrl: 'http://127.0.0.1:8890',
+  lang: 'zh',
+  thinkingLanguage: 'auto',
+  replyLanguage: 'follow-user',
+  nmsProvider: 'zte-ume',
+  tokenCredentialRef: 'NETX_API_TOKEN',
+  alarmPushEnabled: false,
+  alarmDeliverDsh: true,
+  alarmDeliverIm: false,
+  imBotId: '',
+  imTargetId: '',
+  imTargets: '',
+  groupOpsInPreset: true,
+  groupOpsPublic: false,
+  groupTopologyInPreset: false,
+  groupTopologyPublic: false,
+  groupBizMonitorInPreset: false,
+  groupBizMonitorPublic: false,
+  kbRoot: '',
+  groupKbInPreset: true,
+  groupKbPublic: false,
+}
+
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     try {
@@ -96,46 +199,42 @@ export function apply(ctx: ClientContext): void {
   }, 'netxops: locales')
 
   const t = ctx.locale.bind(LOCALE_NS) as (key: NetxopsLocaleKey) => string
-  let card: NetxopsCardController | undefined
-  let wiredExtras = false
-  let sectionRegistered = false
+  const deferred = createDeferredScope(createMemoryScope(MEMORY_DEFAULTS))
+  const card = new NetxopsCardController(deferred, ctx)
   let pluginsItemId: string | undefined
+  let wiredExtras = false
 
-  const ensureCard = (scope: SettingsFormScope<NetxopsSettings>): NetxopsCardController => {
-    if (card) return card
-    card = new NetxopsCardController(scope, ctx)
-    if (!wiredExtras) {
-      wiredExtras = true
+  const ensureExtras = (): void => {
+    if (wiredExtras) return
+    wiredExtras = true
+    // Soft-inject optional remotes only after the section is up. Unknown
+    // inject keys on some Desktop builds must not take down web boot.
+    try {
       wireOptionalServices(ctx, card)
+    } catch (error) {
+      ctx.logger?.warn?.('netxops: optional remotes skipped: %s', error)
     }
-    return card
   }
 
-  /** Settings sidebar page — same surface im-ops uses (must not wait on whileServed alone). */
-  const registerSection = (owner: NetxopsCardController): (() => void) => {
-    if (sectionRegistered) return () => {}
-    try {
-      const off = ctx.slots.inject('settings.section', () => ctx.slots.register({
-        name: 'settings.section',
-        id: NETXOPS_NS,
-        order: 24,
-        label: () => t('title'),
-        locale: LOCALE_NS,
-        inject: () => owner.inject(),
-      }, NetxopsCard))
-      sectionRegistered = true
-      return () => {
-        sectionRegistered = false
-        off()
-      }
-    } catch (error) {
-      ctx.logger?.warn?.('netxops: settings.section unavailable: %s', error)
-      return () => {}
-    }
+  /** Settings sidebar — same unconditional surface im-ops uses. */
+  try {
+    ctx.slots.inject('settings.section', () => ctx.slots.register({
+      name: 'settings.section',
+      id: NETXOPS_NS,
+      order: 24,
+      label: () => t('title'),
+      locale: LOCALE_NS,
+      inject: () => {
+        ensureExtras()
+        return card.inject()
+      },
+    }, NetxopsCard))
+  } catch (error) {
+    ctx.logger?.warn?.('netxops: settings.section unavailable: %s', error)
   }
 
   /** Plugins-page companion card (DSH ≥0.1.7 / 0.2.0). */
-  const registerPluginsItem = (owner: NetxopsCardController, id: string): (() => void) => {
+  const registerPluginsItem = (id: string): (() => void) => {
     if (pluginsItemId === id) return () => {}
     try {
       const off = ctx.slots.inject('plugins.item', () => ctx.slots.register({
@@ -144,7 +243,10 @@ export function apply(ctx: ClientContext): void {
         order: 24,
         label: () => t('title'),
         locale: LOCALE_NS,
-        inject: () => owner.inject(),
+        inject: () => {
+          ensureExtras()
+          return card.inject()
+        },
       }, NetxopsCard))
       pluginsItemId = id
       return () => {
@@ -154,19 +256,6 @@ export function apply(ctx: ClientContext): void {
     } catch (error) {
       ctx.logger?.warn?.('netxops: plugins.item unavailable: %s', error)
       return () => {}
-    }
-  }
-
-  const mountUi = (
-    owner: NetxopsCardController,
-    ns: string,
-    opts: { section: boolean, pluginsItem: boolean },
-  ): (() => void) => {
-    const offs: Array<() => void> = []
-    if (opts.section) offs.push(registerSection(owner))
-    if (opts.pluginsItem) offs.push(registerPluginsItem(owner, ns))
-    return () => {
-      for (const off of offs) off()
     }
   }
 
@@ -186,7 +275,17 @@ export function apply(ctx: ClientContext): void {
     return undefined
   }
 
-  // DSH ≥0.1.7 / 0.2.0 — configForms.
+  const attachForm = (
+    hit: { ns: string, scope: SettingsFormScope<NetxopsSettings> },
+    source: string,
+  ): (() => void) => {
+    ctx.logger?.info?.('netxops: attach form via %s (%s)', source, hit.ns)
+    deferred.attach(hit.scope)
+    ensureExtras()
+    return registerPluginsItem(hit.ns)
+  }
+
+  // DSH ≥0.1.7 / 0.2.0 — configForms (persist + plugins.item).
   ctx.inject(['configForms'], (formsCtx) => {
     const forms = (formsCtx as { configForms?: ConfigFormsLike }).configForms
     if (!forms) {
@@ -212,43 +311,54 @@ export function apply(ctx: ClientContext): void {
           formsCtx.logger?.warn?.('netxops: served %s but configForms.get failed', ns)
           return () => {}
         }
-        formsCtx.logger?.info?.('netxops: settings via whileServed (%s)', hit.ns)
-        const owner = ensureCard(hit.scope)
-        return mountUi(owner, hit.ns, { section: true, pluginsItem: true })
+        return attachForm(hit, 'whileServed')
       }), 'netxops: configForms whileServed')
     }
 
-    // Eager fallback: do not leave Settings blank if whileServed is late/empty.
     const immediate = tryGetForm(forms, candidates)
     if (immediate) {
-      formsCtx.logger?.info?.('netxops: settings eager mount (%s)', immediate.ns)
-      const owner = ensureCard(immediate.scope)
       formsCtx.effect(
-        () => mountUi(owner, immediate.ns, { section: true, pluginsItem: true }),
-        'netxops: configForms eager slots',
+        () => attachForm(immediate, 'eager'),
+        'netxops: configForms eager attach',
       )
     } else if (typeof forms.whileServed !== 'function') {
-      formsCtx.logger?.warn?.('netxops: configForms present but no get/whileServed match for %s', candidates.join(','))
+      formsCtx.logger?.warn?.(
+        'netxops: configForms present but no get/whileServed match for %s',
+        candidates.join(','),
+      )
     }
   })
 
-  // DSH ≤0.1.5 — settingsScope binder + settings.section only.
+  // DSH ≤0.1.5 — settingsScope binder.
   ctx.inject(['settingsScope'], (scopeCtx) => {
-    if (card) return
     const binder = (scopeCtx as { settingsScope?: SettingsScopeLike }).settingsScope
     if (!binder || typeof binder.bind !== 'function') {
       scopeCtx.logger?.warn?.('netxops: settingsScope present but .bind missing')
       return
     }
-    scopeCtx.logger?.info?.('netxops: settings card via settingsScope')
-    const owner = ensureCard(binder.bind({ namespace: NETXOPS_NS }))
-    scopeCtx.effect(() => registerSection(owner), 'netxops: settings.section')
+    scopeCtx.logger?.info?.('netxops: attach form via settingsScope')
+    deferred.attach(binder.bind({ namespace: NETXOPS_NS }))
+    ensureExtras()
   })
 }
 
 /** Soft-wire credentials / connection / directoryPicker when present. */
 function wireOptionalServices(ctx: ClientContext, card: NetxopsCardController): void {
-  ctx.inject(['remote.credentials'], (credCtx) => {
+  const soft = (deps: string[], run: (c: ClientContext) => void, label: string): void => {
+    try {
+      ctx.inject(deps, (inner) => {
+        try {
+          run(inner)
+        } catch (error) {
+          inner.logger?.warn?.('netxops: %s handler failed: %s', label, error)
+        }
+      })
+    } catch (error) {
+      ctx.logger?.warn?.('netxops: soft-inject %s skipped: %s', label, error)
+    }
+  }
+
+  soft(['remote.credentials'], (credCtx) => {
     card.setCredentialsAvailable(true)
     credCtx.effect(() => {
       const off = credCtx.remote.$on('credentials/reference-updated', (ref) => {
@@ -259,19 +369,19 @@ function wireOptionalServices(ctx: ClientContext, card: NetxopsCardController): 
         card.setCredentialsAvailable(false)
       }
     }, 'netxops: credential invalidations')
-  })
+  }, 'remote.credentials')
 
-  ctx.inject(['connection'], (connCtx) => {
+  soft(['connection'], (connCtx) => {
     const call = connCtx.connection?.rpc?.call?.bind(connCtx.connection.rpc)
     if (typeof call !== 'function') {
-      connCtx.logger.warn('netxops: connection.rpc.call unavailable — alarm status UI disabled')
+      connCtx.logger?.warn?.('netxops: connection.rpc.call unavailable — alarm status UI disabled')
       return
     }
     card.setAlarmPushRpc(call)
     connCtx.effect(() => () => {
       card.setAlarmPushRpc(undefined)
     }, 'netxops: clear alarm-push rpc')
-  })
+  }, 'connection')
 
   const bindDirectoryPicker = (picker: { pick?: (signal?: AbortSignal) => Promise<string | null> } | undefined): void => {
     if (!picker || typeof picker.pick !== 'function') return
@@ -281,7 +391,7 @@ function wireOptionalServices(ctx: ClientContext, card: NetxopsCardController): 
     (ctx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
       .remote?.directoryPicker,
   )
-  ctx.inject(['remote.directoryPicker'], (dpCtx) => {
+  soft(['remote.directoryPicker'], (dpCtx) => {
     const viaGet = typeof (dpCtx as { get?: (name: string) => unknown }).get === 'function'
       ? (dpCtx as { get: (name: string) => unknown }).get('remote.directoryPicker') as
         | { pick?: (signal?: AbortSignal) => Promise<string | null> }
@@ -293,5 +403,5 @@ function wireOptionalServices(ctx: ClientContext, card: NetxopsCardController): 
     dpCtx.effect(() => () => {
       card.setDirectoryPicker(undefined)
     }, 'netxops: clear directory picker')
-  })
+  }, 'remote.directoryPicker')
 }

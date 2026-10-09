@@ -11,13 +11,20 @@
 #   .\scripts\link-dsh-peers.ps1 -DshHome $env:DSH_HOME
 
 param(
-  [string]$DshHome = $(if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' })
+  [string]$DshHome = $(if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }),
+  [string]$Profile = 'desktop'
 )
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
-$SrcRoot = Join-Path $DshHome 'profiles\node_modules\@deepseek-ai'
 $DstRoot = Join-Path $Root 'node_modules\@deepseek-ai'
+# Shared heal first — profile-local schemastery (Desktop 0.2 = 3.18.4) breaks
+# Config({}) when mixed with shared dsh-* 0.1.5-rc.2 (volatile proxies, Host fail).
+$SearchRoots = @(
+  (Join-Path $DshHome 'profiles\node_modules\@deepseek-ai'),
+  (Join-Path $DshHome "profiles\$Profile\node_modules\@deepseek-ai"),
+  (Join-Path $DshHome 'profiles\web\node_modules\@deepseek-ai')
+)
 
 # Runtime imports from src/index.ts (and peers they commonly need nearby).
 $Peers = @(
@@ -25,22 +32,26 @@ $Peers = @(
   'cordis',
   'dsh-credentials',
   'dsh-settings',
-  'dsh-mcp-client',
-  'dsh-tools'
+  'dsh-tools',
+  'dsh-llm'
 )
 
-if (-not (Test-Path $SrcRoot)) {
-  throw "DSH installation fallback missing: $SrcRoot`nRun ``dsh web`` once (or any profile) so dsh heals profiles/node_modules."
-}
-
 New-Item -ItemType Directory -Force -Path $DstRoot | Out-Null
+Write-Host "DSH_HOME=$DshHome profile=$Profile"
 
 foreach ($name in $Peers) {
-  $src = Join-Path $SrcRoot $name
-  $dst = Join-Path $DstRoot $name
-  if (-not (Test-Path $src)) {
-    throw "Peer not found under installation fallback: $src"
+  $src = $null
+  foreach ($root in $SearchRoots) {
+    $candidate = Join-Path $root $name
+    if (Test-Path (Join-Path $candidate 'package.json')) {
+      $src = $candidate
+      break
+    }
   }
+  if (-not $src) {
+    throw "Peer @deepseek-ai/$name not found under:`n  $($SearchRoots -join "`n  ")"
+  }
+  $dst = Join-Path $DstRoot $name
   if (Test-Path $dst) {
     $item = Get-Item $dst -Force
     if ($item.LinkType -eq 'Junction' -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
@@ -50,7 +61,8 @@ foreach ($name in $Peers) {
     }
   }
   New-Item -ItemType Junction -Path $dst -Target $src | Out-Null
-  Write-Host "linked @deepseek-ai/$name -> $src"
+  $ver = (Get-Content (Join-Path $src 'package.json') -Raw | ConvertFrom-Json).version
+  Write-Host "linked @deepseek-ai/$name@$ver <- $src"
 }
 
-Write-Host "Done. Re-run: dsh web"
+Write-Host "Done. Restart DeepSeek Harness Desktop (or disable/enable dsh-netxops)."

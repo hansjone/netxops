@@ -24,6 +24,30 @@ No local Python / `netx_mcp` install is required for DSH. (OpenClaw and other MC
 
 `@deepseek-ai/*` 由 **DSH Host profile** 提供，**不**声明为可从公共 registry 安装的依赖。仓库根目录 `pnpm install` 只会装公开包（如 `fflate`）。完整运行请用上面的 `dsh plugin add`，不要指望裸 clone 能从 npm 拉齐 Harness 内部包。
 
+## Desktop 本地开发（`link:` 路径安装）
+
+Desktop「添加插件」填本地目录时，会写成 `link:D:/…/netxops`。Node 从**工作区真实路径**解析 `@deepseek-ai/*`，不会走到 Desktop profile 的 `node_modules`，于是 Host 行报 `Cannot find package '@deepseek-ai/schemastery'`，插件页显示 **netxops 未运行**（预设行可能仍正常）。
+
+装完本地路径后在仓库根执行一次（把 Host 的 `@deepseek-ai/*` peer junction 进本仓库 `node_modules`）：
+
+```powershell
+bun run link:peers
+# 或 PowerShell: .\scripts\link-dsh-peers.ps1
+```
+
+脚本优先用 `~/.dsh/profiles/node_modules` 里那一套 peers（schemastery 3.18.2 + dsh-*），**不要**单独链 Desktop profile 里的 schemastery 3.18.4——混链会导致 `Config({})` 变成空代理，Desktop 直接 **web boot: dsh-netxops failed**。
+
+然后**重启 Desktop**（或在插件页关掉再启用 dsh-netxops）。症状对照：
+
+| 现象 | 原因 |
+|------|------|
+| `Cannot find package '@deepseek-ai/schemastery'` / **netxops 未运行** | 未跑 `link:peers` |
+| **web boot: dsh-netxops failed** | peers 版本错乱（例如链了 Desktop 的 schemastery 3.18.4）→ 重跑 `bun run link:peers` 再重启 |
+
+改 Host/Client 后照常 `bun run bundle`，一般不用重装；换机器或清过本仓库 `node_modules` 才需再 `link:peers`。
+
+备选：`npm pack` 后在 Desktop 安装 `.tgz`（复制进 profile，不走 `link:`，也就不用 link peers）。
+
 ## Install
 
 ```powershell
