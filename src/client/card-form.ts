@@ -3,7 +3,7 @@
  * Self-contained (cannot value-import ui-settings-plugins — client bundle purity).
  */
 
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { SettingsFormScope, SettingsFormSnapshot } from './settings-form.ts'
 import { createSnapshotStore, type SnapshotStore } from './snapshot-store.ts'
 
 export type FieldWrite = { kind: 'set'; value: unknown } | { kind: 'clear' }
@@ -110,7 +110,7 @@ export class CardForm<T> {
   private failed = false
 
   constructor(
-    private readonly scope: SettingsScope<T>,
+    private readonly scope: SettingsFormScope<T>,
     specs: CardFieldSpec[],
     secrets: CardSecretSpec[] = [],
   ) {
@@ -235,7 +235,7 @@ export class CardForm<T> {
     return spec
   }
 
-  private snapshotOf(): SettingsScopeSnapshot<T> {
+  private snapshotOf(): SettingsFormSnapshot<T> {
     return this.scope.getSnapshot()
   }
 

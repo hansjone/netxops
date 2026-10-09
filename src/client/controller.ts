@@ -4,7 +4,7 @@
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { SettingsFormScope, SettingsFormSnapshot } from './settings-form.ts'
 import type { SnapshotStore } from './snapshot-store.ts'
 import {
   CardForm, textField, booleanField, booleanFieldPersistFalse,
@@ -175,7 +175,7 @@ export class NetxopsCardController {
   private exportInFlight: Promise<void> | undefined
 
   constructor(
-    private readonly scope: SettingsScope<NetxopsSettings>,
+    private readonly scope: SettingsFormScope<NetxopsSettings>,
     private readonly ctx: ClientContext,
   ) {
     this.form = new CardForm(
@@ -708,7 +708,7 @@ export class NetxopsCardController {
   }
 }
 
-function refOf(snapshot: SettingsScopeSnapshot<NetxopsSettings>): string {
+function refOf(snapshot: SettingsFormSnapshot<NetxopsSettings>): string {
   const declared = snapshot.value?.tokenCredentialRef
   return declared !== undefined && declared.length > 0 ? declared : DEFAULT_TOKEN_REF
 }

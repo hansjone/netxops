@@ -168,30 +168,40 @@ export interface Config {
   groupKbPublic: boolean
 }
 
+/**
+ * DSH ≥0.1.7 / 0.2.0 only projects Config fields marked `.volatile()` into the
+ * settings UI. Zero volatile fields → the whole entry is silently filtered.
+ * Older schemastery without `volatile` keeps the bare schema (≤0.1.5 path).
+ */
+function vol<S>(schema: S): S {
+  const candidate = schema as { volatile?: () => S }
+  return typeof candidate.volatile === 'function' ? candidate.volatile() : schema
+}
+
 export const Config: z<Config> = z.object({
-  apiUrl: z.string().default('http://127.0.0.1:8890'),
-  lang: z.string().default('zh'),
-  thinkingLanguage: z.string().default('auto'),
-  replyLanguage: z.string().default('follow-user'),
-  tokenCredentialRef: z.string().role('credential-ref').default(DEFAULT_TOKEN_REF),
-  toolCallTimeoutMs: z.number().step(1).min(1000).default(120_000),
-  installAgentPreset: z.boolean().default(true),
-  alarmPushEnabled: z.boolean().default(false),
-  alarmDeliverDsh: z.boolean().default(true),
-  alarmDeliverIm: z.boolean().default(false),
-  imTargets: z.string().default(''),
-  imBotId: z.string().default(''),
-  imTargetId: z.string().default(''),
-  nmsProvider: z.string().default('zte-ume'),
-  groupOpsInPreset: z.boolean().default(true),
-  groupOpsPublic: z.boolean().default(false),
-  groupTopologyInPreset: z.boolean().default(false),
-  groupTopologyPublic: z.boolean().default(false),
-  groupBizMonitorInPreset: z.boolean().default(true),
-  groupBizMonitorPublic: z.boolean().default(false),
-  kbRoot: z.string().default(''),
-  groupKbInPreset: z.boolean().default(true),
-  groupKbPublic: z.boolean().default(false),
+  apiUrl: vol(z.string().default('http://127.0.0.1:8890')),
+  lang: vol(z.string().default('zh')),
+  thinkingLanguage: vol(z.string().default('auto')),
+  replyLanguage: vol(z.string().default('follow-user')),
+  tokenCredentialRef: vol(z.string().role('credential-ref').default(DEFAULT_TOKEN_REF)),
+  toolCallTimeoutMs: vol(z.number().step(1).min(1000).default(120_000)),
+  installAgentPreset: vol(z.boolean().default(true)),
+  alarmPushEnabled: vol(z.boolean().default(false)),
+  alarmDeliverDsh: vol(z.boolean().default(true)),
+  alarmDeliverIm: vol(z.boolean().default(false)),
+  imTargets: vol(z.string().default('')),
+  imBotId: vol(z.string().default('')),
+  imTargetId: vol(z.string().default('')),
+  nmsProvider: vol(z.string().default('zte-ume')),
+  groupOpsInPreset: vol(z.boolean().default(true)),
+  groupOpsPublic: vol(z.boolean().default(false)),
+  groupTopologyInPreset: vol(z.boolean().default(false)),
+  groupTopologyPublic: vol(z.boolean().default(false)),
+  groupBizMonitorInPreset: vol(z.boolean().default(true)),
+  groupBizMonitorPublic: vol(z.boolean().default(false)),
+  kbRoot: vol(z.string().default('')),
+  groupKbInPreset: vol(z.boolean().default(true)),
+  groupKbPublic: vol(z.boolean().default(false)),
 })
 
 /** Package root (parent of `lib/` or `src/` depending on launch). */
@@ -243,10 +253,27 @@ async function resolveToken(ctx: Context, refName: string): Promise<string> {
   return hit?.value ?? ''
 }
 
+/** Normalize settings.describe() across DSH generations (array or { namespaces }). */
+function describeRows(describe: unknown): Array<{ ns?: string, value?: unknown }> {
+  if (typeof describe !== 'function') return []
+  try {
+    const raw = (describe as () => unknown)()
+    if (Array.isArray(raw)) return raw as Array<{ ns?: string, value?: unknown }>
+    if (raw && typeof raw === 'object' && Array.isArray((raw as { namespaces?: unknown }).namespaces)) {
+      return (raw as { namespaces: Array<{ ns?: string, value?: unknown }> }).namespaces
+    }
+  } catch {
+    // describe can throw while the provider is settling
+  }
+  return []
+}
+
 /**
- * Register the settings namespace on both dsh generations:
+ * Register / follow the settings namespace across DSH generations:
  * - 0.1.1-rc.2: standalone `installSettingsSection`
  * - ≥0.1.2-rc.1: `settings.installSection` on the provider
+ * - ≥0.1.7 / 0.2.0: Config is projected from the Loader entry; no owner scope —
+ *   re-read via `settings.describe()` and poll for UI writes (no scope.watch).
  */
 function installNetxopsSettings(
   ctx: Context,
@@ -271,7 +298,47 @@ function installNetxopsSettings(
   }
 
   ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, entry, hooks)
+    const settings = settingsCtx.settings as {
+      installSection?: (
+        context: Context,
+        ns: string,
+        schema: z<Config>,
+        base: Config,
+        sectionHooks: typeof hooks,
+      ) => void
+      describe?: () => unknown
+    }
+
+    if (typeof settings.installSection === 'function') {
+      settings.installSection(ctx, NETXOPS_SETTINGS_NAMESPACE, Config, entry, hooks)
+      return
+    }
+
+    // DSH ≥0.1.7: profile Config projection — follow describe() for live values.
+    const readLive = (): Config => {
+      const row = describeRows(settings.describe).find(item => item.ns === NETXOPS_SETTINGS_NAMESPACE)
+      if (row?.value !== null && typeof row?.value === 'object' && !Array.isArray(row.value)) {
+        return { ...entry, ...(row.value as Partial<Config>) }
+      }
+      return entry
+    }
+    hooks.setSource(readLive)
+    hooks.onChange()
+
+    let lastFingerprint = JSON.stringify(readLive())
+    const timer = setInterval(() => {
+      const next = readLive()
+      const fingerprint = JSON.stringify(next)
+      if (fingerprint === lastFingerprint) return
+      lastFingerprint = fingerprint
+      hooks.onChange()
+    }, 2_000)
+    settingsCtx.effect(() => () => {
+      clearInterval(timer)
+    }, 'netxops: settings describe poll')
+    settingsCtx.logger.info(
+      'netxops: following settings via describe() (no installSection — DSH ≥0.1.7 path)',
+    )
   })
 }
 

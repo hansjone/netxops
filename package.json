@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.41",
+  "version": "0.1.42",
   "description": "DeepSeek Harness Netx Ops: ops/topology + IM delivery + session export + knowledge-base MANIFEST/_skills + localSkills",
   "license": "MIT",
   "type": "module",
@@ -63,10 +63,10 @@
     },
     "client": {
       "platform": "web",
+      "immediately": true,
       "inject": [
-        "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-api-remotes"
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
       ]
     }
   },
