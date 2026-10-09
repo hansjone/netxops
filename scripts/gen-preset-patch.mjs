@@ -1,32 +1,33 @@
 /**
- * Legacy entrypoint kept for `bun run gen:preset-patch`.
+ * Regenerate declarative + bundle artifacts from host `standard`.
  *
- * Declarative `@deepseek-ai/dsh-agent-preset` patches were removed: Netx Ops
- * now composes `$DSH_HOME/.agent-presets/netxops` from the host `standard`
- * preset at apply time (see src/agent-preset-install.ts).
+ * - `presets/netxops.preset.patch.yml` — Desktop 0.2 `@deepseek-ai/dsh-agent-preset`
+ *   insert (also synced into profiles/desktop/cordis.patch.yml at Host apply).
+ * - `cordis.bundle.patch.yml` — host-only (web-safe). Desktop gets the
+ *   declarative row via the profile patch sync, not the package bundle, so
+ *   `dsh web` does not require `@deepseek-ai/dsh-agent-preset`.
  *
- * Regenerates `cordis.bundle.patch.yml` as a copy of `cordis.patch.yml` so
- * `dsh.bundle.patch` stays a single string path for CLI compatibility.
+ * Usage: bun run scripts/gen-preset-patch.mjs
  */
 
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { composeNetxopsPresetArtifacts } from '../src/agent-preset-install.ts'
+import { readFileSync } from 'node:fs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const host = join(root, 'cordis.patch.yml')
-const bundle = join(root, 'cordis.bundle.patch.yml')
-const legacyDeclarative = join(root, 'presets', 'netxops.preset.patch.yml')
+const artifacts = composeNetxopsPresetArtifacts()
+const declarativePath = join(root, 'presets', 'netxops.preset.patch.yml')
+writeFileSync(declarativePath, artifacts.declarativePatch)
+console.log(`wrote ${declarativePath} (${artifacts.declarativePatch.length} bytes) from ${artifacts.standardDir}`)
 
-const text = readFileSync(host, 'utf8')
-const out = `# Alias of cordis.patch.yml for dsh.bundle.patch (single string).
-# Agent preset is composed from host \`standard\` at install — see
-# src/agent-preset-install.ts (no @deepseek-ai/dsh-agent-preset row).
+const host = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')
+const bundle = `# Host-only bundle patch (web-safe).
+# Desktop Netx Ops preset is composed from standard and synced into
+# profiles/desktop/cordis.patch.yml at Host apply — see src/agent-preset-install.ts.
 
-${text.trimStart()}`
-writeFileSync(bundle, out)
-if (existsSync(legacyDeclarative)) {
-  unlinkSync(legacyDeclarative)
-  console.log(`removed obsolete ${legacyDeclarative}`)
-}
-console.log(`wrote ${bundle} (${out.length} bytes) — host-only; no declarative preset patch`)
+${host.trimStart()}`
+const bundlePath = join(root, 'cordis.bundle.patch.yml')
+writeFileSync(bundlePath, bundle)
+console.log(`wrote ${bundlePath} (${bundle.length} bytes) — host only`)

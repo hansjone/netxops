@@ -1,6 +1,6 @@
-# Alias of cordis.patch.yml for dsh.bundle.patch (single string).
-# Agent preset is composed from host `standard` at install — see
-# src/agent-preset-install.ts (no @deepseek-ai/dsh-agent-preset row).
+# Host-only bundle patch (web-safe).
+# Desktop Netx Ops preset is composed from standard and synced into
+# profiles/desktop/cordis.patch.yml at Host apply — see src/agent-preset-install.ts.
 
 # Host-plane Netx Ops bridge: settings + credentials → connection publish.
 # Ops-scoped `netx__*` tools mount from the agent preset (`dsh-netxops/tools`).
