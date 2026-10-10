@@ -14,6 +14,7 @@ import { registerKbContextSkill } from './kb-context-skill.ts'
 import { registerKbLocalTools } from './kb-local-tools.ts'
 import { registerKbPackSkills } from './kb-pack-skills.ts'
 import { getKbContext, watchKbContext } from './kb-runtime.ts'
+import { tryRecoverMissingHostBridge } from './heal-profile-entry.ts'
 import { getNetxConnection, watchNetxConnection } from './runtime.ts'
 import { registerNetxTools } from './tools.ts'
 
@@ -51,7 +52,9 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
     unregisterTools = undefined
     const connection = getNetxConnection()
     if (connection === undefined) {
-      ctx.logger.warn('%s: no connection yet — waiting for host settings bridge', options.name)
+      // Preset channel can self-heal while the Host bundle row is gone — restore
+      // `dsh-netxops` into cordis.patch.yml once, then require a full restart.
+      tryRecoverMissingHostBridge(ctx.logger, options.name)
       return
     }
     const enabled = resolveGroups()

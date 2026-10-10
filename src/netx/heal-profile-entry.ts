@@ -1,12 +1,16 @@
 /**
- * Heal sparse Desktop/Web profile overrides for the host `netxops` row.
+ * Ensure the Host bridge row `dsh-netxops` exists in desktop/web profile patches.
  *
- * Plugin Manager often writes only:
- *   - id: netxops
- *     disabled: false
- * On DSH 0.2 that override **replaces the whole Config**, so capability /
- * public flags never land unless we re-expand the entry. Call this on Host
- * apply so every install (not just hand-edited machines) gets a usable row.
+ * Two independent install channels drift apart after dirty reinstalls:
+ * - Preset channel: `ensureAgentPresetInstalled` rewrites the managed
+ *   `preset-netxops` block into `cordis.patch.yml` on every Host apply.
+ * - Host channel: normally comes from the package `cordis.bundle.patch.yml`
+ *   insert, merged only while the bundle stays selected.
+ *
+ * When the bundle host insert is lost, Netx Ops preset + `netxops-tools` can
+ * still load, but `getNetxConnection()` stays undefined forever → no tools.
+ * Call this from Host apply **and** from the preset tools plugin (chicken-egg
+ * recovery when only the preset side is still alive).
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -16,6 +20,8 @@ import type { Context } from '@deepseek-ai/cordis'
 
 const DESKTOP_PATCH_BEGIN = '# BEGIN dsh-netxops-preset (managed)'
 const DESKTOP_PATCH_END = '# END dsh-netxops-preset (managed)'
+
+const HOST_HEAL_ONCE = Symbol.for('dsh-netxops.host-bridge-heal-attempted')
 
 /** Defaults merged into missing keys only — never overwrite user values. */
 export const NETXOPS_HOST_CONFIG_DEFAULTS: Readonly<Record<string, string | boolean | number>> = Object.freeze({
@@ -44,6 +50,11 @@ export const NETXOPS_HOST_CONFIG_DEFAULTS: Readonly<Record<string, string | bool
   groupKbInPreset: true,
   groupKbPublic: false,
 })
+
+export interface HostBridgeHealResult {
+  rewritten: number
+  inserted: number
+}
 
 function resolveDshHome(): string {
   const fromEnv = process.env.DSH_HOME?.trim()
@@ -143,6 +154,15 @@ function findHostEntry(lines: string[], skip: boolean[]): HostEntry | null {
   return null
 }
 
+/** True when any non-managed row already names the host package (insert or id form). */
+function hostBridgeNamedElsewhere(lines: string[], skip: boolean[]): boolean {
+  for (let i = 0; i < lines.length; i += 1) {
+    if (skip[i]) continue
+    if (/^\s+name:\s*['"]?dsh-netxops['"]?\s*$/.test(lines[i]!)) return true
+  }
+  return false
+}
+
 function needsHeal(entry: HostEntry): boolean {
   if (entry.name !== 'dsh-netxops') return true
   for (const key of Object.keys(NETXOPS_HOST_CONFIG_DEFAULTS)) {
@@ -151,14 +171,14 @@ function needsHeal(entry: HostEntry): boolean {
   return false
 }
 
-function renderHostEntry(entry: HostEntry): string[] {
+function renderHostEntry(entry: Pick<HostEntry, 'disabled' | 'name' | 'config'>): string[] {
   const config = { ...NETXOPS_HOST_CONFIG_DEFAULTS, ...entry.config }
   const out: string[] = [
     '- id: netxops',
-    "  name: dsh-netxops",
+    '  name: dsh-netxops',
   ]
   if (entry.disabled === true) out.push('  disabled: true')
-  else if (entry.disabled === false) out.push('  disabled: false')
+  else out.push('  disabled: false')
   out.push('  config:')
   for (const [key, value] of Object.entries(config)) {
     out.push(`    ${key}: ${formatScalar(value)}`)
@@ -167,38 +187,100 @@ function renderHostEntry(entry: HostEntry): string[] {
 }
 
 /**
- * Expand sparse `netxops` host overrides in desktop/web profile patches.
- * @returns number of profiles rewritten.
+ * Insert or expand the Host `dsh-netxops` row in desktop/web `cordis.patch.yml`.
+ * @returns counts of profiles rewritten (sparse) vs freshly inserted (missing).
  */
-export function healNetxopsProfileEntries(logger: Context['logger']): number {
+export function ensureNetxopsHostInProfilePatches(logger: Context['logger']): HostBridgeHealResult {
   let rewritten = 0
+  let inserted = 0
   for (const profileName of ['desktop', 'web'] as const) {
-    const patchPath = join(resolveDshHome(), 'profiles', profileName, 'cordis.patch.yml')
-    if (!existsSync(patchPath)) continue
-    const raw = readFileSync(patchPath, 'utf8')
+    const profileDir = join(resolveDshHome(), 'profiles', profileName)
+    const patchPath = join(profileDir, 'cordis.patch.yml')
+    if (!existsSync(profileDir)) continue
+    const raw = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
     const nl = raw.includes('\r\n') ? '\r\n' : '\n'
-    const lines = raw.replace(/\r\n/g, '\n').split('\n')
-    // Drop trailing empty split artifact for rewrite math; re-join with file nl.
+    const lines = raw.length > 0 ? raw.replace(/\r\n/g, '\n').split('\n') : []
     const skip = managedLineMask(lines)
     const entry = findHostEntry(lines, skip)
-    if (entry === null) continue
-    if (!needsHeal(entry)) continue
-    const rendered = renderHostEntry(entry)
-    const next = [
-      ...lines.slice(0, entry.start),
-      ...rendered,
-      ...lines.slice(entry.end),
-    ].join(nl)
-    const normalized = next.endsWith(nl) ? next : `${next}${nl}`
-    if (normalized === raw) continue
-    writeFileSync(patchPath, normalized, 'utf8')
-    rewritten += 1
-    logger.info(
-      'netxops: healed sparse host entry in profiles/%s/cordis.patch.yml '
-      + '(public toggles hot-reload via settings; restart %s only if tools still missing after heal)',
-      profileName,
-      profileName === 'desktop' ? 'Desktop' : 'dsh web',
-    )
+
+    let nextLines: string[] | null = null
+    let kind: 'insert' | 'rewrite' | null = null
+
+    if (entry === null) {
+      if (hostBridgeNamedElsewhere(lines, skip)) continue
+      const rendered = renderHostEntry({ disabled: false, config: {} })
+      const beginIdx = lines.findIndex((line) => line.includes(DESKTOP_PATCH_BEGIN))
+      if (beginIdx >= 0) {
+        nextLines = [...lines.slice(0, beginIdx), ...rendered, '', ...lines.slice(beginIdx)]
+      } else if (lines.length === 0 || (lines.length === 1 && lines[0]!.trim() === '')) {
+        nextLines = [...rendered, '']
+      } else {
+        const body = [...lines]
+        while (body.length > 0 && body[body.length - 1]!.trim() === '') body.pop()
+        nextLines = [...body, '', ...rendered, '']
+      }
+      kind = 'insert'
+    } else if (needsHeal(entry)) {
+      nextLines = [
+        ...lines.slice(0, entry.start),
+        ...renderHostEntry(entry),
+        ...lines.slice(entry.end),
+      ]
+      kind = 'rewrite'
+    }
+
+    if (nextLines === null || kind === null) continue
+    const normalized = nextLines.join(nl)
+    const withNl = normalized.endsWith(nl) ? normalized : `${normalized}${nl}`
+    if (withNl === raw) continue
+    writeFileSync(patchPath, withNl, 'utf8')
+    if (kind === 'insert') {
+      inserted += 1
+      logger.error(
+        'netxops: host bridge dsh-netxops was MISSING from profiles/%s/cordis.patch.yml — '
+        + 'wrote it back. Fully quit and restart %s once so the host publishes the connection '
+        + '(preset-only installs leave netxops-tools waiting forever).',
+        profileName,
+        profileName === 'desktop' ? 'Desktop' : 'dsh web',
+      )
+    } else {
+      rewritten += 1
+      logger.info(
+        'netxops: healed sparse host entry in profiles/%s/cordis.patch.yml '
+        + '(public toggles hot-reload via settings; restart %s only if tools still missing)',
+        profileName,
+        profileName === 'desktop' ? 'Desktop' : 'dsh web',
+      )
+    }
   }
-  return rewritten
+  return { rewritten, inserted }
+}
+
+/** @deprecated Use {@link ensureNetxopsHostInProfilePatches}. */
+export function healNetxopsProfileEntries(logger: Context['logger']): number {
+  const result = ensureNetxopsHostInProfilePatches(logger)
+  return result.rewritten + result.inserted
+}
+
+/**
+ * Preset-side chicken-egg recovery: when tools mount with no connection, try
+ * once per process to restore the missing Host bridge into the profile patch.
+ */
+export function tryRecoverMissingHostBridge(logger: Context['logger'], pluginName: string): void {
+  const root = globalThis as typeof globalThis & { [HOST_HEAL_ONCE]?: boolean }
+  if (root[HOST_HEAL_ONCE] === true) return
+  root[HOST_HEAL_ONCE] = true
+  try {
+    const result = ensureNetxopsHostInProfilePatches(logger)
+    if (result.inserted === 0 && result.rewritten === 0) {
+      logger.warn(
+        '%s: no connection yet — host settings bridge not publishing. '
+        + 'Check that profile cordis.yml contains name: dsh-netxops (not only preset-netxops). '
+        + 'Recovery: dsh plugin remove dsh-netxops && dsh plugin add …, then fully restart.',
+        pluginName,
+      )
+    }
+  } catch (error) {
+    logger.warn('%s: host-bridge recover failed: %s', pluginName, error)
+  }
 }
