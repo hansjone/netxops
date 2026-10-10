@@ -48,7 +48,8 @@ bun run link:peers
 
 改 Host/Client 后照常 `bun run bundle`，一般不用重装；换机器或清过本仓库 `node_modules` 才需再 `link:peers`。
 
-备选：`npm pack` 后在 Desktop 安装 `.tgz`（复制进 profile，不走 `link:`，也就不用 link peers）。
+备选：`npm pack` 后在 Desktop「添加插件」填 **`.tgz` 绝对路径**（复制进 profile，不走 `link:`，也就不用 link peers）。  
+**≥0.1.54**：运行时依赖已打进 `lib/`（含 `fflate`），装 tgz **不必访问 npm registry**；若仍去拉 `registry.npmjs.org/fflate` 说明装的是旧包。现场不要在 `profiles/desktop` 里手搓 `pnpm add`。
 
 ## Install
 

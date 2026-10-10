@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "description": "DeepSeek Harness Netx Ops: ops/topology + IM delivery + session export + knowledge-base MANIFEST/_skills + localSkills",
   "license": "MIT",
   "type": "module",
@@ -82,10 +82,9 @@
       "optional": true
     }
   },
-  "dependencies": {
-    "fflate": "^0.8.2"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "fflate": "^0.8.2",
     "@types/react": "~18.3.1",
     "typescript": "^5.8.0"
   }
