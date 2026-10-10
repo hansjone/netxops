@@ -1,6 +1,6 @@
 # Host-plane Netx Ops bridge: settings + credentials → connection publish.
 # Ops-scoped `netx__*` tools mount from the agent preset (`dsh-netxops/tools`).
-# Capability groups: ops in preset; topology / public off.
+# Capability groups: ops in preset + public on; topology off.
 # Rule: one group ↔ one skill (netx-ops / netx-topology).
 #
 # IM + cron are separate profile bundles (pnpm blockExoticSubdeps forbids
@@ -30,7 +30,7 @@
         imTargetId: ''
         imTargets: ''
         groupOpsInPreset: true
-        groupOpsPublic: false
+        groupOpsPublic: true
         groupTopologyInPreset: false
         groupTopologyPublic: false
         groupBizMonitorInPreset: true

@@ -174,7 +174,7 @@ const MEMORY_DEFAULTS: NetxopsSettings = {
   imTargetId: '',
   imTargets: '',
   groupOpsInPreset: true,
-  groupOpsPublic: false,
+  groupOpsPublic: true,
   groupTopologyInPreset: false,
   groupTopologyPublic: false,
   groupBizMonitorInPreset: false,

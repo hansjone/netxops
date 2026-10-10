@@ -145,7 +145,7 @@ export interface Config {
   nmsProvider: string
   /** ops tools/skills in the Netx Ops preset (default on) — NMS + CLI + paths. */
   groupOpsInPreset: boolean
-  /** Publish ops tools/skills to other presets (default off). */
+  /** Publish ops tools/skills to other presets (default on). */
   groupOpsPublic: boolean
   /** topology canvas / layout tools in the Netx Ops preset (default off). */
   groupTopologyInPreset: boolean
@@ -193,7 +193,7 @@ export const Config: z<Config> = z.object({
   imTargetId: vol(z.string().default('')),
   nmsProvider: vol(z.string().default('zte-ume')),
   groupOpsInPreset: vol(z.boolean().default(true)),
-  groupOpsPublic: vol(z.boolean().default(false)),
+  groupOpsPublic: vol(z.boolean().default(true)),
   groupTopologyInPreset: vol(z.boolean().default(false)),
   groupTopologyPublic: vol(z.boolean().default(false)),
   groupBizMonitorInPreset: vol(z.boolean().default(true)),

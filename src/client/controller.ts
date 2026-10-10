@@ -188,7 +188,8 @@ export class NetxopsCardController {
         textField('nmsProvider'),
         textField('kbRoot'),
         booleanFieldPersistFalse('groupOpsInPreset'),
-        booleanField('groupOpsPublic'),
+        // Default is true — must persist false explicitly or "off" snaps back.
+        booleanFieldPersistFalse('groupOpsPublic'),
         booleanField('groupTopologyInPreset'),
         booleanField('groupTopologyPublic'),
         booleanFieldPersistFalse('groupBizMonitorInPreset'),

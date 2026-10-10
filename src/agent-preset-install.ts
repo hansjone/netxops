@@ -27,6 +27,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
+import { healNetxopsProfileEntries } from './netx/heal-profile-entry.ts'
 
 export const NETXOPS_PRESET_ID = 'netxops'
 
@@ -609,5 +610,13 @@ export function ensureAgentPresetInstalled(logger: Context['logger']): void {
     }
   } catch (error) {
     logger.error('netxops: failed to sync declarative preset into profile patch: %s', error)
+  }
+  try {
+    // Plugin Manager often leaves `- id: netxops` / `disabled: false` with no
+    // config; DSH 0.2 replaces the whole Config → capability/public flags never
+    // apply. Expand missing keys from package defaults on every Host apply.
+    healNetxopsProfileEntries(logger)
+  } catch (error) {
+    logger.error('netxops: failed to heal host profile entry: %s', error)
   }
 }

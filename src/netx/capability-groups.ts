@@ -36,7 +36,7 @@ export interface NetxCapabilityGroupSettingsFields {
  * Default: ops in Ops preset; topology / bizMonitor and all public off.
  */
 export const DEFAULT_CAPABILITY_GROUPS: NetxCapabilityGroups = Object.freeze({
-  ops: Object.freeze({ inPreset: true, public: false }),
+  ops: Object.freeze({ inPreset: true, public: true }),
   topology: Object.freeze({ inPreset: false, public: false }),
   bizMonitor: Object.freeze({ inPreset: true, public: false }),
 })
@@ -151,10 +151,17 @@ export function capabilityGroupsFromSettings(
   return {
     ops: {
       inPreset: opsInPreset,
-      public: src.groupOpsPublic === true
-        || src.groupNmsPublic === true
-        || src.groupCommonPublic === true
-        || src.groupManagedNePublic === true,
+      public: (() => {
+        if (src.groupOpsPublic !== undefined) return src.groupOpsPublic !== false
+        const legacy = [
+          src.groupNmsPublic,
+          src.groupCommonPublic,
+          src.groupManagedNePublic,
+        ].filter((v): v is boolean => v !== undefined)
+        // No explicit flag → default on (other presets see ops after install).
+        if (legacy.length === 0) return true
+        return legacy.some((v) => v === true)
+      })(),
     },
     topology: {
       inPreset: src.groupTopologyInPreset === true
