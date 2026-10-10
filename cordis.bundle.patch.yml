@@ -37,6 +37,8 @@
         groupOpsPublic: false
         groupTopologyInPreset: false
         groupTopologyPublic: false
+        groupBizMonitorInPreset: true
+        groupBizMonitorPublic: false
         kbRoot: ''
         groupKbInPreset: true
         groupKbPublic: false

@@ -43,6 +43,7 @@ bun run link:peers
 |------|------|
 | `Cannot find package '@deepseek-ai/schemastery'` / **netxops 未运行** | 未跑 `link:peers` |
 | **web boot: dsh-netxops failed** | peers 版本错乱（例如链了 Desktop 的 schemastery 3.18.4）→ 重跑 `bun run link:peers` 再重启 |
+| `pending (waiting for service: settingsScope)` → 会话无 `netx__*` / 无 `netx-ops` | 旧客户端仍硬/软等待已删除的 `settingsScope`（DSH 0.2）；用 **≥0.1.50** 的 tgz 重装并完全重启 Desktop，勿用脏的 `link:` / 混锁 `.modules.yaml` |
 
 改 Host/Client 后照常 `bun run bundle`，一般不用重装；换机器或清过本仓库 `node_modules` 才需再 `link:peers`。
 

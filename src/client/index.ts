@@ -1,15 +1,15 @@
 /**
  * Browser half — Netx Ops settings UI.
  *
- * Hard-inject only services present on both DSH ≤0.1.5 and ≥0.1.7.
- * Do NOT hard-inject `settingsScope`: DSH ≥0.1.7 / 0.2.0 removed it
- * (`configForms` replaced it) and a hard wait kills web boot.
+ * Hard-inject only `slots` + `locale`. Never wait on `settingsScope`
+ * (removed in DSH ≥0.1.7 / 0.2 — `configForms` replaced it). A pending
+ * inject surfaces as `waiting for service: settingsScope`, the host never
+ * publishes a connection, and Netx Ops sessions get zero `netx__*` tools.
  *
  * Surfaces (dual-stack), matching working plugins like dsh-im-ops:
  * - Always register `settings.section` in `apply` (Settings sidebar).
- *   Gate only the form transport on `configForms` / `settingsScope` —
- *   never gate the nav entry itself (Desktop 0.2 often never serves
- *   our ns via whileServed, which previously hid the whole page).
+ * - Form transport: soft `configForms` (0.2); one-shot `ctx.get('settingsScope')`
+ *   for ≤0.1.5 only — never `ctx.inject(['settingsScope'])`.
  * - Soft-attach real form scopes into a deferred memory scope so Save
  *   still writes the host entry when the transport is ready.
  * - On ≥0.1.7 also register `plugins.item` via `configForms.whileServed`.
@@ -329,17 +329,23 @@ export function apply(ctx: ClientContext): void {
     }
   })
 
-  // DSH ≤0.1.5 — settingsScope binder.
-  ctx.inject(['settingsScope'], (scopeCtx) => {
-    const binder = (scopeCtx as { settingsScope?: SettingsScopeLike }).settingsScope
-    if (!binder || typeof binder.bind !== 'function') {
-      scopeCtx.logger?.warn?.('netxops: settingsScope present but .bind missing')
-      return
+  // DSH ≤0.1.5 — one-shot settingsScope bind. Do NOT ctx.inject(['settingsScope']):
+  // on Desktop 0.2 that service is gone and a waiting inject shows up as
+  // `dsh-netxops: pending (waiting for service: settingsScope)`, which
+  // prevents the host bridge from publishing a connection → no netx__* tools.
+  try {
+    const getter = (ctx as { get?: (name: string) => unknown }).get
+    if (typeof getter === 'function' && getter.call(ctx, 'configForms') === undefined) {
+      const binder = getter.call(ctx, 'settingsScope') as SettingsScopeLike | undefined
+      if (binder && typeof binder.bind === 'function') {
+        ctx.logger?.info?.('netxops: attach form via settingsScope (legacy one-shot)')
+        deferred.attach(binder.bind({ namespace: NETXOPS_NS }))
+        ensureExtras()
+      }
     }
-    scopeCtx.logger?.info?.('netxops: attach form via settingsScope')
-    deferred.attach(binder.bind({ namespace: NETXOPS_NS }))
-    ensureExtras()
-  })
+  } catch (error) {
+    ctx.logger?.warn?.('netxops: legacy settingsScope probe failed: %s', error)
+  }
 }
 
 /** Soft-wire credentials / connection / directoryPicker when present. */

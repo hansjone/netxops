@@ -59,18 +59,22 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       ctx.logger.info('%s: no groups enabled', options.name)
       return
     }
-    unregisterTools = registerNetxTools(ctx, connection, {
-      plane: 'preset',
-      only: options.mode === 'forced' ? enabled : options.only,
-      forceGroups: options.mode === 'forced' ? enabled : undefined,
-    })
-    ctx.logger.info(
-      '%s: groups=[%s] → %s tokenConfigured=%s',
-      options.name,
-      enabled.join(',') || '(none)',
-      connection.apiUrl,
-      connection.token.trim().length > 0,
-    )
+    try {
+      unregisterTools = registerNetxTools(ctx, connection, {
+        plane: 'preset',
+        only: options.mode === 'forced' ? enabled : options.only,
+        forceGroups: options.mode === 'forced' ? enabled : undefined,
+      })
+      ctx.logger.info(
+        '%s: groups=[%s] → %s tokenConfigured=%s',
+        options.name,
+        enabled.join(',') || '(none)',
+        connection.apiUrl,
+        connection.token.trim().length > 0,
+      )
+    } catch (error) {
+      ctx.logger.error('%s: registerNetxTools failed: %s', options.name, error)
+    }
   }
 
   const remountKbLocal = (): void => {

@@ -679,12 +679,25 @@ export class NetxopsCardController {
 
   inject(): NetxopsCardFace {
     const actions = this.form.actions()
+    const capabilityFields = new Set([
+      'groupOpsInPreset',
+      'groupOpsPublic',
+      'groupTopologyInPreset',
+      'groupTopologyPublic',
+      'groupBizMonitorInPreset',
+      'groupBizMonitorPublic',
+      'groupKbInPreset',
+      'groupKbPublic',
+    ])
     return {
       hooks: { netxopsCard: this.store },
       ...actions,
       edit: (field, text) => {
         actions.edit(field, text)
         if (field === 'kbRoot') void this.refreshKbPreview()
+        // Capability toggles must hit the host Config immediately — staged-only
+        // edits never publish public tools/skills to other presets.
+        if (capabilityFields.has(field)) void this.form.save()
       },
       discard: () => {
         actions.discard()
@@ -693,6 +706,7 @@ export class NetxopsCardController {
       resetField: (field) => {
         actions.resetField(field)
         if (field === 'kbRoot') void this.refreshKbPreview()
+        if (capabilityFields.has(field)) void this.form.save()
       },
       exportAllSessions: () => { this.exportAllSessions() },
       browseKbRoot: () => { this.browseKbRoot() },

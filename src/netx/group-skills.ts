@@ -56,13 +56,17 @@ export function opsSkillsRoot(): string {
 }
 
 function parseFrontmatter(raw: string): { data: Record<string, unknown>; body: string } | undefined {
-  if (!raw.startsWith('---')) return undefined
-  const end = raw.indexOf('\n---', 3)
+  // Windows CRLF (and mixed) checkouts break `$`-anchored YAML lines: a trailing
+  // `\r` is a JS line terminator, so `.` and `$` both refuse it and description
+  // silently drops — netx-ops then never registers. Normalize before parse.
+  const text = raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  if (!text.startsWith('---')) return undefined
+  const end = text.indexOf('\n---', 3)
   if (end < 0) return undefined
-  const yaml = raw.slice(3, end).replace(/^\r?\n/, '')
-  const body = raw.slice(end + 4).replace(/^\r?\n/, '')
+  const yaml = text.slice(3, end).replace(/^\n/, '')
+  const body = text.slice(end + 4).replace(/^\n/, '')
   const data: Record<string, unknown> = {}
-  const lines = yaml.split(/\r?\n/)
+  const lines = yaml.split('\n')
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]
     const nameMatch = /^name\s*:\s*(.+)\s*$/.exec(line)
@@ -124,18 +128,22 @@ export async function loadSkillBundle(dir: string): Promise<ParsedSkill | null> 
   }
 }
 
+/** Why a skill directory was skipped (for Host logs). */
+export type SkillLoadSkip = { directory: string; reason: string }
+
 async function loadGroupSkills(
   skillsRoot: string,
   groupId: NetxCapabilityGroupId,
-): Promise<ParsedSkill[]> {
+): Promise<{ skills: ParsedSkill[]; skipped: SkillLoadSkip[] }> {
   const groupDir = join(skillsRoot, SKILL_DIR_BY_GROUP[groupId])
   let entries: string[]
   try {
     entries = await readdir(groupDir)
   } catch {
-    return []
+    return { skills: [], skipped: [{ directory: groupDir, reason: 'missing group dir' }] }
   }
   const skills: ParsedSkill[] = []
+  const skipped: SkillLoadSkip[] = []
   for (const entry of entries) {
     const full = join(groupDir, entry)
     let isDir = false
@@ -145,10 +153,39 @@ async function loadGroupSkills(
       continue
     }
     if (!isDir) continue
-    const skill = await loadSkillBundle(full)
-    if (skill) skills.push(skill)
+    const skillPath = join(full, 'SKILL.md')
+    let raw: string
+    try {
+      raw = await readFile(skillPath, 'utf8')
+    } catch {
+      skipped.push({ directory: full, reason: 'no SKILL.md' })
+      continue
+    }
+    const parsed = parseFrontmatter(raw)
+    if (!parsed) {
+      skipped.push({ directory: full, reason: 'invalid frontmatter' })
+      continue
+    }
+    const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
+    const description = typeof parsed.data.description === 'string'
+      ? parsed.data.description.trim()
+      : ''
+    if (!name || !description) {
+      skipped.push({
+        directory: full,
+        reason: !name ? 'missing name' : 'missing description',
+      })
+      continue
+    }
+    skills.push({
+      name,
+      description,
+      content: parsed.body.trimStart(),
+      path: skillPath,
+      directory: full,
+    })
   }
-  return skills
+  return { skills, skipped }
 }
 
 /**
@@ -179,9 +216,21 @@ export async function registerGroupSkills(
   const root = opsSkillsRoot()
   const disposers: Array<() => void> = []
   const enabled = new Set(groupIds)
+  const log = (ctx as { logger?: { warn: (msg: string, ...args: unknown[]) => void } }).logger
   for (const groupId of CAPABILITY_GROUP_IDS) {
     if (!enabled.has(groupId)) continue
-    const skills = await loadGroupSkills(root, groupId)
+    const { skills, skipped } = await loadGroupSkills(root, groupId)
+    for (const miss of skipped) {
+      log?.warn?.('%s: skip skill dir %s (%s)', providerLabel, miss.directory, miss.reason)
+    }
+    if (skills.length === 0) {
+      log?.warn?.(
+        '%s: no skills loaded for group=%s from %s',
+        providerLabel,
+        groupId,
+        join(root, SKILL_DIR_BY_GROUP[groupId]),
+      )
+    }
     for (const skill of skills) {
       disposers.push(skillsApi.register({
         name: skill.name,

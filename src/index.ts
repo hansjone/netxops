@@ -522,11 +522,15 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       const connection = getNetxConnection()
       if (!connection) return
       const enabled = groupsForPlane(connection.groups, 'public')
-      unregisterTools = registerNetxTools(toolsCtx, connection, { plane: 'public' })
-      toolsCtx.logger.info(
-        'netxops: host public tools groups=[%s]',
-        enabled.join(',') || '(none)',
-      )
+      try {
+        unregisterTools = registerNetxTools(toolsCtx, connection, { plane: 'public' })
+        toolsCtx.logger.info(
+          'netxops: host public tools groups=[%s]',
+          enabled.join(',') || '(none)',
+        )
+      } catch (error) {
+        toolsCtx.logger.error('netxops: host public tools register failed: %s', error)
+      }
     }
     const remountKbLocal = (): void => {
       unregisterKbLocal?.()
