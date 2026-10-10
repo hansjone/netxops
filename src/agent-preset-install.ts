@@ -1,17 +1,16 @@
 /**
  * Install Netx Ops agent preset for both DSH host styles:
  *
- * - Web / source CLI (`@deepseek-ai/dsh-agent-presets`): directory under
- *   `$DSH_HOME/.agent-presets/netxops`.
- * - Desktop 0.2 (`@deepseek-ai/dsh-agent-preset` + registry): declarative
- *   insert row synced into the desktop profile `cordis.patch.yml` on apply.
+ * - DSH ≥0.2 (`@deepseek-ai/dsh-agent-preset` + registry): declarative insert
+ *   row synced into **desktop and web** profile `cordis.patch.yml` on apply.
+ *   Directory `$DSH_HOME/.agent-presets/netxops` is still written for older
+ *   hosts that scan `@deepseek-ai/dsh-agent-presets`, but 0.2 web/desktop no
+ *   longer load that roster — without the patch row, Settings → Agent presets
+ *   shows no Netx Ops entry.
  *
- * Both are composed from the **host's** shipped `standard` + Netx Ops overlays
- * (DSH has no preset `extends`). Desktop 0.2 ships standard as
- * `@deepseek-ai/dsh-web-app/presets/standard.patch.yml` (`workflow-ptc`); the
- * CLI heal tree under `$DSH_HOME/profiles/node_modules` may still carry an
- * older `dsh-agent-presets` standard (`workflow-worker-thread`). Prefer the
- * Desktop patch when present, and refuse to write a composition whose package
+ * Composed from the **host's** shipped `standard` + Netx Ops overlays (DSH has
+ * no preset `extends`). Prefer `@deepseek-ai/dsh-web-app/presets/standard.patch.yml`
+ * (`workflow-ptc`) when present; refuse to write a composition whose package
  * names cannot resolve from the host anchors.
  */
 
@@ -531,16 +530,17 @@ function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Conte
 }
 
 /**
- * Sync declarative preset into Desktop's cordis.patch.yml.
- * Desktop 0.2 profile roots are empty `[]` (bundles + patch compose the tree),
- * so we key off the profile name — never web's directory roster.
+ * Sync declarative preset into a profile's cordis.patch.yml.
+ * DSH ≥0.2 profile roots are empty `[]` (bundles + patch compose the tree).
+ * Both `desktop` and `web` need the `@deepseek-ai/dsh-agent-preset` insert;
+ * directory `.agent-presets` alone is invisible on 0.2.
  */
 function syncDeclarativeIntoProfilePatch(
   profileName: string,
   declarativePatch: string,
   logger: Context['logger'],
 ): void {
-  if (profileName !== 'desktop') return
+  if (profileName !== 'desktop' && profileName !== 'web') return
   const profileDir = join(resolveDshHome(), 'profiles', profileName)
   const patchPath = join(profileDir, 'cordis.patch.yml')
   if (!existsSync(profileDir)) return
@@ -555,7 +555,11 @@ function syncDeclarativeIntoProfilePatch(
 
   const managed = `${DESKTOP_PATCH_BEGIN}\n${declarativePatch.trimEnd()}\n${DESKTOP_PATCH_END}\n`
   writeFileSync(patchPath, `${patch}${managed}`, 'utf8')
-  logger.info('netxops: declarative preset synced into profiles/%s/cordis.patch.yml (restart Desktop to load)', profileName)
+  logger.info(
+    'netxops: declarative preset synced into profiles/%s/cordis.patch.yml (restart %s to load)',
+    profileName,
+    profileName === 'desktop' ? 'Desktop' : 'dsh web',
+  )
 }
 
 /** Remove every BEGIN…END managed block using literal index search (markers contain `()`). */
