@@ -194,7 +194,8 @@ export function healNetxopsProfileEntries(logger: Context['logger']): number {
     writeFileSync(patchPath, normalized, 'utf8')
     rewritten += 1
     logger.info(
-      'netxops: healed sparse host entry in profiles/%s/cordis.patch.yml (restart %s to load capability defaults)',
+      'netxops: healed sparse host entry in profiles/%s/cordis.patch.yml '
+      + '(public toggles hot-reload via settings; restart %s only if tools still missing after heal)',
       profileName,
       profileName === 'desktop' ? 'Desktop' : 'dsh web',
     )

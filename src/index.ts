@@ -273,7 +273,9 @@ function installNetxopsSettings(
       return
     }
 
-    // DSH ≥0.1.7: profile Config projection — follow describe() for live values.
+    // DSH ≥0.1.7: profile Config projection — follow live fiber config.
+    // `settings/document-updated` fires right after configForms save → remount
+    // public tools/skills without restart (poll is a slow backup only).
     const readLive = (): Config => {
       const row = describeRows(settings.describe).find(item => item.ns === NETXOPS_SETTINGS_NAMESPACE)
       if (row?.value !== null && typeof row?.value === 'object' && !Array.isArray(row.value)) {
@@ -285,18 +287,29 @@ function installNetxopsSettings(
     hooks.onChange()
 
     let lastFingerprint = JSON.stringify(readLive())
-    const timer = setInterval(() => {
+    const bumpIfChanged = (reason: string): void => {
       const next = readLive()
       const fingerprint = JSON.stringify(next)
       if (fingerprint === lastFingerprint) return
       lastFingerprint = fingerprint
+      settingsCtx.logger.info('netxops: live settings changed (%s) → republish connection', reason)
       hooks.onChange()
-    }, 2_000)
-    settingsCtx.effect(() => () => {
-      clearInterval(timer)
-    }, 'netxops: settings describe poll')
+    }
+
+    settingsCtx.effect(() => {
+      const onDocumentUpdated = (ns: string): void => {
+        if (ns !== NETXOPS_SETTINGS_NAMESPACE && ns !== 'dsh-netxops') return
+        bumpIfChanged('document-updated')
+      }
+      const off = settingsCtx.on('settings/document-updated', onDocumentUpdated)
+      const timer = setInterval(() => { bumpIfChanged('poll') }, 2_000)
+      return () => {
+        clearInterval(timer)
+        if (typeof off === 'function') off()
+      }
+    }, 'netxops: settings live follow')
     settingsCtx.logger.info(
-      'netxops: following settings via describe() (no installSection — DSH ≥0.1.7 path)',
+      'netxops: hot-following settings (document-updated + describe poll)',
     )
   })
 }
