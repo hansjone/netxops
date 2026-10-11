@@ -1,8 +1,6 @@
-/**
- * Netx Ops settings section — uds-auth visual language (page header + cards).
- */
+/** Netx Ops settings: connection, publication, knowledge and delivery. */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NetxopsCardFace, NetxopsCardState } from './controller.ts'
 import type { NetxopsLocaleKey } from './locales.ts'
@@ -66,7 +64,7 @@ function kbBadgeLabel(
     return t('kbStatusUnconfigured')
   }
   if (snapshot.status === 'error') {
-    return fillTemplate(t('kbStatusError'), { detail: snapshot.errorMessage || 'error' })
+    return t('kbStatusError')
   }
   return fillTemplate(t('kbStatusConfigured'), {
     operator: snapshot.operatorName,
@@ -88,12 +86,11 @@ function toolsBadgeLabel(
   if (!view) return t('toolsStatusUnknown')
   if (!view.toolsEnabled) return t('toolsDisabled')
   if (view.error) {
-    return fillTemplate(t('toolsStatusError'), { detail: view.error })
+    return t('toolsStatusError')
   }
   if (view.count > 0) {
     return fillTemplate(t('toolsStatusMounted'), {
       count: String(view.count),
-      version: view.version || '?',
     })
   }
   return t('toolsStatusEmpty')
@@ -136,9 +133,8 @@ export type NetxopsCardProps =
 function ValueField(props: {
   id: string
   label: string
-  hint: string
+  hint?: string
   field: CardFieldState
-  overriddenLabel: string
   resetLabel: string
   invalidLabel: string
   disabled: boolean
@@ -152,7 +148,6 @@ function ValueField(props: {
         {props.field.overridden
           ? (
             <span className="dsh-nx-badges">
-              <span className="dsh-nx-badge">{props.overriddenLabel}</span>
               <button type="button" className="dsh-nx-reset" disabled={props.disabled} onClick={props.onReset}>
                 {props.resetLabel}
               </button>
@@ -164,14 +159,13 @@ function ValueField(props: {
         id={props.id}
         className={props.field.invalid ? 'dsh-nx-inputInvalid' : undefined}
         type="text"
+        placeholder={props.hint}
         value={props.field.text}
         disabled={props.disabled}
         aria-invalid={props.field.invalid || undefined}
         onChange={(event) => { props.onEdit(event.target.value) }}
       />
-      <p className={props.field.invalid ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
-        {props.field.invalid ? props.invalidLabel : props.hint}
-      </p>
+      {props.field.invalid ? <p className="dsh-nx-invalid">{props.invalidLabel}</p> : null}
     </div>
   )
 }
@@ -179,10 +173,8 @@ function ValueField(props: {
 function SelectField(props: {
   id: string
   label: string
-  hint: string
   field: CardFieldState
   options: ReadonlyArray<{ value: string, label: string }>
-  overriddenLabel: string
   resetLabel: string
   invalidLabel: string
   disabled: boolean
@@ -197,7 +189,6 @@ function SelectField(props: {
         {props.field.overridden
           ? (
             <span className="dsh-nx-badges">
-              <span className="dsh-nx-badge">{props.overriddenLabel}</span>
               <button type="button" className="dsh-nx-reset" disabled={props.disabled} onClick={props.onReset}>
                 {props.resetLabel}
               </button>
@@ -220,9 +211,7 @@ function SelectField(props: {
           <option key={row.value} value={row.value}>{row.label}</option>
         ))}
       </select>
-      <p className={props.field.invalid ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
-        {props.field.invalid ? props.invalidLabel : props.hint}
-      </p>
+      {props.field.invalid ? <p className="dsh-nx-invalid">{props.invalidLabel}</p> : null}
     </div>
   )
 }
@@ -343,7 +332,6 @@ function PresetTargets(props: {
   return (
     <details className="dsh-nx-targets">
       <summary>{props.t('selectedPresets')} · {selected.length}</summary>
-      <p className="dsh-nx-hint">{props.t('publicationHint')}</p>
       {props.state.presetCatalogError ? <p className="dsh-nx-invalid">{props.t('presetCatalogUnavailable')}</p> : null}
       {[...rows, ...unknown.map(id => ({ id, name: undefined, broken: undefined }))].map(row => (
         <label key={row.id} className="dsh-nx-checkRow">
@@ -361,6 +349,7 @@ function PresetTargets(props: {
 
 function CapabilityGroupBlock(props: {
   title: string
+  toolCount?: number
   inPresetLabel: string
   publicLabel: string
   inPreset: CardFieldState
@@ -371,8 +360,11 @@ function CapabilityGroupBlock(props: {
   targets?: ReactNode
 }) {
   return (
-    <div className="dsh-nx-groupBlock">
-      <div className="dsh-nx-groupTitle">{props.title}</div>
+    <div className="dsh-nx-groupBlock" role="group" aria-label={props.title}>
+      <div className="dsh-nx-groupTitle">
+        <span>{props.title}</span>
+        {props.toolCount !== undefined ? <span className="dsh-nx-badgeMuted">{props.toolCount}</span> : null}
+      </div>
       <div className="dsh-nx-groupChecks">
         <label className="dsh-nx-checkRow">
           <input
@@ -404,33 +396,26 @@ function ToggleField(props: {
   checked: boolean
   disabled: boolean
   overridden: boolean
-  overriddenLabel: string
   resetLabel: string
   onToggle: (checked: boolean) => void
   onReset: () => void
   trailing?: ReactNode
-  hint?: ReactNode
   error?: ReactNode
 }) {
   return (
-    <div className="dsh-nx-settings-field">
+    <div className="dsh-nx-settings-field dsh-nx-toggleField">
       <div className="dsh-nx-field-head">
         <label htmlFor={props.id}>{props.label}</label>
         <span className="dsh-nx-badges">
           {props.trailing}
           {props.overridden
             ? (
-              <>
-                <span className="dsh-nx-badge">{props.overriddenLabel}</span>
-                <button type="button" className="dsh-nx-reset" disabled={props.disabled} onClick={props.onReset}>
-                  {props.resetLabel}
-                </button>
-              </>
+              <button type="button" className="dsh-nx-reset" disabled={props.disabled} onClick={props.onReset}>
+                {props.resetLabel}
+              </button>
             )
             : null}
         </span>
-      </div>
-      <label className="dsh-nx-checkRow" htmlFor={props.id}>
         <input
           id={props.id}
           type="checkbox"
@@ -439,8 +424,7 @@ function ToggleField(props: {
           aria-label={props.label}
           onChange={(event) => { props.onToggle(event.target.checked) }}
         />
-      </label>
-      {props.hint}
+      </div>
       {props.error}
     </div>
   )
@@ -450,23 +434,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
   ensureStyles()
   const { t } = props
   const state: NetxopsCardState = props.useNetxopsCard(snapshot => snapshot)
-  const [flash, setFlash] = useState<'ok' | 'err' | null>(null)
-  const saveStarted = useRef(false)
-
-  useEffect(() => {
-    if (state.saving) {
-      saveStarted.current = true
-      setFlash(null)
-      return
-    }
-    if (!saveStarted.current) return
-    saveStarted.current = false
-    if (state.failed) {
-      setFlash('err')
-      return
-    }
-    if (!state.dirty) setFlash('ok')
-  }, [state.dirty, state.failed, state.saving])
 
   if (!state.available) {
     return (
@@ -490,7 +457,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
     <section className="dsh-nx-settings" aria-label={t('title')}>
       <header>
         <h2>{t('title')}</h2>
-        <p className="dsh-nx-settings-intro">{t('description')}</p>
       </header>
 
       {!state.writable
@@ -499,25 +465,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
 
       <div className="dsh-nx-settings-card">
         <h3>{t('sectionConnection')}</h3>
-        <div className="dsh-nx-settings-field">
-          <div className="dsh-nx-field-head">
-            <span>{t('toolsStatus')}</span>
-            <StatusBadge
-              tone={toolsMountTone(state.toolsStatus)}
-              label={toolsBadgeLabel(t, state.toolsStatus)}
-            />
-          </div>
-          <p className="dsh-nx-hint">{t('mountStatusHint')}</p>
-          {state.toolsStatus && state.toolsStatus.mounts.length > 0 ? (
-            <details><summary>{t('mountDetails')}</summary>
-              {state.toolsStatus.mounts.map((mount, index) => (
-                <p key={`${mount.source}:${index}`} className={mount.error ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
-                  {mount.source} · {mount.count} · {mount.groups.join(', ') || '—'}{mount.error ? ` · ${mount.error}` : ''}
-                </p>
-              ))}
-            </details>
-          ) : null}
-        </div>
         <div className="dsh-nx-settings-field">
           <div className="dsh-nx-field-head">
             <label htmlFor="netxops-api-token">{t('apiToken')}</label>
@@ -531,96 +478,106 @@ export function NetxopsCard(props: NetxopsCardProps) {
             id="netxops-api-token"
             type="password"
             autoComplete="off"
+            placeholder={t('apiTokenHint')}
             value={state.apiToken.text}
             disabled={!state.apiTokenWritable}
             onChange={(event) => { props.edit('apiToken', event.target.value) }}
           />
-          <p className="dsh-nx-hint">
-            {state.apiTokenRemoteReady ? t('apiTokenHint') : t('apiTokenUnavailable')}
-          </p>
+          {!state.apiTokenRemoteReady ? <p className="dsh-nx-invalid">{t('apiTokenUnavailable')}</p> : null}
         </div>
         <ValueField
           id="netxops-api-url"
           label={t('apiUrl')}
           hint={t('apiUrlHint')}
           field={state.apiUrl}
-          overriddenLabel={t('overridden')}
           resetLabel={t('reset')}
           invalidLabel={t('apiUrlInvalid')}
           disabled={disabled}
           onEdit={(text) => { props.edit('apiUrl', text) }}
           onReset={() => { props.resetField('apiUrl') }}
         />
-        <ValueField
-          id="netxops-lang"
-          label={t('lang')}
-          hint={t('langHint')}
-          field={state.lang}
-          overriddenLabel={t('overridden')}
-          resetLabel={t('reset')}
-          invalidLabel={t('invalid')}
-          disabled={disabled}
-          onEdit={(text) => { props.edit('lang', text) }}
-          onReset={() => { props.resetField('lang') }}
-        />
-        <SelectField
-          id="netxops-thinking-language"
-          label={t('thinkingLanguage')}
-          hint={t('thinkingLanguageHint')}
-          field={state.thinkingLanguage}
-          options={[
-            { value: 'auto', label: 'auto' },
-            { value: 'zh-CN', label: 'zh-CN' },
-            { value: 'en', label: 'en' },
-          ]}
-          overriddenLabel={t('overridden')}
-          resetLabel={t('reset')}
-          invalidLabel={t('invalid')}
-          disabled={disabled}
-          onEdit={(text) => { props.edit('thinkingLanguage', text) }}
-          onReset={() => { props.resetField('thinkingLanguage') }}
-        />
-        <SelectField
-          id="netxops-reply-language"
-          label={t('replyLanguage')}
-          hint={t('replyLanguageHint')}
-          field={state.replyLanguage}
-          options={[
-            { value: 'follow-user', label: 'follow-user' },
-            { value: 'zh', label: 'zh' },
-            { value: 'en', label: 'en' },
-          ]}
-          overriddenLabel={t('overridden')}
-          resetLabel={t('reset')}
-          invalidLabel={t('invalid')}
-          disabled={disabled}
-          onEdit={(text) => { props.edit('replyLanguage', text) }}
-          onReset={() => { props.resetField('replyLanguage') }}
-        />
-        <ValueField
-          id="netxops-nms-provider"
-          label={t('nmsProvider')}
-          hint={t('nmsProviderHint')}
-          field={state.nmsProvider}
-          overriddenLabel={t('overridden')}
-          resetLabel={t('reset')}
-          invalidLabel={t('invalid')}
-          disabled={disabled}
-          onEdit={(text) => { props.edit('nmsProvider', text) }}
-          onReset={() => { props.resetField('nmsProvider') }}
-        />
+        <div className="dsh-nx-fieldGrid">
+          <SelectField
+            id="netxops-lang"
+            label={t('lang')}
+            field={state.lang}
+            options={[
+              { value: 'zh', label: t('languageChinese') },
+              { value: 'en', label: t('languageEnglish') },
+            ]}
+            resetLabel={t('reset')}
+            invalidLabel={t('invalid')}
+            disabled={disabled}
+            onEdit={(text) => { props.edit('lang', text) }}
+            onReset={() => { props.resetField('lang') }}
+          />
+          <SelectField
+            id="netxops-nms-provider"
+            label={t('nmsProvider')}
+            field={state.nmsProvider}
+            options={[{ value: 'zte-ume', label: 'ZTE UME' }]}
+            resetLabel={t('reset')}
+            invalidLabel={t('invalid')}
+            disabled={disabled}
+            onEdit={(text) => { props.edit('nmsProvider', text) }}
+            onReset={() => { props.resetField('nmsProvider') }}
+          />
+        </div>
       </div>
 
       <div className="dsh-nx-settings-card">
-        <h3>{t('sectionCapabilities')}</h3>
+        <div className="dsh-nx-card-head">
+          <h3>{t('sectionLanguage')}</h3>
+          <span className="dsh-nx-hint">{t('languageScope')}</span>
+        </div>
+        <div className="dsh-nx-fieldGrid">
+          <SelectField
+            id="netxops-thinking-language"
+            label={t('thinkingLanguage')}
+            field={state.thinkingLanguage}
+            options={[
+              { value: 'auto', label: t('languageAuto') },
+              { value: 'zh-CN', label: t('languageChinese') },
+              { value: 'en', label: t('languageEnglish') },
+            ]}
+            resetLabel={t('reset')}
+            invalidLabel={t('invalid')}
+            disabled={disabled}
+            onEdit={(text) => { props.edit('thinkingLanguage', text) }}
+            onReset={() => { props.resetField('thinkingLanguage') }}
+          />
+          <SelectField
+            id="netxops-reply-language"
+            label={t('replyLanguage')}
+            field={state.replyLanguage}
+            options={[
+              { value: 'follow-user', label: t('languageFollowUser') },
+              { value: 'zh', label: t('languageChinese') },
+              { value: 'en', label: t('languageEnglish') },
+            ]}
+            resetLabel={t('reset')}
+            invalidLabel={t('invalid')}
+            disabled={disabled}
+            onEdit={(text) => { props.edit('replyLanguage', text) }}
+            onReset={() => { props.resetField('replyLanguage') }}
+          />
+        </div>
+      </div>
+
+      <div className="dsh-nx-settings-card">
+        <div className="dsh-nx-card-head">
+          <h3>{t('sectionCapabilities')}</h3>
+          <StatusBadge tone={toolsMountTone(state.toolsStatus)} label={toolsBadgeLabel(t, state.toolsStatus)} />
+        </div>
         <ToggleField id="netxops-tools-enabled" label={t('toolsEnabled')}
           checked={state.toolsEnabled.text === 'true'} disabled={disabled}
-          overridden={state.toolsEnabled.overridden} overriddenLabel={t('overridden')} resetLabel={t('reset')}
+          overridden={state.toolsEnabled.overridden} resetLabel={t('reset')}
           onToggle={checked => { props.edit('toolsEnabled', String(checked)) }}
           onReset={() => { props.resetField('toolsEnabled') }}
-          hint={<p className="dsh-nx-hint">{t('toolsEnabledHint')}</p>} />
+          error={state.toolsStatus?.error ? <p className="dsh-nx-invalid" role="status">{state.toolsStatus.error}</p> : null} />
         <CapabilityGroupBlock
-          title={`${t('groupOps')} · ${TOOLS_BY_GROUP.ops.length}`}
+          title={t('groupOps')}
+          toolCount={TOOLS_BY_GROUP.ops.length}
           targets={targets('groupOpsPresets', state.groupOpsPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
@@ -635,7 +592,8 @@ export function NetxopsCard(props: NetxopsCardProps) {
           }}
         />
         <CapabilityGroupBlock
-          title={`${t('groupTopology')} · ${TOOLS_BY_GROUP.topology.length}`}
+          title={t('groupTopology')}
+          toolCount={TOOLS_BY_GROUP.topology.length}
           targets={targets('groupTopologyPresets', state.groupTopologyPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
@@ -650,7 +608,8 @@ export function NetxopsCard(props: NetxopsCardProps) {
           }}
         />
         <CapabilityGroupBlock
-          title={`${t('groupBizMonitor')} · ${TOOLS_BY_GROUP.bizMonitor.length}`}
+          title={t('groupBizMonitor')}
+          toolCount={TOOLS_BY_GROUP.bizMonitor.length}
           targets={targets('groupBizMonitorPresets', state.groupBizMonitorPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
@@ -664,22 +623,30 @@ export function NetxopsCard(props: NetxopsCardProps) {
             props.edit('groupBizMonitorPublic', checked ? 'true' : 'false')
           }}
         />
+        {state.toolsStatus && state.toolsStatus.mounts.length > 0 ? (
+          <details className="dsh-nx-diagnostics"><summary>{t('mountDetails')}</summary>
+            <p className="dsh-nx-hint">{t('mountStatusHint')}</p>
+            {state.toolsStatus.mounts.map((mount, index) => (
+              <p key={`${mount.source}:${index}`} className={mount.error ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
+                {mount.source} · {mount.count} · {mount.groups.join(', ') || '—'}{mount.error ? ` · ${mount.error}` : ''}
+              </p>
+            ))}
+          </details>
+        ) : null}
       </div>
 
       <div className="dsh-nx-settings-card">
-        <h3>{t('sectionKnowledge')}</h3>
+        <div className="dsh-nx-card-head">
+          <h3>{t('sectionKnowledge')}</h3>
+          <StatusBadge tone={kbStatusTone(state.kbStatus?.status ?? 'unconfigured')} label={kbBadgeLabel(t, state.kbStatus)} />
+        </div>
         <div className="dsh-nx-settings-field">
           <div className="dsh-nx-field-head">
             <label htmlFor="netxops-kb-root">{t('kbRoot')}</label>
             <span className="dsh-nx-badges">
-              <StatusBadge
-                tone={kbStatusTone(state.kbStatus?.status ?? 'unconfigured')}
-                label={kbBadgeLabel(t, state.kbStatus)}
-              />
               {state.kbRoot.overridden
                 ? (
                   <>
-                    <span className="dsh-nx-badge">{t('overridden')}</span>
                     <button
                       type="button"
                       className="dsh-nx-reset"
@@ -698,6 +665,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
               id="netxops-kb-root"
               className={state.kbRoot.invalid ? 'dsh-nx-inputInvalid' : undefined}
               type="text"
+              placeholder={t('kbRootHint')}
               value={state.kbRoot.text}
               disabled={disabled}
               aria-invalid={state.kbRoot.invalid || undefined}
@@ -706,20 +674,14 @@ export function NetxopsCard(props: NetxopsCardProps) {
             <button
               type="button"
               className="dsh-nx-btn"
-              disabled={disabled}
+              disabled={disabled || !state.kbDirectoryPickerReady}
+              title={!state.kbDirectoryPickerReady ? t('kbBrowseUnavailable') : undefined}
               onClick={() => { props.browseKbRoot() }}
             >
               {t('kbBrowse')}
             </button>
           </div>
-          <p className={state.kbRoot.invalid ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
-            {state.kbRoot.invalid
-              ? t('invalid')
-              : state.kbDirectoryPickerReady
-                ? t('kbRootHint')
-                : t('kbBrowseUnavailable')}
-          </p>
-          <p className="dsh-nx-hint">{t('kbSaveHint')}</p>
+          {state.kbRoot.invalid ? <p className="dsh-nx-invalid">{t('invalid')}</p> : null}
           {state.kbUiError
             ? (
               <p className="dsh-nx-invalid" role="status">
@@ -730,7 +692,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
           {state.kbStatus?.status === 'error' && state.kbStatus.errorMessage
             ? <p className="dsh-nx-invalid" role="status">{state.kbStatus.errorMessage}</p>
             : null}
-          {state.kbStatus?.status === 'configured' && state.kbStatus.realRoot
+          {state.kbStatus?.status === 'configured' && state.kbStatus.realRoot && state.kbStatus.realRoot !== state.kbRoot.text
             ? <p className="dsh-nx-hint">{state.kbStatus.realRoot}</p>
             : null}
         </div>
@@ -759,7 +721,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
           checked={state.alarmPushEnabled.text === 'true'}
           disabled={disabled}
           overridden={state.alarmPushEnabled.overridden}
-          overriddenLabel={t('overridden')}
           resetLabel={t('reset')}
           onToggle={(checked) => {
             props.edit('alarmPushEnabled', checked ? 'true' : 'false')
@@ -769,11 +730,10 @@ export function NetxopsCard(props: NetxopsCardProps) {
             ? (
               <StatusBadge
                 phase={pushStatus.phase}
-                label={`${t('alarmPushStatus')}: ${t(phaseLocaleKey(pushStatus.phase))}`}
+                label={t(phaseLocaleKey(pushStatus.phase))}
               />
             )
             : null}
-          hint={pushStatus?.wsUrl ? <p className="dsh-nx-hint">{pushStatus.wsUrl}</p> : null}
           error={pushStatus?.lastError
             ? <p className="dsh-nx-invalid" role="status">{pushStatus.lastError}</p>
             : null}
@@ -784,7 +744,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
           checked={state.alarmDeliverDsh.text === 'true'}
           disabled={disabled}
           overridden={state.alarmDeliverDsh.overridden}
-          overriddenLabel={t('overridden')}
           resetLabel={t('reset')}
           onToggle={(checked) => {
             props.edit('alarmDeliverDsh', checked ? 'true' : 'false')
@@ -816,7 +775,6 @@ export function NetxopsCard(props: NetxopsCardProps) {
       <div className="dsh-nx-settings-card">
         <h3>{t('sectionExport')}</h3>
         <div className="dsh-nx-settings-field">
-          <span className="dsh-nx-field-label">{t('sessionsExport')}</span>
           {state.sessionsExportStatus === null
             ? <p className="dsh-nx-hint">{t('sessionsExportUnavailable')}</p>
             : state.sessionsExportStatus.available
@@ -863,7 +821,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
         </div>
       </div>
 
-      <div className="dsh-nx-settings-actions">
+      {state.dirty || state.saving || state.failed ? <div className="dsh-nx-settings-actions">
         <button
           type="button"
           className="dsh-nx-btn dsh-nx-btn-primary"
@@ -876,23 +834,17 @@ export function NetxopsCard(props: NetxopsCardProps) {
           type="button"
           className="dsh-nx-btn dsh-nx-btn-ghost"
           disabled={!state.dirty || state.saving}
-          onClick={() => {
-            props.discard()
-            setFlash(null)
-          }}
+          onClick={props.discard}
         >
           {t('discard')}
         </button>
         {state.dirty && !state.saving
           ? <span className="dsh-nx-settings-msg">{t('unsaved')}</span>
           : null}
-        {flash === 'ok' && !state.dirty
-          ? <span className="dsh-nx-settings-msg ok">{t('configSaved')}</span>
-          : null}
-        {(flash === 'err' || state.failed)
+        {state.failed
           ? <span className="dsh-nx-settings-msg err" role="status">{t('saveFailed')}</span>
           : null}
-      </div>
+      </div> : null}
     </section>
   )
 }

@@ -23,7 +23,15 @@ const scope = {
   async set(field: string, value: unknown) { user[field] = value; for (const fn of listeners) fn() },
   async unset(field: string) { delete user[field]; for (const fn of listeners) fn() },
 }
-const controller = new NetxopsCardController(scope, { get: () => undefined } as never)
+const previewCredentials = {
+  async describe(refs: string[]) {
+    return { ok: true, value: Object.fromEntries(refs.map(ref => [ref, { configured: true, writable: true }])) }
+  },
+  async set() { /* Preview only; no credentials are stored. */ },
+}
+const controller = new NetxopsCardController(scope, {
+  get: key => key === 'remote.credentials' ? previewCredentials : undefined,
+} as never)
 controller.setAlarmPushRpc(async (_channel, endpoint) => {
   const value = scope.getSnapshot().value
   if (endpoint === 'presets.catalog') return { ok: true, value: { presets: [
