@@ -29,8 +29,11 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import * as DshSettings from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
 export {
+  composeNetxopsPresetArtifacts,
   ensureAgentPresetInstalled,
+  installDirectoryPreset,
   NETXOPS_PRESET_ID,
+  syncDeclarativeIntoProfilePatch,
 } from './agent-preset-install.ts'
 export {
   mergeHostConfigForHeal,

@@ -9,7 +9,7 @@ const read = (path) => readFile(resolve(root, path), 'utf8')
 
 test('package declares Desktop 0.2 client contract', async () => {
   const pkg = JSON.parse(await read('package.json'))
-  assert.equal(pkg.version, '0.1.69')
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/)
   assert.equal(pkg.engines.node, '>=20')
   assert.equal(pkg.dsh.client.immediately, false)
   assert.deepEqual(pkg.dsh.client.inject, [

@@ -1,11 +1,11 @@
 # Host-plane Netx Ops bridge: settings + credentials → connection publish.
 # Ops-scoped `netx__*` tools mount from the agent preset (`dsh-netxops/tools`).
-# Capability groups: ops in preset (not public by default); topology off.
-# Rule: one group ↔ one skill (netx-ops / netx-topology).
+# Capability groups: ops + biz-monitor in Netx Ops by default; topology off.
+# Tools and corresponding skills share the selected publication targets.
 #
 # IM + cron are separate profile bundles (pnpm blockExoticSubdeps forbids
-# github: packages as transitive deps of this package). Install them in the
-# same `dsh plugin add` line — see docs/INSTALL.md.
+# github: packages as transitive deps of this package). Install them only when
+# their delivery or scheduling features are needed — see docs/INSTALL.md.
 #
 # After install, open Settings → Plugins to edit apiUrl / lang / thinking+reply
 # language / groups (settings card client half; see docs/INSTALL.md).

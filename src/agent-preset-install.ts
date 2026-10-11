@@ -19,10 +19,12 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -328,14 +330,16 @@ export function extractPluginsBodyFromStandardPatch(patchYaml: string): string {
 
 /** Convert patch-indented plugins body into a top-level `agent.cordis.yml` list. */
 export function pluginsBodyToAgentCordis(pluginsBody: string): string {
-  const prefix = PATCH_PLUGIN_INDENT
+  const normalized = pluginsBody.replace(/\r\n/g, '\n')
+  const prefix = /^([ \t]*)-\s/m.exec(normalized)?.[1]
+  if (prefix === undefined) throw new Error('standard preset plugins must be a YAML list')
   return `${pluginsBody
     .replace(/\r\n/g, '\n')
     .split('\n')
     .map((line) => {
       if (line.length === 0) return ''
       if (line.startsWith(prefix)) return line.slice(prefix.length)
-      return line.trimStart()
+      throw new Error('standard preset plugins have inconsistent indentation')
     })
     .join('\n')
     .trimEnd()}\n`
@@ -568,7 +572,7 @@ export function syncDeclarativeIntoProfilePatch(
   declarativePatch: string,
   logger: Context['logger'],
 ): void {
-  if (profileName !== 'desktop' && profileName !== 'web') return
+  if (!/^[\w-]+$/.test(profileName)) throw new Error('invalid Host profile name')
   const profileDir = join(resolveDshHome(), 'profiles', profileName)
   const patchPath = join(profileDir, 'cordis.patch.yml')
   if (!existsSync(profileDir)) return
@@ -578,11 +582,21 @@ export function syncDeclarativeIntoProfilePatch(
   // Drop previous managed blocks (literal markers — do not RegExp `(managed)`).
   patch = stripManagedPresetBlocks(patch)
   // Drop a bare enable stub left by older installs.
-  if (/^\s*- id: preset-netxops\s*$/m.test(patch)) {
+  if (/^\s*-\s+id:\s*(?:preset-netxops|"preset-netxops"|'preset-netxops')\s*(?:#.*)?$/m.test(patch)) {
     logger.warn('netxops: preserving user-declared preset-netxops in %s', patchPath)
     return
   }
-  if (patch.trim() === '' || patch.trim() === '[]') patch = ''
+  // New Harness profiles contain comments followed by `[]`, rather than just
+  // `[]`. Appending a block to that flow list produces invalid YAML on restart.
+  const contentLines = patch.replace(/^\uFEFF/, '').split(/\r?\n/)
+    .filter(line => !/^\s*(?:#.*)?$/.test(line) && !/^(?:---|\.\.\.)[ \t]*(?:#.*)?$/.test(line))
+  if (contentLines.length === 1 && /^\[\][ \t]*(?:#.*)?$/.test(contentLines[0]!)) {
+    patch = patch.replace(/^\uFEFF/, '').replace(/^\[\][ \t]*(#.*)?$/m, (_line, comment) => comment ?? '')
+  } else if (contentLines.length > 0 && !/^\s*-\s/.test(contentLines[0]!)) {
+    throw new Error('profile patch must be a YAML block list; preserving the existing document')
+  }
+  // Keep a single YAML document when an otherwise valid patch has an explicit end.
+  patch = patch.replace(/^\.\.\.[ \t]*(#.*)?$/gm, (_line, comment) => comment ?? '')
   if (!patch.endsWith('\n') && patch.length > 0) patch += '\n'
 
   const managed = `${DESKTOP_PATCH_BEGIN}\n${declarativePatch.trimEnd()}\n${DESKTOP_PATCH_END}\n`
@@ -592,7 +606,18 @@ export function syncDeclarativeIntoProfilePatch(
     logger.warn('netxops: profile patch changed during preset installation; preserving %s', patchPath)
     return
   }
-  writeFileSync(patchPath, next, 'utf8')
+  const temporary = join(profileDir, `.netxops-patch-${randomUUID()}.tmp`)
+  try {
+    writeFileSync(temporary, next, { encoding: 'utf8', flag: 'wx' })
+    // Check again before replacing the file; interruption cannot leave a partial patch.
+    if ((existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : '[]\n') !== original) {
+      logger.warn('netxops: profile patch changed during preset installation; preserving %s', patchPath)
+      return
+    }
+    renameSync(temporary, patchPath)
+  } finally {
+    if (existsSync(temporary)) unlinkSync(temporary)
+  }
   logger.info(
     'netxops: declarative preset synced into profiles/%s/cordis.patch.yml (restart %s to load)',
     profileName,

@@ -20,4 +20,5 @@ __pycache__/
 *.pyc
 .dsh/
 *.tgz
+*.tgz.sha256
 .pnpm-store/

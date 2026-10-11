@@ -10,6 +10,7 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { recordBuild } from './build-integrity.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'lib')
@@ -66,6 +67,7 @@ for (const { entry, out } of entries) {
     format: 'esm',
     sourcemap: 'none',
     minify: false,
+    metafile: true,
     external,
   })
 
@@ -76,5 +78,6 @@ for (const { entry, out } of entries) {
 
   const text = await result.outputs[0].text()
   writeFileSync(out, text, 'utf8')
+  recordBuild(out, result, 'scripts/build-host.mjs')
   console.log(`wrote ${out} (${text.length} bytes)`)
 }

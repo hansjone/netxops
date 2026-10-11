@@ -1,0 +1,5 @@
+packages:
+  - .
+
+# Harness provides these peers. Do not try to fetch internal packages from npm.
+autoInstallPeers: false

@@ -38,18 +38,13 @@ function profileArg() {
 }
 
 /**
- * Prefer the shared healed fallback `profiles/node_modules` (one coherent peer
- * set). Do NOT prefer the Desktop
- * profile's schemastery first — Desktop 0.2 ships 3.18.4 which, when linked
- * alone into this package, makes `Config({})` return cosmokit volatile proxies
- * instead of defaults and Host apply fails ("web boot: dsh-netxops failed").
- * Do NOT createRequire() — that can walk into an unrelated checkout via NODE_PATH.
+ * Select one complete set from the requested profile or shared Host fallback.
+ * Never combine packages from different Host generations or other profiles.
  */
 function candidateDirs(profile) {
   return [
-    join(dshHome, 'profiles', 'node_modules', '@deepseek-ai'),
     join(dshHome, 'profiles', profile, 'node_modules', '@deepseek-ai'),
-    join(dshHome, 'profiles', 'web', 'node_modules', '@deepseek-ai'),
+    join(dshHome, 'profiles', 'node_modules', '@deepseek-ai'),
   ]
 }
 
@@ -82,6 +77,7 @@ function linkOne(shortName, target) {
 }
 
 const profile = profileArg()
+if (!/^[\w-]+$/.test(profile)) throw new Error('Invalid profile name.')
 const dirs = candidateDirs(profile)
 console.log(`DSH_HOME=${dshHome} profile=${profile}`)
 console.log(`search:\n  ${dirs.join('\n  ')}`)

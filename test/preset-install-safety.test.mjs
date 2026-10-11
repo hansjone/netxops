@@ -3,9 +3,11 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createRequire } from 'node:module'
 import { composeNetxopsPresetArtifacts, hostResolveBases, installDirectoryPreset, resolveActiveProfile, resolveStandardPresetDir, syncDeclarativeIntoProfilePatch } from '../src/agent-preset-install.ts'
 
 const log = { info() {}, warn() {}, error() {} }
+const { load } = createRequire(import.meta.url)('js-yaml')
 const patch = '- insert:\n    - id: preset-netxops\n      name: preset-plugin\n'
 function home(t) {
   const previous = process.env.DSH_HOME
@@ -27,6 +29,45 @@ test('updating Desktop patch leaves Web patch intact', t => {
   syncDeclarativeIntoProfilePatch('desktop', patch, log)
   assert.equal(readFileSync(web, 'utf8'), original)
   assert.match(readFileSync(join(root, 'profiles', 'desktop', 'cordis.patch.yml'), 'utf8'), /preset-netxops/)
+  assert.equal(load(readFileSync(join(root, 'profiles', 'desktop', 'cordis.patch.yml'), 'utf8'))[0].insert[0].id, 'preset-netxops')
+})
+
+test('fresh commented and delimited profile patches remain valid after install and upgrade', t => {
+  const root = home(t)
+  for (const [index, original] of [
+    '# Your patch layer\n[]\n',
+    '\uFEFF# profile\r\n[] # empty\r\n',
+    '---\n# profile\n[]\n...\n',
+    '# user config\n- id: preserve-me\n  config: {value: 7}\n...\n',
+  ].entries()) {
+    const profile = `custom-${index}`, folder = join(root, 'profiles', profile)
+    mkdirSync(folder, { recursive: true })
+    const path = join(folder, 'cordis.patch.yml')
+    writeFileSync(path, original)
+    syncDeclarativeIntoProfilePatch(profile, patch, log)
+    const first = readFileSync(path, 'utf8'), rows = load(first)
+    assert.ok(Array.isArray(rows))
+    assert.equal(rows.filter(row => row.insert?.[0]?.id === 'preset-netxops').length, 1)
+    if (index === 3) assert.equal(rows[0].config.value, 7)
+    syncDeclarativeIntoProfilePatch(profile, patch, log)
+    assert.equal(readFileSync(path, 'utf8'), first, 'upgrade is idempotent')
+  }
+})
+
+test('quoted or commented user preset IDs are preserved and unsupported roots are not overwritten', t => {
+  const root = home(t), folder = join(root, 'profiles', 'web')
+  mkdirSync(folder, { recursive: true })
+  const path = join(folder, 'cordis.patch.yml')
+  for (const id of ['preset-netxops # custom', '"preset-netxops"', "'preset-netxops'"]) {
+    const original = `- insert:\n    - id: ${id}\n      name: custom-preset\n`
+    writeFileSync(path, original)
+    syncDeclarativeIntoProfilePatch('web', patch, log)
+    assert.equal(readFileSync(path, 'utf8'), original)
+  }
+  writeFileSync(path, 'config: user-data\n')
+  assert.throws(() => syncDeclarativeIntoProfilePatch('web', patch, log), /preserving/)
+  assert.equal(readFileSync(path, 'utf8'), 'config: user-data\n')
+  assert.throws(() => syncDeclarativeIntoProfilePatch('../outside', patch, log), /invalid/)
 })
 
 test('unterminated managed block does not truncate user configuration', t => {

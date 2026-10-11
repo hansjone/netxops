@@ -1,0 +1,43 @@
+name: Release package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.7.0'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Check committed artifacts before rebuilding, so an omitted build fails CI.
+      - run: bun run release:check
+      - run: bun run bundle
+      - run: bun run release:check
+      - run: bun run test:release
+      - run: bun run release:pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netxops-${{ matrix.os }}
+          path: |
+            *.tgz
+            *.tgz.sha256
+          if-no-files-found: error

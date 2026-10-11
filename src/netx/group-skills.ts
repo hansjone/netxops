@@ -36,12 +36,13 @@ export function opsSkillsRoot(): string {
   if (envRoot && existsSync(envRoot)) return envRoot
 
   const here = dirname(fileURLToPath(import.meta.url))
+  const checkout = [join(here, '..', '.git'), join(here, '..', '..', '.git')].some(existsSync)
   const siblingCandidates = [
     // src/netx → ../../../netx/skills ; lib → ../../netx/skills
     join(here, '..', '..', '..', 'netx', 'skills'),
     join(here, '..', '..', 'netx', 'skills'),
   ]
-  for (const candidate of siblingCandidates) {
+  for (const candidate of checkout ? siblingCandidates : []) {
     if (existsSync(candidate)) return candidate
   }
 

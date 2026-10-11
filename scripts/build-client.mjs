@@ -12,6 +12,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { recordBuild } from './build-integrity.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const entry = join(root, 'src/client/index.ts')
@@ -35,6 +36,7 @@ const result = await Bun.build({
   format: 'cjs',
   sourcemap: 'none',
   minify: false,
+  metafile: true,
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
   },
@@ -80,4 +82,5 @@ ${body}
 
 mkdirSync(dirname(outFile), { recursive: true })
 writeFileSync(outFile, artifact, 'utf8')
+recordBuild(outFile, result, 'scripts/build-client.mjs')
 console.log(`wrote ${outFile} (${artifact.length} bytes); requires: ${[...new Set(requires)].join(', ') || '(none)'}`)
