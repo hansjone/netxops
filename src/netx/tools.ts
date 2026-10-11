@@ -2,6 +2,9 @@
  * Register native DSH tools (`netx__*`) that call netx REST.
  */
 
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
@@ -13,10 +16,23 @@ import {
 import { createNetxClient, type NetxClient, type NetxJson } from './http.ts'
 import { toLosslessJson } from './json-safe.ts'
 import { getNetxConnection } from './runtime.ts'
+import { getToolMountId, publishToolMountStatus, removeToolMountStatus } from './tool-mount-status.ts'
 import * as H from './handlers.ts'
 import * as T from './topology-handlers.ts'
 
+function packageVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url))
+    const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as { version?: string }
+    return typeof pkg.version === 'string' ? pkg.version : '0'
+  } catch {
+    return '0'
+  }
+}
+
 export interface NetxToolConnection {
+  toolsEnabled?: boolean
+  groupKbPresets?: string
   apiUrl: string
   token: string
   lang: string
@@ -33,6 +49,11 @@ export interface NetxToolConnection {
 }
 
 type Handler = (client: NetxClient, args: NetxJson, signal?: AbortSignal) => Promise<NetxJson>
+const MUTATING_TOOLS = new Set([
+  'netx__execManagedNe', 'netx__createTopologyFolder', 'netx__addTopologyViewNodes',
+  'netx__removeTopologyViewNodes', 'netx__copyTopologyViewNodes', 'netx__updateTopologyViewPositions',
+  'netx__projectTopologyNeighbors', 'netx__classifyTopologyFabricNodes', 'netx__layoutTopologyView',
+])
 
 const str = (description?: string) => ({ type: 'string' as const, ...(description ? { description } : {}) })
 const num = (description?: string) => ({ type: 'number' as const, ...(description ? { description } : {}) })
@@ -53,8 +74,15 @@ function renderJson(_args: unknown, value: unknown) {
   return [{ type: 'text' as const, text: JSON.stringify(value, null, 0) }]
 }
 
+/**
+ * Wire-compatible free-form object output.
+ * Prefer this over author-only `{ type: 'json' }`: Desktop Host ToolRuntime
+ * often comes from app.asar while `defineTool` resolves from the linked
+ * checkout — mismatched copies can reject `json` at register time, which
+ * leaves skills mounted and `netx__*` absent.
+ */
 const jsonOut = {
-  schema: { type: 'json' as const },
+  schema: { type: 'object' as const, additionalProperties: true as const },
   render: renderJson,
 }
 
@@ -72,7 +100,7 @@ function tool(
     parameters: parameters as never,
     output: jsonOut,
     timeoutMs,
-    isConcurrencySafe: () => true,
+    isConcurrencySafe: () => !MUTATING_TOOLS.has(name),
     async execute(args, exec) {
       const result = await handler(getClient(), args as NetxJson, exec.signal)
       // DSH rejects tool results that contain `undefined` property holes
@@ -89,13 +117,15 @@ function tool(
 export interface RegisterNetxToolsOptions {
   /**
    * `preset` — groups with `inPreset` (Netx Ops preset scope).
-   * `public` — groups with `public` (host layer for other presets).
+   * `public` — groups with `public` only.
+   * `host` — same as `public` (Host-global registry for other presets).
    */
-  plane: 'preset' | 'public'
+  plane: 'preset' | 'public' | 'host'
   /** Optional intersect with settings-enabled groups. */
   only?: readonly NetxCapabilityGroupId[]
   /** When set, register exactly these groups (ignore plane flags). */
   forceGroups?: readonly NetxCapabilityGroupId[]
+  source?: string
 }
 
 /**
@@ -111,19 +141,43 @@ export function registerNetxTools(
   connection: NetxToolConnection,
   options: RegisterNetxToolsOptions,
 ): () => void {
-  const enabledGroups = options.forceGroups
-    ?? groupsForPlane(connection.groups, options.plane, options.only)
+  const enabledGroups = connection.toolsEnabled === false ? [] : (options.forceGroups
+    ?? groupsForPlane(connection.groups, options.plane, options.only))
+  const id = getToolMountId(ctx, options.source ?? options.plane)
   const allow = toolNamesForGroups(enabledGroups)
-  if (allow.size === 0) return () => {}
+  if (allow.size === 0) {
+    publishToolMountStatus({
+      id,
+      version: packageVersion(),
+      plane: options.plane,
+      groups: [...enabledGroups],
+      names: [],
+      count: 0,
+      at: new Date().toISOString(),
+      source: options.source ?? options.plane,
+    })
+    return () => { removeToolMountStatus(id) }
+  }
 
+  // Guard: DSH defineTool throws if timeoutMs is null/NaN/≤0 (settings projection can emit null).
+  const t = typeof connection.toolCallTimeoutMs === 'number'
+    && Number.isFinite(connection.toolCallTimeoutMs)
+    && connection.toolCallTimeoutMs > 0
+    ? connection.toolCallTimeoutMs
+    : 120_000
   const client = createNetxClient({
     apiUrl: connection.apiUrl,
     lang: connection.lang,
-    timeoutMs: Math.min(connection.toolCallTimeoutMs, 45_000),
-    getToken: () => getNetxConnection()?.token ?? '',
+    timeoutMs: Math.min(t, 45_000),
+    getToken: () => {
+      const live = getNetxConnection()
+      // A resolved empty token means revoked; never resurrect an ambient token.
+      return live ? live.token.trim() : connection.token.trim()
+    },
+    // Live apiUrl: settings may heal null→default after the first mount.
+    getApiUrl: () => getNetxConnection()?.apiUrl ?? connection.apiUrl,
   })
   const getClient = () => client
-  const t = connection.toolCallTimeoutMs
 
   const catalog = [
     tool(
@@ -666,11 +720,39 @@ export function registerNetxTools(
     ),
   ]
 
-  const disposers = catalog
-    .filter((entry) => allow.has(entry.name))
-    .map((entry) => ctx.tools.register(entry))
+  const selected = catalog.filter((entry) => allow.has(entry.name))
+  const names = selected.map((entry) => entry.name)
+  const disposers: Array<() => void> = []
+  try {
+    for (const entry of selected) disposers.push(ctx.tools.register(entry))
+    publishToolMountStatus({
+      id,
+      version: packageVersion(),
+      plane: options.plane,
+      groups: [...enabledGroups],
+      names,
+      count: names.length,
+      at: new Date().toISOString(),
+      source: options.source ?? options.plane,
+    })
+  } catch (error) {
+    for (const dispose of disposers.reverse()) dispose()
+    publishToolMountStatus({
+      id,
+      version: packageVersion(),
+      plane: options.plane,
+      groups: [...enabledGroups],
+      names: [],
+      count: 0,
+      at: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error),
+      source: options.source ?? options.plane,
+    })
+    throw error
+  }
 
   return () => {
     for (const dispose of disposers) dispose()
+    removeToolMountStatus(id)
   }
 }

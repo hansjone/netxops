@@ -8,6 +8,8 @@
  * - `bizMonitor` → skill `netx-biz-monitor` — cutover / biz_state read + overnight analysis
  */
 
+import { readConfigSnapshot, readConfigValue } from './config-values.ts'
+
 /** Stable group ids used in settings, skill dirs, and registration filters. */
 export type NetxCapabilityGroupId = 'ops' | 'topology' | 'bizMonitor'
 
@@ -17,6 +19,8 @@ export interface NetxGroupExposure {
   inPreset: boolean
   /** Mount on the host tool/skill layer so other presets can see the group. */
   public: boolean
+  /** Additional preset ids selected by the operator. */
+  presets?: readonly string[]
 }
 
 /** Full capability-group policy published with the connection snapshot. */
@@ -24,6 +28,10 @@ export type NetxCapabilityGroups = Record<NetxCapabilityGroupId, NetxGroupExposu
 
 /** Flat settings fields (Plugins card + schemastery Config). */
 export interface NetxCapabilityGroupSettingsFields {
+  toolsEnabled?: boolean
+  groupOpsPresets?: string
+  groupTopologyPresets?: string
+  groupBizMonitorPresets?: string
   groupOpsInPreset: boolean
   groupOpsPublic: boolean
   groupTopologyInPreset: boolean
@@ -33,10 +41,10 @@ export interface NetxCapabilityGroupSettingsFields {
 }
 
 /**
- * Default: ops in Ops preset; topology / bizMonitor and all public off.
+ * Default: ops + bizMonitor in Ops preset; topology and all public off.
  */
 export const DEFAULT_CAPABILITY_GROUPS: NetxCapabilityGroups = Object.freeze({
-  ops: Object.freeze({ inPreset: true, public: true }),
+  ops: Object.freeze({ inPreset: true, public: false }),
   topology: Object.freeze({ inPreset: false, public: false }),
   bizMonitor: Object.freeze({ inPreset: true, public: false }),
 })
@@ -79,7 +87,6 @@ export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly str
     'netx__layoutTopologyView',
     'netx__suggestSinkHubs',
     'netx__analyzeTopologyViewLayout',
-    'netx__sinkTopologyDualUnits',
   ]),
   bizMonitor: Object.freeze([
     'netx__listBizMonitors',
@@ -112,7 +119,7 @@ export const CAPABILITY_GROUP_IDS: readonly NetxCapabilityGroupId[] = Object.fre
  * Legacy aliases (all map into `ops`):
  * - `groupNms*` / `groupCommon*` / `groupManagedNe*`
  *
- * Legacy `groupTopologyLayout*` ORs into `topology`.
+ * Legacy `groupTopologyLayout*` applies only when the current flag is absent.
  */
 export function capabilityGroupsFromSettings(
   fields: Partial<NetxCapabilityGroupSettingsFields & {
@@ -126,17 +133,17 @@ export function capabilityGroupsFromSettings(
     groupTopologyLayoutPublic?: boolean
   }> | null | undefined,
 ): NetxCapabilityGroups {
-  const src = fields ?? {}
+  const src = readConfigSnapshot(fields ?? {})
 
   let opsInPreset = true
-  if (src.groupOpsInPreset !== undefined) {
-    opsInPreset = src.groupOpsInPreset !== false
+  if (typeof src.groupOpsInPreset === 'boolean') {
+    opsInPreset = src.groupOpsInPreset
   } else {
     const legacy = [
       src.groupNmsInPreset,
       src.groupCommonInPreset,
       src.groupManagedNeInPreset,
-    ].filter((v): v is boolean => v !== undefined)
+    ].filter((v): v is boolean => typeof v === 'boolean')
     if (legacy.length > 0) {
       // Any explicit true → on; all explicit false → off.
       opsInPreset = legacy.some((v) => v === true)
@@ -144,57 +151,88 @@ export function capabilityGroupsFromSettings(
   }
 
   let bizMonitorInPreset = true
-  if (src.groupBizMonitorInPreset !== undefined) {
-    bizMonitorInPreset = src.groupBizMonitorInPreset !== false
+  if (typeof src.groupBizMonitorInPreset === 'boolean') {
+    bizMonitorInPreset = src.groupBizMonitorInPreset
   }
 
   return {
     ops: {
       inPreset: opsInPreset,
       public: (() => {
-        if (src.groupOpsPublic !== undefined) return src.groupOpsPublic !== false
+        if (typeof src.groupOpsPublic === 'boolean') return src.groupOpsPublic
         const legacy = [
           src.groupNmsPublic,
           src.groupCommonPublic,
           src.groupManagedNePublic,
-        ].filter((v): v is boolean => v !== undefined)
-        // No explicit flag → default on (other presets see ops after install).
-        if (legacy.length === 0) return true
+        ].filter((v): v is boolean => typeof v === 'boolean')
+        // No explicit flag → default off (Netx Ops preset only).
+        if (legacy.length === 0) return false
         return legacy.some((v) => v === true)
       })(),
+      ...(src.groupOpsPresets ? { presets: parsePresetIds(src.groupOpsPresets) } : {}),
     },
     topology: {
-      inPreset: src.groupTopologyInPreset === true
-        || src.groupTopologyLayoutInPreset === true,
-      public: src.groupTopologyPublic === true
-        || src.groupTopologyLayoutPublic === true,
+      inPreset: typeof src.groupTopologyInPreset === 'boolean'
+        ? src.groupTopologyInPreset : src.groupTopologyLayoutInPreset === true,
+      public: typeof src.groupTopologyPublic === 'boolean'
+        ? src.groupTopologyPublic : src.groupTopologyLayoutPublic === true,
+      ...(src.groupTopologyPresets ? { presets: parsePresetIds(src.groupTopologyPresets) } : {}),
     },
     bizMonitor: {
       inPreset: bizMonitorInPreset,
       public: src.groupBizMonitorPublic === true,
+      ...(src.groupBizMonitorPresets ? { presets: parsePresetIds(src.groupBizMonitorPresets) } : {}),
     },
   }
 }
 
 /**
+ * KB exposure mirrors capability groups: preset plane ↔ inPreset, host/public ↔ public.
+ * Defaults: inPreset on, public off (same strategy as ops/bizMonitor).
+ */
+export function kbEnabledForPlane(
+  flags: { toolsEnabled?: boolean, groupKbInPreset?: boolean, groupKbPublic?: boolean, groupKbPresets?: string } | undefined,
+  plane: 'preset' | 'public' | 'host',
+  presetId = 'netxops',
+): boolean {
+  if (flags) flags = readConfigSnapshot(flags)
+  if (flags?.toolsEnabled === false) return false
+  if (!flags) return plane === 'preset'
+  if (plane === 'preset') {
+    return !flags.groupKbPublic && (presetId === 'netxops'
+      ? flags.groupKbInPreset !== false
+      : parsePresetIds(flags.groupKbPresets ?? '').includes(presetId))
+  }
+  return flags.groupKbPublic === true
+}
+
+/**
  * Groups enabled for one registration plane.
+ * - `preset` — `inPreset` (Netx Ops standing mount via `dsh-netxops/tools`)
+ * - `public` — `public` only
+ * - `host` — same as `public` (Host-global registry for other presets)
+ *
+ * Host must NOT union `inPreset`: otherwise unchecking「公开」leaves tools on the
+ * global registry whenever「预设内」is still on, so revoke never takes effect.
  */
 export function groupsForPlane(
   groups: NetxCapabilityGroups | undefined,
-  plane: 'preset' | 'public',
+  plane: 'preset' | 'public' | 'host',
   only?: readonly NetxCapabilityGroupId[],
 ): NetxCapabilityGroupId[] {
   const policy = groups ?? DEFAULT_CAPABILITY_GROUPS
-  const enabled = CAPABILITY_GROUP_IDS.filter((id) => (
-    plane === 'preset' ? policy[id].inPreset : policy[id].public
-  ))
+  const enabled = CAPABILITY_GROUP_IDS.filter((id) => {
+    if (plane === 'preset') return policy[id].inPreset
+    // host === public: only explicitly published groups leave the Ops preset.
+    return policy[id].public
+  })
   if (!only || only.length === 0) return enabled
   const allow = new Set(only)
   return enabled.filter((id) => allow.has(id))
 }
 
 /**
- * Force-enable the listed groups (for `dsh-netxops/tools-<group>` mounts).
+ * Normalize a group allow-list; publication policy still controls registration.
  * Legacy `nms` / `common` aliases resolve to `ops`.
  */
 export function groupsForced(
@@ -215,4 +253,24 @@ export function toolNamesForGroups(groupIds: readonly NetxCapabilityGroupId[]): 
     for (const name of TOOLS_BY_GROUP[id] ?? []) out.add(name)
   }
   return out
+}
+
+/** Parse the persisted preset-id list. Empty is an explicit empty selection. */
+export function parsePresetIds(value: unknown): string[] {
+  const current = readConfigValue(value)
+  if (typeof current !== 'string') return []
+  return [...new Set(current.split(/[\s,，]+/).filter(Boolean))]
+}
+
+/** Groups mounted locally in a preset; public groups are inherited from Host. */
+export function groupsForPreset(
+  connection: { toolsEnabled?: boolean, groups?: NetxCapabilityGroups },
+  presetId: string,
+  only?: readonly NetxCapabilityGroupId[],
+): NetxCapabilityGroupId[] {
+  if (connection.toolsEnabled === false) return []
+  const policy = connection.groups ?? DEFAULT_CAPABILITY_GROUPS
+  return CAPABILITY_GROUP_IDS.filter(id => (!only?.length || only.includes(id))
+    && !policy[id].public
+    && (presetId === 'netxops' ? policy[id].inPreset : policy[id].presets?.includes(presetId)))
 }

@@ -3,6 +3,8 @@
  * Self-contained (cannot value-import ui-settings-plugins — client bundle purity).
  */
 
+import { normalizeApiUrl } from '../netx/http.ts'
+import { parsePresetIds } from '../netx/capability-groups.ts'
 import type { SettingsFormScope, SettingsFormSnapshot } from './settings-form.ts'
 import { createSnapshotStore, type SnapshotStore } from './snapshot-store.ts'
 
@@ -62,6 +64,33 @@ export function textField(field: string): CardFieldSpec {
   }
 }
 
+/** Empty selection must override a profile's target list rather than restore it. */
+export function presetIdsField(field: string): CardFieldSpec {
+  return {
+    field,
+    format: value => typeof value === 'string' ? value : '',
+    parse: text => ({ kind: 'set', value: parsePresetIds(text).join(',') }),
+  }
+}
+
+/**
+ * http(s) API root — rejects credentials-in-URL and non-http schemes.
+ * Empty clears to schema default; save stores the normalized URL.
+ */
+export function apiUrlField(field: string): CardFieldSpec {
+  return {
+    field,
+    format: value => typeof value === 'string' ? value : '',
+    parse: (text) => {
+      const trimmed = text.trim()
+      if (trimmed === '') return { kind: 'clear' }
+      const normalized = normalizeApiUrl(trimmed)
+      if (!normalized.ok) return undefined
+      return { kind: 'set', value: normalized.url }
+    },
+  }
+}
+
 /** Boolean settings field rendered as a checkbox (stores true / clears when false). */
 export function booleanField(field: string): CardFieldSpec {
   return {
@@ -108,6 +137,7 @@ export class CardForm<T> {
   private readonly listeners = new Set<() => void>()
   private saving = false
   private failed = false
+  private saveQueue: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly scope: SettingsFormScope<T>,
@@ -128,11 +158,18 @@ export class CardForm<T> {
   shell(): CardShell {
     const snapshot = this.scope.getSnapshot()
     const plan = this.plan()
+    let committedInvalid = false
+    for (const field of this.specs.keys()) {
+      if (this.field(field).invalid) {
+        committedInvalid = true
+        break
+      }
+    }
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
       dirty: plan.length > 0,
-      invalid: plan.some(item => item.run === undefined),
+      invalid: committedInvalid || plan.some(item => item.run === undefined),
       saving: this.saving,
       failed: this.failed,
     }
@@ -145,7 +182,15 @@ export class CardForm<T> {
     }
     const spec = this.spec(field)
     if (staged === undefined) {
-      return { text: spec.format(this.sectionValue(field)), overridden: this.stored(field), invalid: false }
+      const text = spec.format(this.sectionValue(field))
+      // Surface committed bad values (e.g. file:// apiUrl) so Save stays blocked
+      // until the operator fixes them — not only while the field is staged.
+      const write = text.trim() === '' ? { kind: 'clear' as const } : spec.parse(text)
+      return {
+        text,
+        overridden: this.stored(field),
+        invalid: text.trim() !== '' && write === undefined,
+      }
     }
     const write = staged.clear ? { kind: 'clear' as const } : spec.parse(staged.text)
     return {
@@ -171,21 +216,43 @@ export class CardForm<T> {
     }
   }
 
-  async save(): Promise<void> {
-    const plan = this.plan()
+  /** Serialize writes and save only requested fields for immediate publication toggles. */
+  save(fields?: readonly string[]): Promise<void> {
+    const task = this.saveQueue.then(() => this.saveNow(fields))
+    this.saveQueue = task.catch(() => {})
+    return task
+  }
+
+  private async saveNow(fields?: readonly string[]): Promise<void> {
+    const snapshot = this.snapshotOf()
+    if (snapshot.status !== 'ready' || !snapshot.writable) {
+      this.failed = true
+      this.publish()
+      return
+    }
+    const staged = new Map([...this.staged].filter(([field]) => !fields || fields.includes(field)))
+    const plan = this.plan().filter(item => !fields || fields.includes(item.field))
     const writes = plan.flatMap(item => item.run === undefined ? [] : [item.run])
-    if (plan.length === 0 || this.saving || writes.length !== plan.length) return
+    if (writes.length !== plan.length) return
     this.saving = true
     this.failed = false
     this.publish()
     let landed = true
-    for (const write of writes) {
-      landed = await write() && landed
+    try {
+      for (const write of writes) landed = await write() && landed
+    } catch {
+      landed = false
+    } finally {
+      // A newer edit made during a write remains staged for the next queued save.
+      if (landed) {
+        for (const [field, edit] of staged) {
+          if (this.staged.get(field) === edit) this.staged.delete(field)
+        }
+      }
+      this.saving = false
+      this.failed = !landed
+      this.publish()
     }
-    if (landed) this.staged.clear()
-    this.saving = false
-    this.failed = !landed
-    this.publish()
   }
 
   private plan(): PlannedWrite[] {

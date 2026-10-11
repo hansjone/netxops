@@ -20,9 +20,12 @@ import {
 } from '../netx/im-targets.ts'
 import { alarmPushTone, type AlarmPushPhase } from './alarm-push-status-view.ts'
 import { kbStatusTone, type KbSnapshot } from './kb-status-view.ts'
+import { toolsMountTone, type ToolsMountView } from './tools-status-view.ts'
 import { ensureStyles } from './styles.ts'
 import { sessionsExportReasonLocaleKey } from './sessions-export-view.ts'
+import { parsePresetIds, TOOLS_BY_GROUP } from '../netx/capability-groups.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 
 function phaseLocaleKey(phase: AlarmPushPhase): NetxopsLocaleKey {
   switch (phase) {
@@ -78,6 +81,24 @@ function fillTemplate(template: string, vars: Record<string, string>): string {
   ))
 }
 
+function toolsBadgeLabel(
+  t: (key: NetxopsLocaleKey) => string,
+  view: ToolsMountView | null,
+): string {
+  if (!view) return t('toolsStatusUnknown')
+  if (!view.toolsEnabled) return t('toolsDisabled')
+  if (view.error) {
+    return fillTemplate(t('toolsStatusError'), { detail: view.error })
+  }
+  if (view.count > 0) {
+    return fillTemplate(t('toolsStatusMounted'), {
+      count: String(view.count),
+      version: view.version || '?',
+    })
+  }
+  return t('toolsStatusEmpty')
+}
+
 function exportStatusMessage(
   t: (key: NetxopsLocaleKey) => string,
   status: NonNullable<NetxopsCardState['sessionsExportStatus']>,
@@ -108,7 +129,7 @@ function exportErrorMessage(
 }
 
 export type NetxopsCardProps =
-  PropsRuntime<'settings.section'>
+  (PropsRuntime<'settings.section'> | PropsRuntime<'settings.plugin.item'>)
   & PropsLocale<'settings.netxops'>
   & InjectFace<NetxopsCardFace>
 
@@ -309,6 +330,35 @@ function ImDeliveryPicker(props: {
   )
 }
 
+function PresetTargets(props: {
+  field: CardFieldState
+  state: NetxopsCardState
+  disabled: boolean
+  onEdit: (value: string) => void
+  t: (key: NetxopsLocaleKey) => string
+}) {
+  const selected = parsePresetIds(props.field.text)
+  const rows = props.state.presetCatalog.filter(row => row.id !== 'netxops')
+  const unknown = selected.filter(id => !rows.some(row => row.id === id))
+  return (
+    <details className="dsh-nx-targets">
+      <summary>{props.t('selectedPresets')} · {selected.length}</summary>
+      <p className="dsh-nx-hint">{props.t('publicationHint')}</p>
+      {props.state.presetCatalogError ? <p className="dsh-nx-invalid">{props.t('presetCatalogUnavailable')}</p> : null}
+      {[...rows, ...unknown.map(id => ({ id, name: undefined, broken: undefined }))].map(row => (
+        <label key={row.id} className="dsh-nx-checkRow">
+          <input type="checkbox" checked={selected.includes(row.id)} disabled={props.disabled}
+            onChange={event => { props.onEdit((event.target.checked
+              ? [...selected, row.id] : selected.filter(id => id !== row.id)).join(',')) }} />
+          <span>{row.name || row.id}{row.name && row.name !== row.id ? ` (${row.id})` : ''}</span>
+          {row.broken ? <span className="dsh-nx-invalid" title={row.broken}>{props.t('presetUnavailable')}</span> : null}
+        </label>
+      ))}
+      {rows.length === 0 && unknown.length === 0 ? <p className="dsh-nx-hint">{props.t('noOtherPresets')}</p> : null}
+    </details>
+  )
+}
+
 function CapabilityGroupBlock(props: {
   title: string
   inPresetLabel: string
@@ -318,6 +368,7 @@ function CapabilityGroupBlock(props: {
   disabled: boolean
   onEditInPreset: (checked: boolean) => void
   onEditPublic: (checked: boolean) => void
+  targets?: ReactNode
 }) {
   return (
     <div className="dsh-nx-groupBlock">
@@ -342,6 +393,7 @@ function CapabilityGroupBlock(props: {
           <span>{props.publicLabel}</span>
         </label>
       </div>
+      {props.targets}
     </div>
   )
 }
@@ -419,7 +471,8 @@ export function NetxopsCard(props: NetxopsCardProps) {
   if (!state.available) {
     return (
       <section className="dsh-nx-settings" aria-label={t('title')}>
-        <div className="dsh-nx-settings-empty">{t('sessionsExportUnavailable')}</div>
+        <h2>{t('title')}</h2>
+        <div className="dsh-nx-settings-empty" role="status">{t('settingsUnavailable')}</div>
       </section>
     )
   }
@@ -427,6 +480,11 @@ export function NetxopsCard(props: NetxopsCardProps) {
   const disabled = !state.writable
   const blocked = !state.dirty || state.invalid || state.saving
   const pushStatus = state.alarmPushStatus
+  const publicationDisabled = disabled || state.toolsEnabled.text !== 'true'
+  const targets = (field: string, value: CardFieldState) => (
+    <PresetTargets field={value} state={state} disabled={publicationDisabled} t={t}
+      onEdit={text => { props.edit(field, text) }} />
+  )
 
   return (
     <section className="dsh-nx-settings" aria-label={t('title')}>
@@ -441,6 +499,25 @@ export function NetxopsCard(props: NetxopsCardProps) {
 
       <div className="dsh-nx-settings-card">
         <h3>{t('sectionConnection')}</h3>
+        <div className="dsh-nx-settings-field">
+          <div className="dsh-nx-field-head">
+            <span>{t('toolsStatus')}</span>
+            <StatusBadge
+              tone={toolsMountTone(state.toolsStatus)}
+              label={toolsBadgeLabel(t, state.toolsStatus)}
+            />
+          </div>
+          <p className="dsh-nx-hint">{t('mountStatusHint')}</p>
+          {state.toolsStatus && state.toolsStatus.mounts.length > 0 ? (
+            <details><summary>{t('mountDetails')}</summary>
+              {state.toolsStatus.mounts.map((mount, index) => (
+                <p key={`${mount.source}:${index}`} className={mount.error ? 'dsh-nx-invalid' : 'dsh-nx-hint'}>
+                  {mount.source} · {mount.count} · {mount.groups.join(', ') || '—'}{mount.error ? ` · ${mount.error}` : ''}
+                </p>
+              ))}
+            </details>
+          ) : null}
+        </div>
         <div className="dsh-nx-settings-field">
           <div className="dsh-nx-field-head">
             <label htmlFor="netxops-api-token">{t('apiToken')}</label>
@@ -469,7 +546,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
           field={state.apiUrl}
           overriddenLabel={t('overridden')}
           resetLabel={t('reset')}
-          invalidLabel={t('invalid')}
+          invalidLabel={t('apiUrlInvalid')}
           disabled={disabled}
           onEdit={(text) => { props.edit('apiUrl', text) }}
           onReset={() => { props.resetField('apiUrl') }}
@@ -536,13 +613,20 @@ export function NetxopsCard(props: NetxopsCardProps) {
 
       <div className="dsh-nx-settings-card">
         <h3>{t('sectionCapabilities')}</h3>
+        <ToggleField id="netxops-tools-enabled" label={t('toolsEnabled')}
+          checked={state.toolsEnabled.text === 'true'} disabled={disabled}
+          overridden={state.toolsEnabled.overridden} overriddenLabel={t('overridden')} resetLabel={t('reset')}
+          onToggle={checked => { props.edit('toolsEnabled', String(checked)) }}
+          onReset={() => { props.resetField('toolsEnabled') }}
+          hint={<p className="dsh-nx-hint">{t('toolsEnabledHint')}</p>} />
         <CapabilityGroupBlock
-          title={t('groupOps')}
+          title={`${t('groupOps')} · ${TOOLS_BY_GROUP.ops.length}`}
+          targets={targets('groupOpsPresets', state.groupOpsPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
           inPreset={state.groupOpsInPreset}
           published={state.groupOpsPublic}
-          disabled={disabled}
+          disabled={publicationDisabled}
           onEditInPreset={(checked) => {
             props.edit('groupOpsInPreset', checked ? 'true' : 'false')
           }}
@@ -551,12 +635,13 @@ export function NetxopsCard(props: NetxopsCardProps) {
           }}
         />
         <CapabilityGroupBlock
-          title={t('groupTopology')}
+          title={`${t('groupTopology')} · ${TOOLS_BY_GROUP.topology.length}`}
+          targets={targets('groupTopologyPresets', state.groupTopologyPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
           inPreset={state.groupTopologyInPreset}
           published={state.groupTopologyPublic}
-          disabled={disabled}
+          disabled={publicationDisabled}
           onEditInPreset={(checked) => {
             props.edit('groupTopologyInPreset', checked ? 'true' : 'false')
           }}
@@ -565,12 +650,13 @@ export function NetxopsCard(props: NetxopsCardProps) {
           }}
         />
         <CapabilityGroupBlock
-          title={t('groupBizMonitor')}
+          title={`${t('groupBizMonitor')} · ${TOOLS_BY_GROUP.bizMonitor.length}`}
+          targets={targets('groupBizMonitorPresets', state.groupBizMonitorPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
           inPreset={state.groupBizMonitorInPreset}
           published={state.groupBizMonitorPublic}
-          disabled={disabled}
+          disabled={publicationDisabled}
           onEditInPreset={(checked) => {
             props.edit('groupBizMonitorInPreset', checked ? 'true' : 'false')
           }}
@@ -650,11 +736,12 @@ export function NetxopsCard(props: NetxopsCardProps) {
         </div>
         <CapabilityGroupBlock
           title={t('groupKb')}
+          targets={targets('groupKbPresets', state.groupKbPresets)}
           inPresetLabel={t('groupInPreset')}
           publicLabel={t('groupPublic')}
           inPreset={state.groupKbInPreset}
           published={state.groupKbPublic}
-          disabled={disabled}
+          disabled={publicationDisabled}
           onEditInPreset={(checked) => {
             props.edit('groupKbInPreset', checked ? 'true' : 'false')
           }}

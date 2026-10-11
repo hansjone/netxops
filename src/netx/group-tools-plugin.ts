@@ -2,11 +2,14 @@
  * Shared agent-plane mount: tools + skills for one or more capability groups.
  */
 
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-tools'
 import {
-  groupsForced,
-  groupsForPlane,
+  groupsForPreset,
+  kbEnabledForPlane,
   type NetxCapabilityGroupId,
 } from './capability-groups.ts'
 import { registerGroupSkills } from './group-skills.ts'
@@ -14,20 +17,36 @@ import { registerKbContextSkill } from './kb-context-skill.ts'
 import { registerKbLocalTools } from './kb-local-tools.ts'
 import { registerKbPackSkills } from './kb-pack-skills.ts'
 import { getKbContext, watchKbContext } from './kb-runtime.ts'
-import { tryRecoverMissingHostBridge } from './heal-profile-entry.ts'
-import { getNetxConnection, watchNetxConnection } from './runtime.ts'
+import {
+  getNetxConnection,
+  requireNetxConnection,
+  watchNetxConnection,
+} from './runtime.ts'
+import { getToolMountId, publishToolMountStatus, removeToolMountStatus } from './tool-mount-status.ts'
 import { registerNetxTools } from './tools.ts'
+
+function packageVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url))
+    const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as { version?: string }
+    return typeof pkg.version === 'string' ? pkg.version : '0'
+  } catch {
+    return '0'
+  }
+}
 
 export interface GroupToolsPluginOptions {
   /** Cordis plugin name. */
   name: string
   /**
    * `settings` — honor inPreset/public from connection (Ops aggregate mount).
-   * `forced` — always register `only` groups when connection exists (per-group export).
+   * `forced` — legacy export label; only filters groups and obeys the publication policy.
    */
   mode: 'settings' | 'forced'
   /** Group allow-list; omit in settings mode to use all groups. */
   only?: readonly NetxCapabilityGroupId[]
+  /** Explicit target for live session mounts; otherwise resolve the calling preset. */
+  presetId?: string
 }
 
 /**
@@ -38,44 +57,50 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
   let unregisterKbLocal: (() => void) | undefined
   let unregisterSkills: (() => void) | undefined
   let skillGeneration = 0
+  const presetId = (): string => {
+    if (options.presetId) return options.presetId
+    const registry = ctx.get('agentPresets') as { composedPreset?: (ctx: Context) => string | undefined } | undefined
+    return registry?.composedPreset?.(ctx) ?? 'netxops'
+  }
+  const mountId = getToolMountId(ctx, options.name)
 
   const resolveGroups = (): NetxCapabilityGroupId[] => {
-    const connection = getNetxConnection()
-    if (options.mode === 'forced') {
-      return groupsForced(options.only ?? [])
-    }
-    return groupsForPlane(connection?.groups, 'preset', options.only)
+    const connection = requireNetxConnection()
+    return groupsForPreset(connection, presetId(), options.only)
   }
 
   const remountTools = (): void => {
     unregisterTools?.()
     unregisterTools = undefined
-    const connection = getNetxConnection()
-    if (connection === undefined) {
-      // Preset channel can self-heal while the Host bundle row is gone — restore
-      // `dsh-netxops` into cordis.patch.yml once, then require a full restart.
-      tryRecoverMissingHostBridge(ctx.logger, options.name)
-      return
-    }
+    const connection = requireNetxConnection()
     const enabled = resolveGroups()
-    if (enabled.length === 0) {
-      ctx.logger.info('%s: no groups enabled', options.name)
-      return
-    }
     try {
+      // Always call register (incl. empty) so revoke publishes count=0 and matches host.
       unregisterTools = registerNetxTools(ctx, connection, {
         plane: 'preset',
-        only: options.mode === 'forced' ? enabled : options.only,
-        forceGroups: options.mode === 'forced' ? enabled : undefined,
+        forceGroups: enabled,
+        source: options.name,
       })
       ctx.logger.info(
-        '%s: groups=[%s] → %s tokenConfigured=%s',
+        '%s: groups=[%s] → %s tokenConfigured=%s live=%s',
         options.name,
         enabled.join(',') || '(none)',
         connection.apiUrl,
         connection.token.trim().length > 0,
+        getNetxConnection() !== undefined,
       )
     } catch (error) {
+      publishToolMountStatus({
+        id: mountId,
+        version: packageVersion(),
+        plane: 'preset',
+        groups: [...enabled],
+        names: [],
+        count: 0,
+        at: new Date().toISOString(),
+        error: String(error),
+        source: options.name,
+      })
       ctx.logger.error('%s: registerNetxTools failed: %s', options.name, error)
     }
   }
@@ -83,31 +108,48 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
   const remountKbLocal = (): void => {
     unregisterKbLocal?.()
     unregisterKbLocal = undefined
-    const connection = getNetxConnection()
-    if (connection === undefined) return
-    if (connection.groupKbInPreset === false) return
-    unregisterKbLocal = registerKbLocalTools(ctx, getKbContext())
+    const connection = requireNetxConnection()
+    if (options.only || !kbEnabledForPlane(connection, 'preset', presetId())) return
+    unregisterKbLocal = registerKbLocalTools(ctx, getKbContext(), { plane: 'preset', source: `${options.name}:kb-local` })
   }
 
-  remountTools()
-  remountKbLocal()
+  // Subscribe BEFORE the first remount. Host publish is async (credentials
+  // resolve); if it lands between remount and watch, tools stay empty forever.
   const stopToolWatch = watchNetxConnection(() => {
     remountTools()
     remountKbLocal()
   })
   const stopKbToolWatch = watchKbContext(() => { remountKbLocal() })
+  remountTools()
+  remountKbLocal()
+
+  // Backup poll: covers publish that raced before watch, and slow credentials.
+  let pollTicks = 0
+  const pollTimer = setInterval(() => {
+    pollTicks += 1
+    if (getNetxConnection() !== undefined) {
+      remountTools()
+      remountKbLocal()
+      clearInterval(pollTimer)
+      return
+    }
+    if (pollTicks >= 40) clearInterval(pollTimer) // ~20s
+  }, 500)
 
   ctx.inject(['skills'], (skillsCtx) => {
+    let skillAbort = new AbortController()
+    let packAbort = new AbortController()
     let unregisterKbSkill: (() => void) | undefined
     let unregisterKbPack: (() => void) | undefined
     let packGeneration = 0
     const remountSkills = (): void => {
       const gen = ++skillGeneration
+      skillAbort.abort()
+      skillAbort = new AbortController()
       unregisterSkills?.()
       unregisterSkills = undefined
-      if (getNetxConnection() === undefined) return
       const enabled = resolveGroups()
-      void registerGroupSkills(skillsCtx, enabled, options.name).then((dispose) => {
+      void registerGroupSkills(skillsCtx, enabled, options.name, skillAbort.signal).then((dispose) => {
         if (gen !== skillGeneration) {
           dispose()
           return
@@ -120,17 +162,22 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
     const remountKbSkill = (): void => {
       unregisterKbSkill?.()
       unregisterKbSkill = undefined
+      const connection = requireNetxConnection()
+      if (options.only || !kbEnabledForPlane(connection, 'preset', presetId())) return
       unregisterKbSkill = registerKbContextSkill(skillsCtx, getKbContext())
     }
     const remountKbPack = (): void => {
       const gen = ++packGeneration
+      packAbort.abort()
+      packAbort = new AbortController()
       unregisterKbPack?.()
       unregisterKbPack = undefined
-      const connection = getNetxConnection()
-      const enabled = connection?.groupKbInPreset !== false
+      const connection = requireNetxConnection()
+      const enabled = !options.only && kbEnabledForPlane(connection, 'preset', presetId())
       void registerKbPackSkills(skillsCtx, getKbContext(), {
         enabled,
         providerLabel: `${options.name}-kb-pack`,
+        signal: packAbort.signal,
       }).then((dispose) => {
         if (gen !== packGeneration) {
           dispose()
@@ -142,20 +189,23 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       })
     }
 
-    remountSkills()
-    remountKbSkill()
-    remountKbPack()
     const stopSkillWatch = watchNetxConnection(() => {
       remountSkills()
+      remountKbSkill()
       remountKbPack()
     })
     const stopKbWatch = watchKbContext(() => {
       remountKbSkill()
       remountKbPack()
     })
+    remountSkills()
+    remountKbSkill()
+    remountKbPack()
     skillsCtx.effect(() => () => {
       skillGeneration += 1
       packGeneration += 1
+      skillAbort.abort()
+      packAbort.abort()
       stopSkillWatch()
       stopKbWatch()
       unregisterSkills?.()
@@ -168,11 +218,13 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
   })
 
   ctx.effect(() => () => {
+    clearInterval(pollTimer)
     stopToolWatch()
     stopKbToolWatch()
     unregisterTools?.()
     unregisterTools = undefined
     unregisterKbLocal?.()
     unregisterKbLocal = undefined
+    removeToolMountStatus(mountId)
   }, `${options.name}: dispose tools`)
 }

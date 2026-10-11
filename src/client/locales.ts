@@ -1,6 +1,17 @@
 /** Locale keys for the Netx Ops settings section. */
 
 export type NetxopsLocaleKey =
+  | 'settingsUnavailable'
+  | 'toolsEnabled'
+  | 'toolsEnabledHint'
+  | 'toolsDisabled'
+  | 'selectedPresets'
+  | 'publicationHint'
+  | 'presetCatalogUnavailable'
+  | 'presetUnavailable'
+  | 'noOtherPresets'
+  | 'mountStatusHint'
+  | 'mountDetails'
   | 'title'
   | 'description'
   | 'sectionConnection'
@@ -10,6 +21,7 @@ export type NetxopsLocaleKey =
   | 'sectionExport'
   | 'apiUrl'
   | 'apiUrlHint'
+  | 'apiUrlInvalid'
   | 'lang'
   | 'langHint'
   | 'thinkingLanguage'
@@ -54,6 +66,11 @@ export type NetxopsLocaleKey =
   | 'apiTokenUnavailable'
   | 'apiTokenSet'
   | 'apiTokenUnset'
+  | 'toolsStatus'
+  | 'toolsStatusMounted'
+  | 'toolsStatusEmpty'
+  | 'toolsStatusError'
+  | 'toolsStatusUnknown'
   | 'sessionsExport'
   | 'sessionsExportCount'
   | 'sessionsExportUnavailable'
@@ -79,6 +96,17 @@ export type NetxopsLocaleKey =
   | 'configSaved'
 
 export const en: Record<NetxopsLocaleKey, string> = {
+  settingsUnavailable: 'Waiting for Host settings. Saving is disabled until connected. If this persists, check that the Host plugin is enabled.',
+  toolsEnabled: 'Publish Netx capabilities',
+  toolsEnabledHint: 'Auto-saves. Turn off to withdraw all Netx tools and skills; your group selections are retained.',
+  toolsDisabled: 'All Netx tools and skills are off',
+  selectedPresets: 'Selected other presets',
+  publicationHint: 'Tools and their skills are published together. Changes auto-save and apply to the next model request in current and new sessions. Public capabilities are inherited by every preset, including Netx Ops.',
+  presetCatalogUnavailable: 'Preset roster unavailable. Existing selections are retained and can be removed.',
+  presetUnavailable: 'Preset unavailable',
+  noOtherPresets: 'No other presets available on this Host.',
+  mountStatusHint: 'Actual mounts on this Host. Selected other presets mount when a session is active. This is registration status; API access is checked during tool calls.',
+  mountDetails: 'Mount details',
   title: 'Netx Ops',
   description: 'API, token, capabilities, knowledge base, and alarm delivery.',
   sectionConnection: 'Connection',
@@ -88,6 +116,7 @@ export const en: Record<NetxopsLocaleKey, string> = {
   sectionExport: 'Session export',
   apiUrl: 'API URL',
   apiUrlHint: 'e.g. http://127.0.0.1:8890',
+  apiUrlInvalid: 'Must be http(s) without username/password (no file:/javascript:)',
   lang: 'API / alarm language',
   langHint: 'zh / en — netx API query + alarm prompt copy only (not model reply)',
   thinkingLanguage: 'Thinking language',
@@ -97,12 +126,12 @@ export const en: Record<NetxopsLocaleKey, string> = {
   capabilityGroups: 'Capability groups',
   nmsProvider: 'NMS provider',
   nmsProviderHint: 'zte-ume',
-  groupOps: 'ops',
-  groupTopology: 'topology',
-  groupBizMonitor: 'bizMonitor',
+  groupOps: 'Alarms, inventory and CLI',
+  groupTopology: 'Topology and layout',
+  groupBizMonitor: 'Cutover monitoring',
   groupKb: 'Knowledge skills',
-  groupInPreset: 'In Netx Ops preset',
-  groupPublic: 'Publish to other presets (auto-saves; hot-reloads)',
+  groupInPreset: 'In Netx Ops preset (auto-saves; mount/unmount immediately)',
+  groupPublic: 'Publish to every preset (auto-saves)',
   kbRoot: 'Package root',
   kbRootHint: 'Folder with MANIFEST.json (operator-subset v1.0). Browse auto-saves. Pack skills load from paths.skills/_skills and paths.localSkills when hasSkills.',
   kbBrowse: 'Browse…',
@@ -132,6 +161,11 @@ export const en: Record<NetxopsLocaleKey, string> = {
   apiTokenUnavailable: 'remote.credentials unavailable — set NETX_API_TOKEN via script.',
   apiTokenSet: 'Configured',
   apiTokenUnset: 'Not set',
+  toolsStatus: 'Agent tools',
+  toolsStatusMounted: '{count} netx__* tools (v{version})',
+  toolsStatusEmpty: 'No active Netx tool mounts',
+  toolsStatusError: 'Tool mount failed: {detail}',
+  toolsStatusUnknown: 'Host status unavailable',
   sessionsExport: 'Export all sessions',
   sessionsExportCount: '{count} sessions',
   sessionsExportUnavailable: 'Export unavailable',
@@ -158,6 +192,17 @@ export const en: Record<NetxopsLocaleKey, string> = {
 }
 
 export const zh: Record<NetxopsLocaleKey, string> = {
+  settingsUnavailable: '正在等待 Host 设置，连接就绪前不能保存。若持续等待，请检查 Host 插件是否启用。',
+  toolsEnabled: '启用 Netx 能力发布',
+  toolsEnabledHint: '自动保存。关闭会撤销全部 Netx 工具和 skill，保留各组选择，便于随时恢复。',
+  toolsDisabled: '全部 Netx 工具和 skill 已关闭',
+  selectedPresets: '指定其他预设',
+  publicationHint: '工具与对应 skill 一起发布。选择自动保存，对当前及新会话的下一次模型请求生效。公开能力由所有预设继承，也包括 Netx Ops。',
+  presetCatalogUnavailable: '暂时无法读取预设列表，已有选择会保留，也可以取消。',
+  presetUnavailable: '预设不可用',
+  noOtherPresets: '此 Host 暂无其他预设。',
+  mountStatusHint: '显示此 Host 的实际挂载。指定其他预设在会话活跃时挂载；此状态表示注册结果，API 权限在调用工具时验证。',
+  mountDetails: '查看实际挂载明细',
   title: 'Netx Ops',
   description: 'API、Token、能力组、知识库与告警投递。',
   sectionConnection: '连接',
@@ -167,6 +212,7 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   sectionExport: '会话导出',
   apiUrl: 'API 地址',
   apiUrlHint: '例如 http://127.0.0.1:8890',
+  apiUrlInvalid: '须为无账号密码的 http(s) 地址（不支持 file:/javascript:）',
   lang: 'API / 告警语言',
   langHint: 'zh / en — 仅影响 netx API 与告警文案，不控制模型回复',
   thinkingLanguage: '思考语言',
@@ -176,12 +222,12 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   capabilityGroups: '能力组',
   nmsProvider: 'NMS 提供方',
   nmsProviderHint: 'zte-ume',
-  groupOps: 'ops',
-  groupTopology: 'topology',
-  groupBizMonitor: 'bizMonitor',
+  groupOps: '告警、资产与 CLI 运维',
+  groupTopology: '拓扑与布局',
+  groupBizMonitor: '割接业务监控',
   groupKb: '知识库技能',
-  groupInPreset: '在 Netx Ops 预设中启用',
-  groupPublic: '对其他预设公开（自动保存，即时挂载/卸载）',
+  groupInPreset: '在 Netx Ops 预设中启用（自动保存，即时挂载/卸载）',
+  groupPublic: '对所有预设公开（自动保存）',
   kbRoot: '知识包根目录',
   kbRootHint: '含 MANIFEST.json 的运营商子集包（v1.0）。浏览选目录后会自动保存；hasSkills 时加载 paths.skills/_skills 与 paths.localSkills。',
   kbBrowse: '浏览…',
@@ -211,6 +257,11 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   apiTokenUnavailable: '未提供 remote.credentials — 请用脚本写入 NETX_API_TOKEN。',
   apiTokenSet: '已配置',
   apiTokenUnset: '未设置',
+  toolsStatus: 'Agent 工具',
+  toolsStatusMounted: '已挂载 {count} 个 netx__*（v{version}）',
+  toolsStatusEmpty: '当前没有活跃的 Netx 工具挂载',
+  toolsStatusError: '工具挂载失败：{detail}',
+  toolsStatusUnknown: '无法读取 Host 状态',
   sessionsExport: '导出全部会话',
   sessionsExportCount: '{count} 个会话',
   sessionsExportUnavailable: '无法导出',

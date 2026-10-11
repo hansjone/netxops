@@ -8,9 +8,39 @@ export interface NetxConnection {
   timeoutMs: number
   /** Read the latest bearer on each request (do not freeze at client creation). */
   getToken: () => string
+  /** Read the latest apiUrl on each request (settings may heal after first mount). */
+  getApiUrl?: () => string
 }
 
 export type NetxJson = Record<string, unknown>
+
+export type NormalizeApiUrlResult =
+  | { ok: true, url: string }
+  | { ok: false, error: 'empty' | 'invalid_url' | 'unsupported_scheme' | 'credentials_in_url' }
+
+/**
+ * Accept only bare http(s) API roots — no credentials-in-URL, no file/data/etc.
+ * Trailing slash is stripped; path prefixes (e.g. `/netx`) are kept.
+ */
+export function normalizeApiUrl(raw: string): NormalizeApiUrlResult {
+  const trimmed = typeof raw === 'string' ? raw.trim() : ''
+  if (!trimmed) return { ok: false, error: 'empty' }
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return { ok: false, error: 'invalid_url' }
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, error: 'unsupported_scheme' }
+  }
+  if (parsed.username || parsed.password) {
+    return { ok: false, error: 'credentials_in_url' }
+  }
+  const path = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/$/, '')
+  const search = parsed.search && parsed.search !== '?' ? parsed.search : ''
+  return { ok: true, url: `${parsed.origin}${path}${search}` }
+}
 
 const PROTOCOL_KEY_ZH_TO_EN: Record<string, string> = {
   其他: 'Other',
@@ -19,9 +49,13 @@ const PROTOCOL_KEY_ZH_TO_EN: Record<string, string> = {
   电源: 'Power',
 }
 
+function asLang(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
 /** Localize a few protocol bucket keys when lang starts with en (match netx-mcp). */
 function localizePayload(lang: string, data: NetxJson): NetxJson {
-  if (!lang.trim().toLowerCase().startsWith('en')) return data
+  if (!asLang(lang).trim().toLowerCase().startsWith('en')) return data
   const proto = data.protocol_summary
   if (!Array.isArray(proto)) return data
   for (const row of proto) {
@@ -44,15 +78,13 @@ function encodeQuery(params: Record<string, string | number | boolean>): string 
 }
 
 /**
- * Build a client bound to apiUrl / lang / timeout; Bearer is resolved per request.
- * @param connection - apiUrl / lang / timeout / getToken.
+ * Build a client bound to apiUrl / lang / timeout; Bearer + apiUrl are resolved per request.
+ * @param connection - apiUrl / lang / timeout / getToken / optional getApiUrl.
  * @returns get/post helpers that return `{ ok, data }` or `{ ok: false, error }`.
  */
 export function createNetxClient(connection: NetxConnection) {
-  const base = connection.apiUrl.replace(/\/$/, '')
-
   const langParams = (): Record<string, string> => {
-    const lang = connection.lang.trim().toLowerCase()
+    const lang = asLang(connection.lang).trim().toLowerCase()
     if (lang.startsWith('en')) return { lang: 'en' }
     return {}
   }
@@ -67,7 +99,20 @@ export function createNetxClient(connection: NetxConnection) {
       signal?: AbortSignal
     } = {},
   ): Promise<NetxJson> {
-    const token = connection.getToken().trim()
+    const rawUrl = typeof connection.getApiUrl === 'function'
+      ? connection.getApiUrl()
+      : connection.apiUrl
+    const normalized = normalizeApiUrl(typeof rawUrl === 'string' ? rawUrl : '')
+    const base = normalized.ok ? normalized.url : ''
+    if (!normalized.ok || !base) {
+      return {
+        ok: false,
+        error: 'netx_api_url_invalid',
+        detail: `apiUrl must be http(s) without embedded credentials (${normalized.ok ? 'empty' : normalized.error}).`,
+      }
+    }
+    const rawToken = connection.getToken()
+    const token = typeof rawToken === 'string' ? rawToken.trim() : ''
     if (token.length === 0) {
       return {
         ok: false,

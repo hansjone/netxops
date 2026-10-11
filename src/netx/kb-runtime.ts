@@ -55,12 +55,15 @@ export function getKbContext(): KbSnapshot {
  */
 export function publishKbContext(next: KbSnapshot): void {
   const state = store()
+  if (JSON.stringify(state.snapshot) === JSON.stringify(next)) return
   state.snapshot = {
     ...next,
     content: { ...next.content },
     paths: { ...next.paths },
   }
-  for (const listener of state.listeners) listener()
+  for (const listener of [...state.listeners]) {
+    try { listener() } catch (error) { console.error('netxops: knowledge subscriber failed', error) }
+  }
 }
 
 /**

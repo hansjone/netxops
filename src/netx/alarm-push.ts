@@ -18,10 +18,15 @@ export function alarmSubscribeUrl(apiUrl: string): string {
   } catch {
     return ''
   }
+  // Only promote http(s) → ws(s); never rewrite file:/data:/javascript: etc.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return ''
+  if (url.username || url.password) return ''
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.pathname = '/v1/integrations/dsh-alarm/ws'
   url.search = ''
   url.hash = ''
+  url.username = ''
+  url.password = ''
   return url.toString()
 }
 

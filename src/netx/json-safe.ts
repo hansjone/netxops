@@ -5,6 +5,7 @@
  */
 
 import type { NetxJson } from './http.ts'
+export type LosslessJsonValue = string | number | boolean | null | LosslessJsonValue[] | { [key: string]: LosslessJsonValue }
 
 /**
  * Detach a plain JSON-compatible value for DSH tool results.
@@ -12,15 +13,15 @@ import type { NetxJson } from './http.ts'
  * @param value - handler result (may contain undefined holes).
  * @returns parsed plain JSON object, or a safe error envelope.
  */
-export function toLosslessJson(value: unknown): NetxJson {
+export function toLosslessJson(value: unknown): Record<string, LosslessJsonValue> {
   try {
     const text = JSON.stringify(value)
     if (text === undefined) {
       return { ok: false, error: 'tool_result_not_json', detail: 'undefined_root' }
     }
-    const parsed: unknown = JSON.parse(text)
+    const parsed = JSON.parse(text) as LosslessJsonValue
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as NetxJson
+      return parsed
     }
     return { ok: true, data: { value: parsed } }
   } catch (error) {

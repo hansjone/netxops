@@ -22,3 +22,29 @@ export interface SettingsFormScope<T> {
   set(field: string, value: unknown): Promise<boolean | void>
   unset(field: string): Promise<boolean | void>
 }
+
+/** Read-only placeholder until an actual Host settings namespace is served. */
+export function createWaitingSettingsScope<T>(initial: T): SettingsFormScope<T> {
+  const snapshot: SettingsFormSnapshot<T> = { status: 'loading', value: initial, writable: false }
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: () => () => {},
+    set: async () => { throw new Error('settings_transport_unavailable') },
+    unset: async () => { throw new Error('settings_transport_unavailable') },
+  }
+}
+
+/** get() may return a placeholder for any id; only a served namespace is usable. */
+export function findReadySettingsForm<T>(
+  forms: { get?: (id: string) => SettingsFormScope<T> },
+  namespaces: readonly string[],
+): { ns: string; scope: SettingsFormScope<T> } | undefined {
+  if (!forms.get) return undefined
+  for (const ns of namespaces) {
+    try {
+      const scope = forms.get(ns)
+      if (scope?.getSnapshot().status === 'ready') return { ns, scope }
+    } catch { /* Wrong namespace or service not ready; keep trying. */ }
+  }
+  return undefined
+}

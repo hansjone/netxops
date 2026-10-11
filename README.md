@@ -28,6 +28,24 @@ Then:
 
 Also need: a reachable **netx API** (no local `pip install netx_mcp`).
 
+## Flexible publication
+
+Settings → Plugins → Netx Ops supports a master publication switch and independent
+targets for ops, topology, biz-monitor, and knowledge-base capabilities:
+
+- Enable in the built-in **Netx Ops** preset.
+- Select specific other presets from the live Host roster.
+- Publish to **all presets** through the Host layer.
+
+Tools and corresponding skills follow the same policy. Changes auto-save and apply
+to current and new sessions on their next model request. Turning the master switch
+off removes all plugin-managed Netx tools and skills while retaining your selections.
+After upgrading the plugin, restart each installed Host once; subsequent publication
+changes do not need a restart.
+
+See the [Chinese diagnosis and validation report](docs/PUBLICATION-REVIEW.zh.md).
+Development checks: `bun run typecheck`, `bun test`, and `bun run preview:client`.
+
 **Skills:** edit only in the sibling **netx** repo `skills/` tree, then `powershell -File .\scripts\sync-skills-from-netx.ps1` before publish. Linked local installs prefer `../netx/skills` or `NETX_SKILLS_ROOT` at runtime.
 
 ## What is coupled

@@ -49,7 +49,7 @@ async function registerSkillsUnderRoot(
   skillsApi: { register: SkillsRegister },
   root: string,
   provider: string,
-  options: { logMissing: boolean; label: string },
+  options: { logMissing: boolean; label: string; signal?: AbortSignal },
 ): Promise<Array<() => void>> {
   let entries: string[]
   try {
@@ -63,40 +63,47 @@ async function registerSkillsUnderRoot(
   if (entries.length === 0) return []
 
   const disposers: Array<() => void> = []
-  for (const entry of entries) {
-    const full = join(root, entry)
-    let isDir = false
-    try {
-      isDir = (await stat(full)).isDirectory()
-    } catch {
-      continue
+  try {
+    for (const entry of entries) {
+      if (options.signal?.aborted) break
+      const full = join(root, entry)
+      let isDir = false
+      try {
+        isDir = (await stat(full)).isDirectory()
+      } catch {
+        continue
+      }
+      if (!isDir) continue
+      let skill
+      try {
+        skill = await loadSkillBundle(full)
+      } catch (error) {
+        ctx.logger.warn(
+          'netxops: kb %s skill load failed at %s: %s',
+          options.label,
+          full,
+          error instanceof Error ? error.message : String(error),
+        )
+        continue
+      }
+      if (!skill) {
+        ctx.logger.warn('netxops: kb %s skill skipped (invalid SKILL.md): %s', options.label, full)
+        continue
+      }
+      if (options.signal?.aborted) break
+      disposers.push(skillsApi.register({
+        name: skill.name,
+        description: skill.description,
+        content: skill.content,
+        path: skill.path,
+        resourceBase: { kind: 'directory', path: skill.directory },
+        provider,
+        source: 'custom',
+      }))
     }
-    if (!isDir) continue
-    let skill
-    try {
-      skill = await loadSkillBundle(full)
-    } catch (error) {
-      ctx.logger.warn(
-        'netxops: kb %s skill load failed at %s: %s',
-        options.label,
-        full,
-        error instanceof Error ? error.message : String(error),
-      )
-      continue
-    }
-    if (!skill) {
-      ctx.logger.warn('netxops: kb %s skill skipped (invalid SKILL.md): %s', options.label, full)
-      continue
-    }
-    disposers.push(skillsApi.register({
-      name: skill.name,
-      description: skill.description,
-      content: skill.content,
-      path: skill.path,
-      resourceBase: { kind: 'directory', path: skill.directory },
-      provider,
-      source: 'custom',
-    }))
+  } catch (error) {
+    for (const dispose of disposers.splice(0)) dispose()
+    throw error
   }
   return disposers
 }
@@ -113,6 +120,7 @@ export async function registerKbPackSkills(
   options: {
     enabled: boolean
     providerLabel?: string
+    signal?: AbortSignal
   },
 ): Promise<() => void> {
   if (!options.enabled || !kbPackSkillsEnabled(snapshot)) {
@@ -128,17 +136,27 @@ export async function registerKbPackSkills(
   const disposers: Array<() => void> = []
 
   const skillsRoot = resolveKbSkillsRoot(snapshot)
-  disposers.push(...await registerSkillsUnderRoot(ctx, skillsApi, skillsRoot, provider, {
-    logMissing: true,
-    label: 'pack',
-  }))
-
   const localRoot = resolveKbLocalSkillsRoot(snapshot)
-  if (localRoot) {
-    disposers.push(...await registerSkillsUnderRoot(ctx, skillsApi, localRoot, provider, {
-      logMissing: false,
-      label: 'local',
+  try {
+    disposers.push(...await registerSkillsUnderRoot(ctx, skillsApi, skillsRoot, provider, {
+      logMissing: true,
+      label: 'pack',
+      signal: options.signal,
     }))
+
+    if (localRoot) {
+      disposers.push(...await registerSkillsUnderRoot(ctx, skillsApi, localRoot, provider, {
+        logMissing: false,
+        label: 'local',
+        signal: options.signal,
+      }))
+    }
+  } catch (error) {
+    for (const dispose of disposers.splice(0)) dispose()
+    throw error
+  }
+  if (options.signal?.aborted) {
+    for (const dispose of disposers.splice(0)) dispose()
   }
 
   if (disposers.length > 0) {

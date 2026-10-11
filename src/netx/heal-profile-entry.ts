@@ -13,7 +13,7 @@
  * recovery when only the preset side is still alive).
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -25,6 +25,11 @@ const HOST_HEAL_ONCE = Symbol.for('dsh-netxops.host-bridge-heal-attempted')
 
 /** Defaults merged into missing keys only — never overwrite user values. */
 export const NETXOPS_HOST_CONFIG_DEFAULTS: Readonly<Record<string, string | boolean | number>> = Object.freeze({
+  toolsEnabled: true,
+  groupOpsPresets: '',
+  groupTopologyPresets: '',
+  groupBizMonitorPresets: '',
+  groupKbPresets: '',
   apiUrl: 'http://127.0.0.1:8890',
   lang: 'zh',
   thinkingLanguage: 'auto',
@@ -40,8 +45,8 @@ export const NETXOPS_HOST_CONFIG_DEFAULTS: Readonly<Record<string, string | bool
   imTargetId: '',
   imTargets: '',
   groupOpsInPreset: true,
-  /** Default on: other presets inherit ops tools/skills after install. */
-  groupOpsPublic: true,
+  /** Default off: ops stays Netx-Ops-only unless the operator publishes. */
+  groupOpsPublic: false,
   groupTopologyInPreset: false,
   groupTopologyPublic: false,
   groupBizMonitorInPreset: true,
@@ -171,8 +176,22 @@ function needsHeal(entry: HostEntry): boolean {
   return false
 }
 
+/**
+ * Fill missing default keys only — never overwrite existing user values,
+ * and keep unknown user keys for round-trip safety.
+ */
+export function mergeHostConfigForHeal(
+  existing: Readonly<Record<string, string | boolean | number>>,
+): Record<string, string | boolean | number> {
+  const out: Record<string, string | boolean | number> = { ...existing }
+  for (const [key, value] of Object.entries(NETXOPS_HOST_CONFIG_DEFAULTS)) {
+    if (!Object.hasOwn(out, key)) out[key] = value
+  }
+  return out
+}
+
 function renderHostEntry(entry: Pick<HostEntry, 'disabled' | 'name' | 'config'>): string[] {
-  const config = { ...NETXOPS_HOST_CONFIG_DEFAULTS, ...entry.config }
+  const config = mergeHostConfigForHeal(entry.config)
   const out: string[] = [
     '- id: netxops',
     '  name: dsh-netxops',
@@ -180,10 +199,33 @@ function renderHostEntry(entry: Pick<HostEntry, 'disabled' | 'name' | 'config'>)
   if (entry.disabled === true) out.push('  disabled: true')
   else out.push('  disabled: false')
   out.push('  config:')
+  for (const key of Object.keys(NETXOPS_HOST_CONFIG_DEFAULTS)) {
+    out.push(`    ${key}: ${formatScalar(config[key]!)}`)
+  }
   for (const [key, value] of Object.entries(config)) {
+    if (Object.hasOwn(NETXOPS_HOST_CONFIG_DEFAULTS, key)) continue
     out.push(`    ${key}: ${formatScalar(value)}`)
   }
   return out
+}
+
+/**
+ * Write only when the on-disk contents still match `expectedRaw`.
+ * Aborts (returns false) if Plugin Manager / another heal raced us.
+ */
+export function writePatchIfUnchanged(
+  patchPath: string,
+  expectedRaw: string,
+  nextRaw: string,
+): boolean {
+  if (nextRaw === expectedRaw) return false
+  const existed = existsSync(patchPath)
+  const mtimeMs = existed ? statSync(patchPath).mtimeMs : 0
+  const current = existed ? readFileSync(patchPath, 'utf8') : ''
+  if (current !== expectedRaw) return false
+  if (existed && statSync(patchPath).mtimeMs !== mtimeMs) return false
+  writeFileSync(patchPath, nextRaw, 'utf8')
+  return true
 }
 
 /**
@@ -232,8 +274,16 @@ export function ensureNetxopsHostInProfilePatches(logger: Context['logger']): Ho
     if (nextLines === null || kind === null) continue
     const normalized = nextLines.join(nl)
     const withNl = normalized.endsWith(nl) ? normalized : `${normalized}${nl}`
-    if (withNl === raw) continue
-    writeFileSync(patchPath, withNl, 'utf8')
+    if (!writePatchIfUnchanged(patchPath, raw, withNl)) {
+      if (withNl !== raw) {
+        logger.warn(
+          'netxops: skipped heal write for profiles/%s/cordis.patch.yml '
+          + '(file changed concurrently — Plugin Manager/HMR race)',
+          profileName,
+        )
+      }
+      continue
+    }
     if (kind === 'insert') {
       inserted += 1
       logger.error(

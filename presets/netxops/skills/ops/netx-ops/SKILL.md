@@ -8,7 +8,7 @@ description: netx 运维：告警、网元、只读 CLI。
 处理 netx **告警 / 网元清单 / 只读 CLI** 时遵循本手册。  
 画布布图不在本 skill（见 **netx-topology**）。本手册里的「路径」仅指 `findTopologyPaths` 查两端关联。
 
-**工具名**：DSH 为 `netx__` + stem（如 `netx__queryNmsAlarms`）；MCP 多为同名裸 stem。下文一律写 stem。
+**工具名**：DSH 为 `netx__` + stem（如 `netx__queryNmsAlarms`）。下文写 stem 时，调用一律加 `netx__` 前缀。
 
 **两套「一批」（勿混）：**
 

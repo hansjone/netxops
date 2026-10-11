@@ -200,7 +200,7 @@ function parseContent(raw: unknown): KbContentFlags {
     const mapped = LEGACY_CONTENT_KEY[key]
     if (mapped !== undefined) {
       // Short keys only fill has* when the contract key is absent (no dual truth).
-      if (on && !present.has(mapped)) out[mapped] = true
+      if (on && !present.has(String(mapped))) out[mapped] = true
       continue
     }
     out[key] = on

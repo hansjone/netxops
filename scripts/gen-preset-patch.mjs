@@ -17,7 +17,9 @@ import { composeNetxopsPresetArtifacts } from '../src/agent-preset-install.ts'
 import { readFileSync } from 'node:fs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const artifacts = composeNetxopsPresetArtifacts()
+// This distributable declaration targets Desktop; runtime installation composes
+// separately against the running Host instead of reusing this static template.
+const artifacts = composeNetxopsPresetArtifacts('desktop')
 const declarativePath = join(root, 'presets', 'netxops.preset.patch.yml')
 writeFileSync(declarativePath, artifacts.declarativePatch)
 console.log(

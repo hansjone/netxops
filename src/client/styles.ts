@@ -43,6 +43,11 @@ const CSS = `
 .dsh-nx-groupBlock+.dsh-nx-groupBlock{border-top:1px solid var(--dsw-alias-border-l1,#eef0f3);padding-top:12px}
 .dsh-nx-groupTitle{font-size:13px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary,#1f2329)}
 .dsh-nx-groupChecks{display:flex;flex-direction:column;gap:8px;padding-left:2px}
+.dsh-nx-targets{margin-top:10px;padding-top:10px;border-top:1px solid var(--dsw-alias-border-l2,#dfe1e5)}
+.dsh-nx-settings summary{cursor:pointer;font-size:12px;font-weight:500;line-height:1.6}
+.dsh-nx-targets[open] .dsh-nx-checkRow{padding:5px 0;flex-wrap:wrap}
+.dsh-nx-settings input:focus-visible,.dsh-nx-settings button:focus-visible,.dsh-nx-settings summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#3370ff);outline-offset:2px}
+.dsh-nx-settings>.dsh-nx-settings-actions{position:sticky;bottom:0;padding:12px;background:var(--dsw-alias-bg-base,#fff);border-top:1px solid var(--dsw-alias-border-l2,#dfe1e5);flex-wrap:wrap}
 .dsh-nx-imTargetList{display:flex;flex-direction:column;gap:8px;padding:4px 0 2px}
 .dsh-nx-pathRow{display:flex;gap:8px;align-items:stretch}
 .dsh-nx-pathRow>input{flex:1;min-width:0}

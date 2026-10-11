@@ -199,6 +199,7 @@ export async function registerGroupSkills(
   ctx: Context,
   groupIds: readonly NetxCapabilityGroupId[],
   providerLabel: string,
+  signal?: AbortSignal,
 ): Promise<() => void> {
   const skillsApi = (ctx as { skills?: { register: (skill: {
     name: string
@@ -217,31 +218,42 @@ export async function registerGroupSkills(
   const disposers: Array<() => void> = []
   const enabled = new Set(groupIds)
   const log = (ctx as { logger?: { warn: (msg: string, ...args: unknown[]) => void } }).logger
-  for (const groupId of CAPABILITY_GROUP_IDS) {
-    if (!enabled.has(groupId)) continue
-    const { skills, skipped } = await loadGroupSkills(root, groupId)
-    for (const miss of skipped) {
-      log?.warn?.('%s: skip skill dir %s (%s)', providerLabel, miss.directory, miss.reason)
+  try {
+    for (const groupId of CAPABILITY_GROUP_IDS) {
+      if (!enabled.has(groupId)) continue
+      const { skills, skipped } = await loadGroupSkills(root, groupId)
+      if (signal?.aborted) break
+      for (const miss of skipped) {
+        log?.warn?.('%s: skip skill dir %s (%s)', providerLabel, miss.directory, miss.reason)
+      }
+      if (skills.length === 0) {
+        log?.warn?.(
+          '%s: no skills loaded for group=%s from %s',
+          providerLabel,
+          groupId,
+          join(root, SKILL_DIR_BY_GROUP[groupId]),
+        )
+      }
+      for (const skill of skills) {
+        disposers.push(skillsApi.register({
+          name: skill.name,
+          description: skill.description,
+          content: groupId === 'topology'
+            ? `${skill.content}\n\n## DeepSeek Harness REST capabilities\nUse only tools present in this session. Native layout supports catalog and move_nodes/sink_nodes. Dual-unit/orbit/polish recipes require a separately installed netx-topology MCP. Native analyzeTopologyViewLayout reports basic graph statistics; suggestSinkHubs uses degree ranking. Native sinkTopologyDualUnits is unavailable.\n`
+            : skill.content,
+          path: skill.path,
+          resourceBase: { kind: 'directory', path: skill.directory },
+          provider: providerLabel,
+          source: 'custom',
+        }))
+      }
     }
-    if (skills.length === 0) {
-      log?.warn?.(
-        '%s: no skills loaded for group=%s from %s',
-        providerLabel,
-        groupId,
-        join(root, SKILL_DIR_BY_GROUP[groupId]),
-      )
+    if (signal?.aborted) {
+      for (const dispose of disposers.splice(0)) dispose()
     }
-    for (const skill of skills) {
-      disposers.push(skillsApi.register({
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-        path: skill.path,
-        resourceBase: { kind: 'directory', path: skill.directory },
-        provider: providerLabel,
-        source: 'custom',
-      }))
-    }
+  } catch (error) {
+    for (const dispose of disposers.splice(0)) dispose()
+    throw error
   }
 
   return () => {

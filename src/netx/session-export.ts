@@ -108,7 +108,7 @@ function resolveSessionStore(ctx: Context): SessionStoreFlushApi | undefined {
   const fromGet = typeof (ctx as { get?: (name: string) => unknown }).get === 'function'
     ? (ctx as { get: (name: string) => unknown }).get('sessions')
     : undefined
-  const sessions = (fromGet ?? (ctx as { sessions?: SessionStoreFlushApi }).sessions) as
+  const sessions = (fromGet ?? (ctx as { sessions?: object }).sessions) as
     | SessionStoreFlushApi
     | undefined
   if (!sessions || typeof sessions.get !== 'function' || typeof sessions.flush !== 'function') {

@@ -2,7 +2,7 @@
  * Install Netx Ops agent preset for both DSH host styles:
  *
  * - DSH ≥0.2 (`@deepseek-ai/dsh-agent-preset` + registry): declarative insert
- *   row synced into **desktop and web** profile `cordis.patch.yml` on apply.
+ *   row synced into the **running** profile's `cordis.patch.yml` on apply.
  *   Directory `$DSH_HOME/.agent-presets/netxops` is still written for older
  *   hosts that scan `@deepseek-ai/dsh-agent-presets`, but 0.2 web/desktop no
  *   longer load that roster — without the patch row, Settings → Agent presets
@@ -19,15 +19,14 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
-import { ensureNetxopsHostInProfilePatches } from './netx/heal-profile-entry.ts'
 
 export const NETXOPS_PRESET_ID = 'netxops'
 
@@ -45,6 +44,17 @@ function resolveDshHome(): string {
   const fromEnv = process.env.DSH_HOME?.trim()
   if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv
   return join(homedir(), '.dsh')
+}
+
+/** Current Host profile; installing one Host never edits a second Host's patch. */
+export function resolveActiveProfile(baseUrl = ''): string {
+  const declared = process.env.DSH_PROFILE?.trim()
+  if (declared && /^[\w-]+$/.test(declared)) return declared
+  const fromBase = /[\\/]profiles[\\/]([\w-]+)[\\/]/.exec(baseUrl)?.[1]
+  if (fromBase) return fromBase
+  const flag = process.argv.indexOf('--profile')
+  if (flag >= 0 && /^[\w-]+$/.test(process.argv[flag + 1] ?? '')) return process.argv[flag + 1]
+  return process.versions.electron ? 'desktop' : 'web'
 }
 
 function electronResourcesRoots(): string[] {
@@ -70,13 +80,13 @@ function readableFile(path: string): boolean {
  * Prefer Electron `app.asar` (what the running Desktop actually loads) over
  * `$DSH_HOME/profiles/node_modules` (often the older CLI heal tree).
  */
-export function resolveDesktopStandardPatchPath(): string | null {
+export function resolveDesktopStandardPatchPath(profile = resolveActiveProfile()): string | null {
   const dshHome = resolveDshHome()
   const envOverride = process.env.NETXOPS_STANDARD_PATCH?.trim()
   const candidates: string[] = []
   if (envOverride) candidates.push(envOverride)
 
-  for (const resources of electronResourcesRoots()) {
+  for (const resources of profile === 'desktop' ? electronResourcesRoots() : []) {
     candidates.push(
       join(resources, 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-web-app', 'presets', 'standard.patch.yml'),
       join(resources, 'app.asar.unpacked', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-web-app', 'presets', 'standard.patch.yml'),
@@ -84,11 +94,10 @@ export function resolveDesktopStandardPatchPath(): string | null {
   }
 
   const requireAnchors = [
-    join(dshHome, 'profiles', 'desktop', 'package.json'),
-    join(dshHome, 'profiles', 'desktop', 'node_modules', 'dsh-netxops', 'package.json'),
+    join(dshHome, 'profiles', profile, 'package.json'),
+    join(dshHome, 'profiles', profile, 'node_modules', 'dsh-netxops', 'package.json'),
     join(packageRoot(), 'package.json'),
     join(dshHome, 'profiles', 'node_modules', '@deepseek-ai', 'dsh-web-app', 'package.json'),
-    join(dshHome, 'profiles', 'web', 'package.json'),
   ]
   for (const anchor of requireAnchors) {
     if (!existsSync(anchor)) continue
@@ -117,11 +126,10 @@ export function resolveDesktopStandardPatchPath(): string | null {
  * Profile-local copies win over the shared `$DSH_HOME/profiles/node_modules`
  * heal tree, which is frequently an older CLI generation than Desktop.
  */
-export function resolveStandardPresetDir(): string | null {
+export function resolveStandardPresetDir(profile = resolveActiveProfile()): string | null {
   const dshHome = resolveDshHome()
   const candidates = [
-    join(dshHome, 'profiles', 'desktop', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
-    join(dshHome, 'profiles', 'web', 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
+    join(dshHome, 'profiles', profile, 'node_modules', '@deepseek-ai', 'dsh-agent-presets', 'presets', 'standard'),
     // Source checkout used by `dsh` CLI / local Harness.
     join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'DeepSeekHarness', 'packages', 'preset', 'agent-presets', 'presets', 'standard'),
     // Shared heal tree last — often lags Desktop 0.2.
@@ -131,8 +139,7 @@ export function resolveStandardPresetDir(): string | null {
     if (existsSync(join(dir, 'agent.cordis.yml'))) return dir
   }
   for (const nm of [
-    join(dshHome, 'profiles', 'desktop', 'node_modules'),
-    join(dshHome, 'profiles', 'web', 'node_modules'),
+    join(dshHome, 'profiles', profile, 'node_modules'),
     join(dshHome, 'profiles', 'node_modules'),
   ]) {
     const pkgJson = join(nm, '@deepseek-ai', 'dsh-agent-presets', 'package.json')
@@ -173,23 +180,21 @@ export function desktopRuntimeLikelyPresent(): boolean {
 }
 
 /** Host roots used for bare package health checks (same walk shape as DSH discovery). */
-export function hostResolveBases(): string[] {
+export function hostResolveBases(profile = resolveActiveProfile()): string[] {
   const dshHome = resolveDshHome()
   const bases: string[] = []
-  for (const resources of electronResourcesRoots()) {
+  for (const resources of profile === 'desktop' ? electronResourcesRoots() : []) {
     bases.push(join(resources, 'app.asar', 'dsh', 'package.json'))
     bases.push(join(resources, 'app.asar', 'dsh', 'node_modules'))
   }
   const localAppData = process.env.LOCALAPPDATA?.trim()
-  if (localAppData) {
+  if (localAppData && profile === 'desktop') {
     const asarDsh = join(localAppData, 'Programs', 'DeepSeek Harness', 'resources', 'app.asar', 'dsh')
     bases.push(join(asarDsh, 'package.json'), join(asarDsh, 'node_modules'))
   }
   bases.push(
-    join(dshHome, 'profiles', 'desktop', 'package.json'),
-    join(dshHome, 'profiles', 'desktop', 'node_modules'),
-    join(dshHome, 'profiles', 'web', 'package.json'),
-    join(dshHome, 'profiles', 'web', 'node_modules'),
+    join(dshHome, 'profiles', profile, 'package.json'),
+    join(dshHome, 'profiles', profile, 'node_modules'),
     join(dshHome, 'profiles', 'node_modules'),
     join(packageRoot(), 'package.json'),
   )
@@ -389,7 +394,7 @@ export interface NetxopsPresetArtifacts {
   /** Human-readable source path (directory or patch file). */
   standardSource: string
   /** Kind of host standard used for composition. */
-  standardKind: 'desktop-patch' | 'directory'
+  standardKind: 'desktop-patch' | 'directory' | 'host-registry'
   /** Directory to seed `.agent-presets/netxops` from; null when patch-only. */
   standardDir: string | null
   name: string
@@ -410,12 +415,8 @@ function readPresetMeta(metaPath: string): { name: string; description: string; 
   }
 }
 
-function desktopProfilePresent(): boolean {
-  return existsSync(join(resolveDshHome(), 'profiles', 'desktop'))
-}
-
 /** Compose standard + Netx Ops overlays into directory + declarative artifacts. */
-export function composeNetxopsPresetArtifacts(): NetxopsPresetArtifacts {
+export function composeNetxopsPresetArtifacts(profile = resolveActiveProfile(), standardDocument?: string): NetxopsPresetArtifacts {
   const overlayRoot = join(packageRoot(), 'presets', NETXOPS_PRESET_ID)
   const personaPath = join(overlayRoot, 'PERSONA.md')
   const metaPath = join(overlayRoot, 'preset.yml')
@@ -423,29 +424,35 @@ export function composeNetxopsPresetArtifacts(): NetxopsPresetArtifacts {
     throw new Error(`bundled preset overlay missing under ${overlayRoot}`)
   }
   const meta = readPresetMeta(metaPath)
-  const bases = hostResolveBases()
-  const patchPath = resolveDesktopStandardPatchPath()
+  const bases = hostResolveBases(profile)
+  const patchPath = standardDocument === undefined ? resolveDesktopStandardPatchPath(profile) : null
   const usePatch = patchPath !== null && (
     process.env.NETXOPS_PREFER_DESKTOP_PATCH !== '0'
   ) && (
     typeof process.versions.electron === 'string'
     || process.env.NETXOPS_PREFER_DESKTOP_PATCH === '1'
-    || desktopProfilePresent()
-    || desktopRuntimeLikelyPresent()
+    || profile === 'desktop'
+    || resolveStandardPresetDir(profile) === null
   )
 
   let standardSource: string
-  let standardKind: 'desktop-patch' | 'directory'
+  let standardKind: NetxopsPresetArtifacts['standardKind']
   let standardDir: string | null
   let agentCordis: string
 
-  if (usePatch && patchPath !== null) {
+  if (standardDocument !== undefined) {
+    if (!standardDocument.trim()) throw new Error('Host standard preset composition is empty')
+    standardSource = `Host ${profile}: standard preset`
+    standardKind = 'host-registry'
+    standardDir = null
+    agentCordis = standardDocument
+  } else if (usePatch && patchPath !== null) {
     standardSource = patchPath
     standardKind = 'desktop-patch'
     standardDir = null
     agentCordis = pluginsBodyToAgentCordis(extractPluginsBodyFromStandardPatch(readFileSync(patchPath, 'utf8')))
   } else {
-    const dir = resolveStandardPresetDir()
+    const dir = resolveStandardPresetDir(profile)
     if (dir === null) {
       throw new Error(
         'cannot find host standard preset (Desktop standard.patch.yml or @deepseek-ai/dsh-agent-presets)',
@@ -463,14 +470,18 @@ export function composeNetxopsPresetArtifacts(): NetxopsPresetArtifacts {
     personaEntryFromMarkdown(readFileSync(personaPath, 'utf8')),
   )
   agentCordis = ensureNetxopsToolsRow(agentCordis)
-  agentCordis = alignWorkflowEngineForHost(agentCordis, bases)
+  if (standardDocument === undefined) {
+    agentCordis = alignWorkflowEngineForHost(agentCordis, bases, profile === 'desktop' ? 'desktop' : 'web')
+  }
   if (!agentCordis.endsWith('\n')) agentCordis += '\n'
 
-  const missing = unresolvableCompositionPackages(agentCordis, bases)
+  // A declaration read from the running Host preserves its Loader dialect and
+  // package resolution. Filesystem anchors may point at a different checkout.
+  const missing = (standardDocument === undefined ? unresolvableCompositionPackages(agentCordis, bases) : [])
     .filter((name) => !name.startsWith('dsh-netxops'))
   // Packaged Desktop keeps most `@deepseek-ai/*` only inside app.asar; plain
   // Node cannot probe them, but the Host can. Do not block the write for those.
-  const desktopAsar = desktopRuntimeLikelyPresent()
+  const desktopAsar = profile === 'desktop' && desktopRuntimeLikelyPresent()
   const blocking = missing.filter((name) => !(desktopAsar && name.startsWith('@deepseek-ai/')))
   if (blocking.length > 0) {
     throw new Error(
@@ -498,31 +509,47 @@ ${pluginsBody}
   return { standardSource, standardKind, standardDir, ...meta, agentCordis, declarativePatch }
 }
 
-function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Context['logger']): void {
+export function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Context['logger']): void {
   const overlayRoot = join(packageRoot(), 'presets', NETXOPS_PRESET_ID)
   const destParent = join(resolveDshHome(), '.agent-presets')
   const dest = join(destParent, NETXOPS_PRESET_ID)
   mkdirSync(destParent, { recursive: true })
-  if (existsSync(dest)) rmSync(dest, { recursive: true, force: true })
+  const marker = join(dest, '.dsh-netxops-managed')
+  if (existsSync(dest) && !existsSync(marker)) {
+    logger.warn('netxops: preserving user-managed preset at %s', dest)
+    return
+  }
+  const existed = existsSync(dest)
   mkdirSync(dest, { recursive: true })
-  if (artifacts.standardDir !== null && existsSync(artifacts.standardDir)) {
+  if (!existed && artifacts.standardDir !== null && existsSync(artifacts.standardDir)) {
     cpSync(artifacts.standardDir, dest, { recursive: true })
   }
-  writeFileSync(join(dest, 'preset.yml'), readFileSync(join(overlayRoot, 'preset.yml'), 'utf8'))
-  writeFileSync(join(dest, 'PERSONA.md'), readFileSync(join(overlayRoot, 'PERSONA.md'), 'utf8'))
-  writeFileSync(join(dest, 'agent.cordis.yml'), artifacts.agentCordis)
-  const skillsSrc = join(overlayRoot, 'skills')
-  if (existsSync(skillsSrc)) cpSync(skillsSrc, join(dest, 'skills'), { recursive: true })
-  writeFileSync(
-    join(dest, '.dsh-netxops-managed'),
-    [
-      `composed-from: ${artifacts.standardKind}`,
-      `standard-source: ${artifacts.standardSource}`,
-      `at: ${new Date().toISOString()}`,
-      '',
-    ].join('\n'),
-    'utf8',
-  )
+  let hashes: Record<string, string> = {}
+  if (existsSync(marker)) {
+    try { hashes = JSON.parse(readFileSync(marker, 'utf8')).files ?? {} }
+    catch { /* Legacy marker: preserve differing files on the first upgrade. */ }
+  }
+  const hash = (text: string): string => createHash('sha256').update(text).digest('hex')
+  const files = {
+    'preset.yml': readFileSync(join(overlayRoot, 'preset.yml'), 'utf8'),
+    'PERSONA.md': readFileSync(join(overlayRoot, 'PERSONA.md'), 'utf8'),
+    'agent.cordis.yml': artifacts.agentCordis,
+  }
+  for (const [name, content] of Object.entries(files)) {
+    const path = join(dest, name)
+    if (existed && existsSync(path)) {
+      const current = readFileSync(path, 'utf8')
+      if (current === content) { hashes[name] = hash(content); continue }
+      if (hash(current) !== hashes[name]) {
+        logger.warn('netxops: preserving edited preset file %s', path)
+        continue
+      }
+    }
+    writeFileSync(path, content, 'utf8')
+    hashes[name] = hash(content)
+  }
+  // Skills are published exclusively by the runtime policy, rather than copied into auto-scanned roots.
+  writeFileSync(marker, `${JSON.stringify({ standardSource: artifacts.standardSource, files: hashes }, null, 2)}\n`, 'utf8')
   logger.info(
     'netxops: directory preset composed from %s → %s',
     artifacts.standardSource,
@@ -536,7 +563,7 @@ function installDirectoryPreset(artifacts: NetxopsPresetArtifacts, logger: Conte
  * Both `desktop` and `web` need the `@deepseek-ai/dsh-agent-preset` insert;
  * directory `.agent-presets` alone is invisible on 0.2.
  */
-function syncDeclarativeIntoProfilePatch(
+export function syncDeclarativeIntoProfilePatch(
   profileName: string,
   declarativePatch: string,
   logger: Context['logger'],
@@ -546,16 +573,26 @@ function syncDeclarativeIntoProfilePatch(
   const patchPath = join(profileDir, 'cordis.patch.yml')
   if (!existsSync(profileDir)) return
 
-  let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : '[]\n'
+  const original = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : '[]\n'
+  let patch = original
   // Drop previous managed blocks (literal markers — do not RegExp `(managed)`).
   patch = stripManagedPresetBlocks(patch)
   // Drop a bare enable stub left by older installs.
-  patch = patch.replace(/^- id: preset-netxops\n(?:  .*\n)*/m, '')
+  if (/^\s*- id: preset-netxops\s*$/m.test(patch)) {
+    logger.warn('netxops: preserving user-declared preset-netxops in %s', patchPath)
+    return
+  }
   if (patch.trim() === '' || patch.trim() === '[]') patch = ''
   if (!patch.endsWith('\n') && patch.length > 0) patch += '\n'
 
   const managed = `${DESKTOP_PATCH_BEGIN}\n${declarativePatch.trimEnd()}\n${DESKTOP_PATCH_END}\n`
-  writeFileSync(patchPath, `${patch}${managed}`, 'utf8')
+  const next = `${patch}${managed}`
+  if (next === original) return
+  if (existsSync(patchPath) && readFileSync(patchPath, 'utf8') !== original) {
+    logger.warn('netxops: profile patch changed during preset installation; preserving %s', patchPath)
+    return
+  }
+  writeFileSync(patchPath, next, 'utf8')
   logger.info(
     'netxops: declarative preset synced into profiles/%s/cordis.patch.yml (restart %s to load)',
     profileName,
@@ -571,8 +608,7 @@ function stripManagedPresetBlocks(patch: string): string {
     if (start < 0) break
     const end = out.indexOf(DESKTOP_PATCH_END, start)
     if (end < 0) {
-      out = out.slice(0, start)
-      break
+      throw new Error('unterminated managed preset block; preserving profile patch')
     }
     let cut = end + DESKTOP_PATCH_END.length
     if (out[cut] === '\r') cut += 1
@@ -585,10 +621,10 @@ function stripManagedPresetBlocks(patch: string): string {
 /**
  * Build directory preset (web) + sync declarative patch into Desktop profiles.
  */
-export function ensureAgentPresetInstalled(logger: Context['logger']): void {
+export function ensureAgentPresetInstalled(logger: Context['logger'], profile = resolveActiveProfile(), standardDocument?: string): void {
   let artifacts: NetxopsPresetArtifacts
   try {
-    artifacts = composeNetxopsPresetArtifacts()
+    artifacts = composeNetxopsPresetArtifacts(profile, standardDocument)
   } catch (error) {
     logger.warn('netxops: skip preset install: %s', error)
     return
@@ -599,24 +635,8 @@ export function ensureAgentPresetInstalled(logger: Context['logger']): void {
     logger.error('netxops: failed to install directory preset: %s', error)
   }
   try {
-    // Refresh shipped declarative file inside the package for next bundle consumers.
-    writeFileSync(join(packageRoot(), 'presets', 'netxops.preset.patch.yml'), artifacts.declarativePatch)
-  } catch {
-    // package may be read-only in some installs
-  }
-  try {
-    for (const profile of ['desktop', 'web']) {
-      syncDeclarativeIntoProfilePatch(profile, artifacts.declarativePatch, logger)
-    }
+    syncDeclarativeIntoProfilePatch(profile, artifacts.declarativePatch, logger)
   } catch (error) {
     logger.error('netxops: failed to sync declarative preset into profile patch: %s', error)
-  }
-  try {
-    // (1) Sparse `- id: netxops` from Plugin Manager → expand missing config keys.
-    // (2) Missing host row after dirty reinstall (preset channel self-healed,
-    //     bundle host insert lost) → insert full `name: dsh-netxops` block.
-    ensureNetxopsHostInProfilePatches(logger)
-  } catch (error) {
-    logger.error('netxops: failed to heal host profile entry: %s', error)
   }
 }

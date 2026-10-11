@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SettingsFormScope, SettingsFormSnapshot } from './settings-form.ts'
 import type { SnapshotStore } from './snapshot-store.ts'
 import {
-  CardForm, textField, booleanField, booleanFieldPersistFalse,
+  CardForm, apiUrlField, textField, presetIdsField, booleanFieldPersistFalse,
   type CardActions, type CardFieldState, type CardShell,
 } from './card-form.ts'
 import {
@@ -15,6 +15,10 @@ import {
   type AlarmPushRpcCall,
   type AlarmPushStatus,
 } from './alarm-push-status-view.ts'
+import {
+  fetchToolsStatus,
+  type ToolsMountView,
+} from './tools-status-view.ts'
 import {
   fetchKbStatus,
   reloadKbStatus,
@@ -35,12 +39,23 @@ import {
 } from './sessions-export-view.ts'
 import type { SessionsExportReasonCode } from '../session-export-shared.ts'
 
+/** Host Config / configForms namespace (must match cordis entry id). */
 export const NETXOPS_NS = 'netxops'
+/**
+ * Settings sidebar slot id — must stay distinct from NETXOPS_NS.
+ * Colliding with the Config namespace silently drops nav registration on Desktop 0.2.
+ */
+export const NETXOPS_SECTION_ID = 'dsh-netxops'
 const DEFAULT_TOKEN_REF = 'NETX_API_TOKEN'
 const API_TOKEN_FIELD = 'apiToken'
 const STATUS_POLL_MS = 2_000
 
 export interface NetxopsSettings {
+  toolsEnabled?: boolean
+  groupOpsPresets?: string
+  groupTopologyPresets?: string
+  groupBizMonitorPresets?: string
+  groupKbPresets?: string
   apiUrl?: string
   lang?: string
   thinkingLanguage?: string
@@ -76,6 +91,13 @@ interface CredentialState {
 }
 
 export interface NetxopsCardState extends CardShell {
+  toolsEnabled: CardFieldState
+  groupOpsPresets: CardFieldState
+  groupTopologyPresets: CardFieldState
+  groupBizMonitorPresets: CardFieldState
+  groupKbPresets: CardFieldState
+  presetCatalog: Array<{ id: string; name?: string; broken?: string }>
+  presetCatalogError: boolean
   apiUrl: CardFieldState
   lang: CardFieldState
   thinkingLanguage: CardFieldState
@@ -102,6 +124,8 @@ export interface NetxopsCardState extends CardShell {
   apiTokenRemoteReady: boolean
   /** Host WSS status when Connection RPC is available; otherwise null. */
   alarmPushStatus: AlarmPushStatus | null
+  /** Host `netx__*` tool mount snapshot; null when RPC unavailable. */
+  toolsStatus: ToolsMountView | null
   /** Latest KB snapshot (saved root, or live preview while editing). */
   kbStatus: KbSnapshot | null
   /** Soft-injected `remote.directoryPicker` is available. */
@@ -136,7 +160,7 @@ export interface NetxopsCardFace extends CardActions {
 }
 
 type DirectoryPickerRemote = {
-  pick: (signal?: AbortSignal) => Promise<string | null>
+  pick: (signal?: AbortSignal) => Promise<unknown>
 }
 
 type CredentialsRemote = {
@@ -155,6 +179,11 @@ export class NetxopsCardController {
   }
   private rpcCall: AlarmPushRpcCall | undefined
   private alarmPushStatus: AlarmPushStatus | null = null
+  private toolsStatus: ToolsMountView | null = null
+  private toolsStatusInFlight = false
+  private presetCatalog: NetxopsCardState['presetCatalog'] = []
+  private presetCatalogError = false
+  private presetCatalogInFlight = false
   private kbStatus: KbSnapshot | null = null
   private kbPreview: KbSnapshot | null = null
   private kbDirectoryPicker: DirectoryPickerRemote | undefined
@@ -181,24 +210,31 @@ export class NetxopsCardController {
     this.form = new CardForm(
       scope,
       [
-        textField('apiUrl'),
+        booleanFieldPersistFalse('toolsEnabled'),
+        presetIdsField('groupOpsPresets'),
+        presetIdsField('groupTopologyPresets'),
+        presetIdsField('groupBizMonitorPresets'),
+        presetIdsField('groupKbPresets'),
+        apiUrlField('apiUrl'),
         textField('lang'),
         textField('thinkingLanguage'),
         textField('replyLanguage'),
         textField('nmsProvider'),
         textField('kbRoot'),
+        // Persist false explicitly: `booleanField` clears on off, which lets a
+        // profile patch (`groupOpsPublic: true`) win again — uncheck looked
+        // instant in the UI then tools stayed published.
         booleanFieldPersistFalse('groupOpsInPreset'),
-        // Default is true — must persist false explicitly or "off" snaps back.
         booleanFieldPersistFalse('groupOpsPublic'),
-        booleanField('groupTopologyInPreset'),
-        booleanField('groupTopologyPublic'),
+        booleanFieldPersistFalse('groupTopologyInPreset'),
+        booleanFieldPersistFalse('groupTopologyPublic'),
         booleanFieldPersistFalse('groupBizMonitorInPreset'),
-        booleanField('groupBizMonitorPublic'),
+        booleanFieldPersistFalse('groupBizMonitorPublic'),
         booleanFieldPersistFalse('groupKbInPreset'),
-        booleanField('groupKbPublic'),
-        booleanField('alarmPushEnabled'),
+        booleanFieldPersistFalse('groupKbPublic'),
+        booleanFieldPersistFalse('alarmPushEnabled'),
         booleanFieldPersistFalse('alarmDeliverDsh'),
-        booleanField('alarmDeliverIm'),
+        booleanFieldPersistFalse('alarmDeliverIm'),
         textField('imTargets'),
         textField('imBotId'),
         textField('imTargetId'),
@@ -239,6 +275,13 @@ export class NetxopsCardController {
         this.alarmPushStatus = null
         changed = true
       }
+      if (this.toolsStatus !== null) {
+        this.toolsStatus = null
+        changed = true
+      }
+      this.presetCatalog = []
+      this.presetCatalogError = true
+      changed = true
       if (this.kbStatus !== null || this.kbPreview !== null) {
         this.kbStatus = null
         this.kbPreview = null
@@ -257,6 +300,8 @@ export class NetxopsCardController {
     }
     this.startStatusPoll()
     void this.refreshAlarmPushStatus()
+    void this.refreshToolsStatus()
+    void this.refreshPresetCatalog()
     void this.reloadKbFromHost()
     void this.refreshKbPreview()
     void this.refreshImDeliveryCatalog()
@@ -279,6 +324,8 @@ export class NetxopsCardController {
     if (this.pollTimer !== undefined) return
     this.pollTimer = setInterval(() => {
       void this.refreshAlarmPushStatus()
+      void this.refreshToolsStatus()
+      void this.refreshPresetCatalog()
       void this.refreshKbStatus()
       void this.refreshImDeliveryCatalog()
       void this.refreshSessionsExportStatus()
@@ -314,6 +361,51 @@ export class NetxopsCardController {
     } finally {
       this.pollInFlight = false
     }
+  }
+
+  private async refreshToolsStatus(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.toolsStatusInFlight) return
+    this.toolsStatusInFlight = true
+    try {
+      const next = await fetchToolsStatus(call)
+      const prev = this.toolsStatus
+      if (
+        prev
+        && prev.count === next.count
+        && prev.version === next.version
+        && prev.plane === next.plane
+        && prev.error === next.error
+        && prev.tokenConfigured === next.tokenConfigured
+        && prev.apiUrl === next.apiUrl
+        && JSON.stringify(prev) === JSON.stringify(next)
+      ) return
+      this.toolsStatus = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last good snapshot; next poll retries.
+    } finally {
+      this.toolsStatusInFlight = false
+    }
+  }
+
+  private async refreshPresetCatalog(): Promise<void> {
+    const call = this.rpcCall
+    if (!call || this.presetCatalogInFlight) return
+    this.presetCatalogInFlight = true
+    try {
+      const result = await call('/netxops', 'presets.catalog', {}) as {
+        ok?: boolean; value?: { presets?: NetxopsCardState['presetCatalog'] }
+      }
+      if (call !== this.rpcCall) return
+      this.presetCatalogError = result?.ok !== true || !Array.isArray(result.value?.presets)
+      if (!this.presetCatalogError) this.presetCatalog = result.value!.presets!
+      this.store.set(this.projection())
+    } catch {
+      if (call !== this.rpcCall) return
+      this.presetCatalogError = true
+      this.store.set(this.projection())
+    } finally { this.presetCatalogInFlight = false }
   }
 
   private async refreshImDeliveryCatalog(): Promise<void> {
@@ -467,7 +559,7 @@ export class NetxopsCardController {
     const trimmed = path.trim()
     this.kbUiError = null
     this.store.set(this.projection())
-    await this.form.save()
+    await this.form.save(['kbRoot'])
     const shell = this.form.shell()
     const saved = (this.scope.getSnapshot().value?.kbRoot ?? '').trim()
     if (shell.failed || saved !== trimmed) {
@@ -595,6 +687,13 @@ export class NetxopsCardController {
 
   private projection(): NetxopsCardState {
     return {
+      toolsEnabled: this.form.field('toolsEnabled'),
+      groupOpsPresets: this.form.field('groupOpsPresets'),
+      groupTopologyPresets: this.form.field('groupTopologyPresets'),
+      groupBizMonitorPresets: this.form.field('groupBizMonitorPresets'),
+      groupKbPresets: this.form.field('groupKbPresets'),
+      presetCatalog: this.presetCatalog,
+      presetCatalogError: this.presetCatalogError,
       ...this.form.shell(),
       apiUrl: this.form.field('apiUrl'),
       lang: this.form.field('lang'),
@@ -621,6 +720,7 @@ export class NetxopsCardController {
       apiTokenWritable: this.credential.remoteReady && this.credential.writable,
       apiTokenRemoteReady: this.credential.remoteReady,
       alarmPushStatus: this.alarmPushStatus,
+      toolsStatus: this.toolsStatus,
       kbStatus: this.kbPreview ?? this.kbStatus,
       kbDirectoryPickerReady: this.kbDirectoryPicker !== undefined || this.rpcCall !== undefined,
       kbUiError: this.kbUiError,
@@ -681,6 +781,11 @@ export class NetxopsCardController {
   inject(): NetxopsCardFace {
     const actions = this.form.actions()
     const capabilityFields = new Set([
+      'toolsEnabled',
+      'groupOpsPresets',
+      'groupTopologyPresets',
+      'groupBizMonitorPresets',
+      'groupKbPresets',
       'groupOpsInPreset',
       'groupOpsPublic',
       'groupTopologyInPreset',
@@ -698,7 +803,7 @@ export class NetxopsCardController {
         if (field === 'kbRoot') void this.refreshKbPreview()
         // Capability toggles must hit the host Config immediately — staged-only
         // edits never publish public tools/skills to other presets.
-        if (capabilityFields.has(field)) void this.form.save()
+        if (capabilityFields.has(field)) void this.form.save([field])
       },
       discard: () => {
         actions.discard()
@@ -707,7 +812,7 @@ export class NetxopsCardController {
       resetField: (field) => {
         actions.resetField(field)
         if (field === 'kbRoot') void this.refreshKbPreview()
-        if (capabilityFields.has(field)) void this.form.save()
+        if (capabilityFields.has(field)) void this.form.save([field])
       },
       exportAllSessions: () => { this.exportAllSessions() },
       browseKbRoot: () => { this.browseKbRoot() },

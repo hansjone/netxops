@@ -6,7 +6,7 @@ One install wires **all of**:
 
 | Piece | How you use it |
 |-------|----------------|
-| Host tools | Capability groups **ops / topology** (one group ↔ one skill). Default ops in Ops preset; topology and all public off. Other agents may mount `dsh-netxops/tools-ops|topology` |
+| Host tools | Capability groups **ops / topology / biz-monitor**. Each group targets Netx Ops, selected other presets, or all presets; tools and skills share the policy. A master switch revokes all Netx publication. Defaults: ops+bizMonitor in Netx Ops, all public off. |
 | Companion plugins | **dsh-im-ops** + **dsh-ops-cron** — add as **direct** profile deps in the same command (DSH/pnpm blocks `github:` as transitive deps) |
 | Plugins card | Settings → Plugins → **Netx Ops** (URL / API lang / thinking+reply language / token / capability groups) |
 | Agent preset + skills | Settings → Agent presets → **Netx Ops**. Host composes from **this host's** shipped **standard** + Netx Ops overlays (no preset inheritance). DSH ≥0.2 (Desktop **and** web) uses declarative `@deepseek-ai/dsh-agent-preset` rows synced into that profile's `cordis.patch.yml` (from `@deepseek-ai/dsh-web-app/presets/standard.patch.yml`). A directory under `~/.dsh/.agent-presets/netxops` is still written for older hosts, but 0.2 no longer lists it. Restart Desktop / `dsh web` once after upgrade. Playbooks follow the same group toggles |
@@ -35,21 +35,25 @@ bun run link:peers
 # 或 PowerShell: .\scripts\link-dsh-peers.ps1
 ```
 
-脚本优先用 `~/.dsh/profiles/node_modules` 里那一套 peers（schemastery 3.18.2 + dsh-*），**不要**单独链 Desktop profile 里的 schemastery 3.18.4——混链会导致 `Config({})` 变成空代理，Desktop 直接 **web boot: dsh-netxops failed**。
+脚本优先从 `~/.dsh/profiles/node_modules` 选择一整套 peers；该目录不完整时才考虑 profile 的完整依赖集。不要单独替换某个内部包版本，混链可能使 Config 或服务上下文不兼容。
 
 然后**重启 Desktop**（或在插件页关掉再启用 dsh-netxops）。症状对照：
 
 | 现象 | 原因 |
 |------|------|
 | `Cannot find package '@deepseek-ai/schemastery'` / **netxops 未运行** | 未跑 `link:peers` |
-| **web boot: dsh-netxops failed** | peers 版本错乱（例如链了 Desktop 的 schemastery 3.18.4）→ 重跑 `bun run link:peers` 再重启 |
-| `pending (waiting for service: settingsScope)` → 会话无 `netx__*` / 无 `netx-ops` | 旧客户端仍硬/软等待已删除的 `settingsScope`（DSH 0.2）；用 **≥0.1.50** 的 tgz 重装并完全重启 Desktop，勿用脏的 `link:` / 混锁 `.modules.yaml` |
-| 日志 `no connection yet` / 会话无 `netx__*`，且 `profiles/*/cordis.yml` 只有 `preset-netxops`、**没有** `name: dsh-netxops` | 脏重装后 bundle 宿主行丢失、预设通道自愈不同步。**≥0.1.53** 会在预设 tools 启动时把宿主块写回 `cordis.patch.yml`；看日志 `host bridge … MISSING … wrote it back` 后**完全退出再开** Desktop/`dsh web`。仍不行则 `dsh plugin remove dsh-netxops` 再 `add` |
+| **web boot: dsh-netxops failed** | 检查具体加载错误；若 peers 混链，重跑 `bun run link:peers` 后重启 |
+| `pending (waiting for service: settingsScope)` → 会话无 `netx__*` / 无 `netx-ops` | 旧客户端仍硬/软等待已删除的 `settingsScope`（DSH 0.2）；用 **≥0.1.55** 的 tgz 重装并完全重启 Desktop，勿用脏的 `link:` / 混锁 `.modules.yaml` |
+| Desktop 卡在 **Loading plugins…** / 设置页无 Netx Ops | 旧客户端 `immediately: true` 或同步 `inject(['configForms'])`；用 **≥0.1.55**（`immediately: false` + deferred poll） |
+| 无 live connection，预设内无 `netx__*` | 检查 Host 插件是否启用及其加载错误。缺少 Host 时现在停止发布，不再通过预设入口自动补回被关闭的插件。 |
 
 改 Host/Client 后照常 `bun run bundle`，一般不用重装；换机器或清过本仓库 `node_modules` 才需再 `link:peers`。
 
-备选：`npm pack` 后在 Desktop「添加插件」填 **`.tgz` 绝对路径**（复制进 profile，不走 `link:`，也就不用 link peers）。  
-**≥0.1.54**：运行时依赖已打进 `lib/`（含 `fflate`），装 tgz **不必访问 npm registry**；若仍去拉 `registry.npmjs.org/fflate` 说明装的是旧包。现场不要在 `profiles/desktop` 里手搓 `pnpm add`。
+备选：`npm pack` 后在 Desktop「添加插件」填 **`.tgz` 绝对路径**（复制进 profile，不走 `link:`，也就不用 link peers）。
+
+当前实现：第三方运行时依赖（含 `fflate`）已打进 `lib/`；六个 agent-tools 入口为自包含包。Host 启动即发布实际策略，凭据软注入并异步补齐。缺少 Host 连接桥接时，预设入口保持关闭。
+
+插件卡使用 `settings.section` 和官方 `settings.plugin.item`，配合 deferred `configForms`。能力组支持指定其他预设、全预设公开及总开关。详情见 [工具发布与 UI 修复说明](PUBLICATION-REVIEW.zh.md)。
 
 ## Install
 
@@ -69,7 +73,7 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
    Token fallback: `scripts/set-netx-token.ps1` / `.sh`.  
    Optional: enable **关键告警推送** so this DSH dials `ws(s)://<apiUrl>/v1/integrations/dsh-alarm/ws`. Choose **投递到 DSH 会话** and/or **投递到 WhatsApp / IM**. For IM, install `dsh-im-ops`, create a delivery target, then paste `imBotId` / `imTargetId`. The card header shows live WSS status.  
    Optional: **导出全部会话** downloads `dsh-sessions-<host>-<utc>.zip` via `GET /api/netxops.sessions.export` (browser download; works for cloud Hosts).  
-   Capability groups: **ops** defaults on (in Netx Ops + published to other presets). Enable **topology** if needed; uncheck **对其他预设公开** to keep tools Netx-Ops-only. Capability toggles **auto-save and hot-reload** (Host remounts `netx__*` / skills immediately — no Desktop restart).  
+   Capability groups: **ops + biz-monitor** default on in Netx Ops only. Use **指定其他预设** for selective publication or **对所有预设公开** for Host-wide publication. The master switch revokes all Netx tools and skills while keeping selections. These toggles auto-save and affect the next model request without a restart.
    Optional: **知识库** — set package root (MANIFEST v1.0); default mounts `_skills/kb-*` into Netx Ops; optional public. See [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md).
 2. Restart after install/upgrade so the bundle patch layers apply. Open Settings → **Agent presets** → **Netx Ops** should appear.
    The Netx Ops preset is **standard + netxops tools/persona** (shell, search, plan, todo, web, workflows, … plus `netx__*`). Re-activate (or restart the Host) so `$DSH_HOME/.agent-presets/netxops` is recomposed from the current Harness `standard` preset.
@@ -94,7 +98,7 @@ One command, three **direct** profile bundles. Do **not** nest IM/cron under net
 1. Plugins card **Netx Ops** visible.
 2. With key-alarm push on: card badge shows **Connected** (or reconnecting / auth failed with detail).
 3. Agent presets → Custom → **Netx Ops**.
-4. Tools include `netx__queryNmsAlarms` / `netx__execManagedNe` / `netx__findTopologyPaths` (**ops** → skill `netx-ops`). Cutover analysis: `netx__getBizMonitorContext` … (**bizMonitor** → `netx-biz-monitor`). Canvas / dual_unit need **topology** (`netx-topology`).
+4. Tools include `netx__queryNmsAlarms` / `netx__execManagedNe` / `netx__findTopologyPaths` (**ops** → skill `netx-ops`). Cutover analysis: `netx__getBizMonitorContext` … (**bizMonitor** → `netx-biz-monitor`). Native canvas tools need **topology** (`netx-topology`); advanced dual-unit/orbit/polish requires the separate topology MCP.
 5. Export section shows a session count; **下载 ZIP** starts a browser download.
 6. Optional knowledge-base badge shows operator/country/version when `kbRoot` + MANIFEST are valid.
 

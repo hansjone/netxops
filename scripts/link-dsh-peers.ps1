@@ -18,8 +18,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $DstRoot = Join-Path $Root 'node_modules\@deepseek-ai'
-# Shared heal first — profile-local schemastery (Desktop 0.2 = 3.18.4) breaks
-# Config({}) when mixed with shared dsh-* 0.1.5-rc.2 (volatile proxies, Host fail).
+# Select one complete peer set, avoiding packages from different Host generations.
 $SearchRoots = @(
   (Join-Path $DshHome 'profiles\node_modules\@deepseek-ai'),
   (Join-Path $DshHome "profiles\$Profile\node_modules\@deepseek-ai"),
@@ -33,15 +32,25 @@ $Peers = @(
   'dsh-credentials',
   'dsh-settings',
   'dsh-tools',
+  'dsh-scope',
   'dsh-llm'
 )
 
 New-Item -ItemType Directory -Force -Path $DstRoot | Out-Null
 Write-Host "DSH_HOME=$DshHome profile=$Profile"
+$CoherentRoot = $null
+foreach ($searchRoot in $SearchRoots) {
+  $complete = $true
+  foreach ($peer in $Peers) {
+    if (-not (Test-Path -LiteralPath (Join-Path $searchRoot "$peer\package.json"))) { $complete = $false; break }
+  }
+  if ($complete) { $CoherentRoot = $searchRoot; break }
+}
+if (-not $CoherentRoot) { throw 'No complete Harness peer set found; refusing to mix package generations.' }
 
 foreach ($name in $Peers) {
   $src = $null
-  foreach ($root in $SearchRoots) {
+  foreach ($root in @($CoherentRoot)) {
     $candidate = Join-Path $root $name
     if (Test-Path (Join-Path $candidate 'package.json')) {
       $src = $candidate
@@ -52,12 +61,17 @@ foreach ($name in $Peers) {
     throw "Peer @deepseek-ai/$name not found under:`n  $($SearchRoots -join "`n  ")"
   }
   $dst = Join-Path $DstRoot $name
+  $absoluteDst = [IO.Path]::GetFullPath($dst)
+  $absolutePeerRoot = [IO.Path]::GetFullPath($DstRoot).TrimEnd('\')
+  if ([IO.Path]::GetDirectoryName($absoluteDst) -ne $absolutePeerRoot) {
+    throw "Refusing to replace a path outside the peer directory: $absoluteDst"
+  }
   if (Test-Path $dst) {
     $item = Get-Item $dst -Force
     if ($item.LinkType -eq 'Junction' -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-      cmd /c "rmdir `"$dst`""
+      Remove-Item -LiteralPath $absoluteDst -Force
     } else {
-      Remove-Item -Recurse -Force $dst
+      throw "Refusing to replace a non-link peer directory: $absoluteDst"
     }
   }
   New-Item -ItemType Junction -Path $dst -Target $src | Out-Null

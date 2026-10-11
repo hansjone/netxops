@@ -18,6 +18,7 @@ import {
 import { kbLocalToolsEnabled, resolveKbLocalRoot, type RefArea } from './kb-local-path.ts'
 import { getKbContext } from './kb-runtime.ts'
 import { toLosslessJson } from './json-safe.ts'
+import { getToolMountId, getToolMountStatus, publishToolMountStatus, removeToolMountStatus } from './tool-mount-status.ts'
 
 const str = (description?: string) => ({ type: 'string' as const, ...(description ? { description } : {}) })
 const bool = (description?: string) => ({ type: 'boolean' as const, ...(description ? { description } : {}) })
@@ -33,7 +34,7 @@ function renderJson(_args: unknown, value: unknown) {
 }
 
 const jsonOut = {
-  schema: { type: 'json' as const },
+  schema: { type: 'object' as const, additionalProperties: true as const },
   render: renderJson,
 }
 
@@ -72,6 +73,7 @@ function tool(
 export function registerKbLocalTools(
   ctx: Context,
   snapshot: KbSnapshot = getKbContext(),
+  options: { plane?: 'host' | 'preset'; source?: string } = {},
 ): () => void {
   if (!kbLocalToolsEnabled(snapshot)) return () => {}
 
@@ -220,7 +222,19 @@ export function registerKbLocalTools(
     ),
   ]
 
-  const disposers = entries.map((entry) => toolsApi.register(entry))
+  const disposers: Array<() => void> = []
+  const source = options.source ?? 'netxops-kb-local'
+  const id = getToolMountId(ctx, source)
+  const status = { id, source, version: getToolMountStatus()?.version ?? '', plane: options.plane ?? 'preset',
+    groups: ['kb'], at: new Date().toISOString() }
+  try {
+    for (const entry of entries) disposers.push(toolsApi.register(entry))
+    publishToolMountStatus({ ...status, names: entries.map(entry => entry.name), count: entries.length })
+  } catch (error) {
+    for (const dispose of disposers.reverse()) dispose()
+    publishToolMountStatus({ ...status, names: [], count: 0, error: String(error) })
+    throw error
+  }
   ctx.logger.info(
     'netxops: kb local tools registered count=%s localRoot=%s',
     disposers.length,
@@ -228,5 +242,6 @@ export function registerKbLocalTools(
   )
   return () => {
     for (const dispose of disposers) dispose()
+    removeToolMountStatus(id)
   }
 }

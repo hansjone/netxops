@@ -14,7 +14,7 @@
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -27,6 +27,7 @@ const peers = [
   'dsh-credentials',
   'dsh-settings',
   'dsh-tools',
+  'dsh-scope',
   'dsh-llm',
 ]
 
@@ -38,7 +39,7 @@ function profileArg() {
 
 /**
  * Prefer the shared healed fallback `profiles/node_modules` (one coherent peer
- * set: schemastery 3.18.2 + dsh-* 0.1.5-rc.2). Do NOT prefer the Desktop
+ * set). Do NOT prefer the Desktop
  * profile's schemastery first — Desktop 0.2 ships 3.18.4 which, when linked
  * alone into this package, makes `Config({})` return cosmokit volatile proxies
  * instead of defaults and Host apply fails ("web boot: dsh-netxops failed").
@@ -64,9 +65,13 @@ function linkOne(shortName, target) {
   const dest = join(root, 'node_modules', '@deepseek-ai', shortName)
   mkdirSync(dirname(dest), { recursive: true })
   if (existsSync(dest)) {
+    const within = relative(resolve(root, 'node_modules', '@deepseek-ai'), resolve(dest))
+    if (!within || within.startsWith('..') || isAbsolute(within) || within.includes('/') || within.includes('\\')) {
+      throw new Error(`refusing to replace path outside the peer directory: ${dest}`)
+    }
     const st = lstatSync(dest)
-    if (st.isSymbolicLink() || st.isDirectory()) {
-      rmSync(dest, { recursive: true, force: true })
+    if (st.isSymbolicLink()) {
+      rmSync(dest, { force: true })
     } else {
       throw new Error(`refusing to replace non-link path ${dest}`)
     }
@@ -81,9 +86,11 @@ const dirs = candidateDirs(profile)
 console.log(`DSH_HOME=${dshHome} profile=${profile}`)
 console.log(`search:\n  ${dirs.join('\n  ')}`)
 
+const coherent = dirs.find(dir => peers.every(name => existsSync(join(dir, name, 'package.json'))))
+if (!coherent) throw new Error('No complete Harness peer set found; refusing to mix package generations.')
 let missing = 0
 for (const name of peers) {
-  const target = resolvePeer(name, dirs)
+  const target = resolvePeer(name, [coherent])
   if (!target) {
     console.error(`missing peer @deepseek-ai/${name}`)
     missing++

@@ -6,23 +6,32 @@
  * inject surfaces as `waiting for service: settingsScope`, the host never
  * publishes a connection, and Netx Ops sessions get zero `netx__*` tools.
  *
- * Surfaces (dual-stack), matching working plugins like dsh-im-ops:
+ * Desktop 0.2 boot contract (aligned with dsh-search-mcp / dsh-trilium):
+ * - `dsh.client.immediately: false` — stage-one prefetch must not race Host.
+ * - Never `ctx.inject(['configForms'])` during apply; poll after apply returns
+ *   (sync inject / accessor wait freezes "Loading plugins…").
+ * - `settings.section` id ≠ Config namespace (`dsh-netxops` vs `netxops`).
+ *
+ * Surfaces (dual-stack):
  * - Always register `settings.section` in `apply` (Settings sidebar).
- * - Form transport: soft `configForms` (0.2); one-shot `ctx.get('settingsScope')`
- *   for ≤0.1.5 only — never `ctx.inject(['settingsScope'])`.
+ * - Form transport: deferred `configForms` poll (0.2); one-shot
+ *   `ctx.get('settingsScope')` for ≤0.1.5 only — never inject settingsScope.
  * - Soft-attach real form scopes into a deferred memory scope so Save
  *   still writes the host entry when the transport is ready.
- * - On ≥0.1.7 also register `plugins.item` via `configForms.whileServed`.
+ * - Also register `settings.plugin.item` via `configForms.whileServed`.
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import type { AlarmPushRpcCall } from './alarm-push-status-view.ts'
 import { NetxopsCard } from './NetxopsCard.tsx'
-import { NETXOPS_NS, NetxopsCardController } from './controller.ts'
+import { NETXOPS_NS, NETXOPS_SECTION_ID, NetxopsCardController } from './controller.ts'
 import { en, zh, type NetxopsLocaleKey } from './locales.ts'
 import type { SettingsFormScope } from './settings-form.ts'
+import { createWaitingSettingsScope, findReadySettingsForm } from './settings-form.ts'
 import type { NetxopsSettings } from './controller.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -55,7 +64,6 @@ function namespaceCandidates(ctx: ClientContext): string[] {
     fiber?.options?.id,
     fiber?.id,
     fiber?.options?.name,
-    (ctx as { name?: string }).name,
     NETXOPS_NS,
     'dsh-netxops',
   ]
@@ -88,42 +96,9 @@ type DeferredSettingsScope = SettingsFormScope<NetxopsSettings> & {
   attach: (real: SettingsFormScope<NetxopsSettings>) => void
 }
 
-/** In-memory form so Settings nav can mount before configForms attaches. */
+/** Waiting form so the sidebar can mount without pretending settings were saved. */
 function createMemoryScope(initial: NetxopsSettings): SettingsFormScope<NetxopsSettings> {
-  let value: NetxopsSettings = { ...initial }
-  let revision = 0
-  const listeners = new Set<() => void>()
-  const notify = (): void => {
-    for (const listener of listeners) listener()
-  }
-  return {
-    getSnapshot: () => ({
-      status: 'ready',
-      value,
-      writable: true,
-      revision,
-    }),
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    set: async (field, next) => {
-      value = { ...value, [field]: next as never }
-      revision += 1
-      notify()
-      return true
-    },
-    unset: async (field) => {
-      const next = { ...value }
-      delete next[field as keyof NetxopsSettings]
-      value = next
-      revision += 1
-      notify()
-      return true
-    },
-  }
+  return createWaitingSettingsScope({ ...initial })
 }
 
 /** Swap the live transport without recreating the card controller. */
@@ -161,6 +136,11 @@ function createDeferredScope(
 }
 
 const MEMORY_DEFAULTS: NetxopsSettings = {
+  toolsEnabled: true,
+  groupOpsPresets: '',
+  groupTopologyPresets: '',
+  groupBizMonitorPresets: '',
+  groupKbPresets: '',
   apiUrl: 'http://127.0.0.1:8890',
   lang: 'zh',
   thinkingLanguage: 'auto',
@@ -174,10 +154,10 @@ const MEMORY_DEFAULTS: NetxopsSettings = {
   imTargetId: '',
   imTargets: '',
   groupOpsInPreset: true,
-  groupOpsPublic: true,
+  groupOpsPublic: false,
   groupTopologyInPreset: false,
   groupTopologyPublic: false,
-  groupBizMonitorInPreset: false,
+  groupBizMonitorInPreset: true,
   groupBizMonitorPublic: false,
   kbRoot: '',
   groupKbInPreset: true,
@@ -216,11 +196,11 @@ export function apply(ctx: ClientContext): void {
     }
   }
 
-  /** Settings sidebar — same unconditional surface im-ops uses. */
+  /** Settings sidebar — id must not equal Config ns `netxops`. */
   try {
     ctx.slots.inject('settings.section', () => ctx.slots.register({
       name: 'settings.section',
-      id: NETXOPS_NS,
+      id: NETXOPS_SECTION_ID,
       order: 24,
       label: () => t('title'),
       locale: LOCALE_NS,
@@ -237,11 +217,9 @@ export function apply(ctx: ClientContext): void {
   const registerPluginsItem = (id: string): (() => void) => {
     if (pluginsItemId === id) return () => {}
     try {
-      const off = ctx.slots.inject('plugins.item', () => ctx.slots.register({
-        name: 'plugins.item',
-        id,
-        order: 24,
-        label: () => t('title'),
+      const off = ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
+        name: 'settings.plugin.item',
+        key: id,
         locale: LOCALE_NS,
         inject: () => {
           ensureExtras()
@@ -263,16 +241,7 @@ export function apply(ctx: ClientContext): void {
     forms: ConfigFormsLike,
     candidates: readonly string[],
   ): { ns: string, scope: SettingsFormScope<NetxopsSettings> } | undefined => {
-    if (typeof forms.get !== 'function') return undefined
-    for (const ns of candidates) {
-      try {
-        const scope = forms.get(ns)
-        if (scope && typeof scope.getSnapshot === 'function') return { ns, scope }
-      } catch {
-        // wrong ns — try next
-      }
-    }
-    return undefined
+    return findReadySettingsForm(forms, candidates)
   }
 
   const attachForm = (
@@ -285,67 +254,86 @@ export function apply(ctx: ClientContext): void {
     return registerPluginsItem(hit.ns)
   }
 
-  // DSH ≥0.1.7 / 0.2.0 — configForms (persist + plugins.item).
-  ctx.inject(['configForms'], (formsCtx) => {
-    const forms = (formsCtx as { configForms?: ConfigFormsLike }).configForms
-    if (!forms) {
-      formsCtx.logger?.warn?.('netxops: configForms inject fired but service missing')
-      return
-    }
-    const candidates = namespaceCandidates(formsCtx)
-    formsCtx.logger?.info?.('netxops: configForms candidates=%s', candidates.join(','))
-
-    if (typeof forms.whileServed === 'function') {
-      formsCtx.effect(() => forms.whileServed!(candidates, (served) => {
-        const ns = candidates.find((id) => served.has(id))
-        if (!ns) {
-          formsCtx.logger?.warn?.(
-            'netxops: whileServed fired but none of %s are served (have=%s)',
-            candidates.join(','),
-            [...served].join(',') || '(empty)',
-          )
-          return () => {}
-        }
-        const hit = tryGetForm(forms, [ns, ...candidates])
-        if (!hit) {
-          formsCtx.logger?.warn?.('netxops: served %s but configForms.get failed', ns)
-          return () => {}
-        }
-        return attachForm(hit, 'whileServed')
-      }), 'netxops: configForms whileServed')
-    }
-
-    const immediate = tryGetForm(forms, candidates)
-    if (immediate) {
-      formsCtx.effect(
-        () => attachForm(immediate, 'eager'),
-        'netxops: configForms eager attach',
+  // DSH ≥0.1.7 / 0.2.0 — attach configForms by deferred poll.
+  // Never ctx.inject(['configForms']) or read ctx.configForms during apply:
+  // on Desktop 0.2 that waits and freezes "Loading plugins…".
+  let formsAttached = false
+  const tryAttachForms = (): boolean => {
+    if (formsAttached) return true
+    try {
+      // Direct ctx.configForms requires an inject edge even after apply. get()
+      // is Cordis' non-blocking lookup for an optional, currently active service.
+      const forms = ctx.get('configForms') as ConfigFormsLike | undefined
+      if (!forms || typeof forms.get !== 'function') return false
+      const candidates = namespaceCandidates(ctx)
+      const hit = tryGetForm(forms, candidates)
+      if (!hit) return false
+      ctx.logger?.info?.('netxops: configForms candidates=%s', candidates.join(','))
+      ctx.effect(
+        () => attachForm(hit, 'poll'),
+        'netxops: configForms poll attach',
       )
-    } else if (typeof forms.whileServed !== 'function') {
-      formsCtx.logger?.warn?.(
-        'netxops: configForms present but no get/whileServed match for %s',
-        candidates.join(','),
-      )
-    }
-  })
-
-  // DSH ≤0.1.5 — one-shot settingsScope bind. Do NOT ctx.inject(['settingsScope']):
-  // on Desktop 0.2 that service is gone and a waiting inject shows up as
-  // `dsh-netxops: pending (waiting for service: settingsScope)`, which
-  // prevents the host bridge from publishing a connection → no netx__* tools.
-  try {
-    const getter = (ctx as { get?: (name: string) => unknown }).get
-    if (typeof getter === 'function' && getter.call(ctx, 'configForms') === undefined) {
-      const binder = getter.call(ctx, 'settingsScope') as SettingsScopeLike | undefined
-      if (binder && typeof binder.bind === 'function') {
-        ctx.logger?.info?.('netxops: attach form via settingsScope (legacy one-shot)')
-        deferred.attach(binder.bind({ namespace: NETXOPS_NS }))
-        ensureExtras()
+      if (typeof forms.whileServed === 'function') {
+        ctx.effect(() => forms.whileServed!(candidates, (served) => {
+          const ns = candidates.find((id) => served.has(id))
+          if (!ns) {
+            ctx.logger?.warn?.(
+              'netxops: whileServed fired but none of %s are served (have=%s)',
+              candidates.join(','),
+              [...served].join(',') || '(empty)',
+            )
+            return () => {}
+          }
+          const next = tryGetForm(forms, [ns, ...candidates])
+          if (!next) {
+            ctx.logger?.warn?.('netxops: served %s but configForms.get failed', ns)
+            return () => {}
+          }
+          return attachForm(next, 'whileServed')
+        }), 'netxops: configForms whileServed')
       }
+      formsAttached = true
+      return true
+    } catch {
+      return false
     }
-  } catch (error) {
-    ctx.logger?.warn?.('netxops: legacy settingsScope probe failed: %s', error)
   }
+  /** DSH ≤0.1.5 only — one-shot bind when configForms never appears. */
+  const tryLegacySettingsScope = (): boolean => {
+    if (formsAttached) return true
+    try {
+      const getter = (ctx as { get?: (name: string) => unknown }).get
+      if (typeof getter !== 'function') return false
+      const binder = getter.call(ctx, 'settingsScope') as SettingsScopeLike | undefined
+      if (!binder || typeof binder.bind !== 'function') return false
+      ctx.logger?.info?.('netxops: attach form via settingsScope (legacy one-shot)')
+      deferred.attach(binder.bind({ namespace: NETXOPS_NS }))
+      ensureExtras()
+      formsAttached = true
+      return true
+    } catch (error) {
+      ctx.logger?.warn?.('netxops: legacy settingsScope probe failed: %s', error)
+      return false
+    }
+  }
+
+  // Defer all form-transport probes until after apply returns.
+  const startFormsPoll = (): void => {
+    if (tryAttachForms() || tryLegacySettingsScope()) return
+    let ticks = 0
+    const timer = setInterval(() => {
+      ticks += 1
+      if (tryAttachForms() || (ticks >= 3 && tryLegacySettingsScope())) {
+        clearInterval(timer)
+      }
+    }, 1_000)
+    try {
+      ctx.effect(() => () => clearInterval(timer), 'netxops: configForms poll')
+    } catch {
+      clearInterval(timer)
+    }
+  }
+  setTimeout(startFormsPoll, 0)
 }
 
 /** Soft-wire credentials / connection / directoryPicker when present. */
@@ -378,7 +366,8 @@ function wireOptionalServices(ctx: ClientContext, card: NetxopsCardController): 
   }, 'remote.credentials')
 
   soft(['connection'], (connCtx) => {
-    const call = connCtx.connection?.rpc?.call?.bind(connCtx.connection.rpc)
+    const connection = connCtx.get('connection') as { rpc?: { call?: AlarmPushRpcCall } } | undefined
+    const call = connection?.rpc?.call?.bind(connection.rpc)
     if (typeof call !== 'function') {
       connCtx.logger?.warn?.('netxops: connection.rpc.call unavailable — alarm status UI disabled')
       return
@@ -389,21 +378,19 @@ function wireOptionalServices(ctx: ClientContext, card: NetxopsCardController): 
     }, 'netxops: clear alarm-push rpc')
   }, 'connection')
 
-  const bindDirectoryPicker = (picker: { pick?: (signal?: AbortSignal) => Promise<string | null> } | undefined): void => {
+  const bindDirectoryPicker = (picker: { pick?: (signal?: AbortSignal) => Promise<unknown> } | undefined): void => {
     if (!picker || typeof picker.pick !== 'function') return
-    card.setDirectoryPicker(picker as { pick: (signal?: AbortSignal) => Promise<string | null> })
+    card.setDirectoryPicker({ pick: picker.pick.bind(picker) })
   }
-  bindDirectoryPicker(
-    (ctx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
-      .remote?.directoryPicker,
-  )
+  bindDirectoryPicker(ctx.get('remote.directoryPicker') as
+    { pick?: (signal?: AbortSignal) => Promise<unknown> } | undefined)
   soft(['remote.directoryPicker'], (dpCtx) => {
     const viaGet = typeof (dpCtx as { get?: (name: string) => unknown }).get === 'function'
       ? (dpCtx as { get: (name: string) => unknown }).get('remote.directoryPicker') as
-        | { pick?: (signal?: AbortSignal) => Promise<string | null> }
+        | { pick?: (signal?: AbortSignal) => Promise<unknown> }
         | undefined
       : undefined
-    const viaNested = (dpCtx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<string | null> } } })
+    const viaNested = (dpCtx as { remote?: { directoryPicker?: { pick?: (signal?: AbortSignal) => Promise<unknown> } } })
       .remote?.directoryPicker
     bindDirectoryPicker(viaGet ?? viaNested)
     dpCtx.effect(() => () => {

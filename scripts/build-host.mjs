@@ -1,10 +1,14 @@
 /**
- * Build lib/index.js (host) and lib/agent-tools.js (Ops preset tool mount).
+ * Build lib/index.js (host) and lib/agent-tools*.js (preset tool mounts).
  * Node refuses to strip TypeScript inside node_modules, so GitHub/npm installs
  * must ship prebuilt JS. Usage: bun run scripts/build-host.mjs
+ *
+ * Agent-tools entries are built as self-contained bundles (no shared chunk).
+ * Cordis/Desktop load each export path independently; a split chunk once missed
+ * a connection-publish race and is harder to reason about under custom loaders.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -16,6 +20,7 @@ const external = [
   '@deepseek-ai/dsh-credentials',
   '@deepseek-ai/dsh-settings',
   '@deepseek-ai/dsh-tools',
+  '@deepseek-ai/dsh-scope',
   '@deepseek-ai/dsh-llm',
   '@deepseek-ai/dsh-brand',
   '@deepseek-ai/dsh-agent',
@@ -38,6 +43,21 @@ const entries = [
 ]
 
 mkdirSync(outDir, { recursive: true })
+
+/** Drop split-build leftovers from 0.1.56–0.1.57. */
+for (const name of readdirSync(outDir)) {
+  if (name === 'agent-tools-shared.js' || /^chunk-.*\.js$/.test(name)) {
+    rmSync(join(outDir, name), { force: true })
+  }
+}
+for (const name of ['_split-test', '_split-test2']) {
+  const target = resolve(outDir, name)
+  const within = relative(resolve(root), target)
+  if (within.startsWith('..') || isAbsolute(within) || dirname(target) !== resolve(outDir)) {
+    throw new Error(`Refusing cleanup outside the build directory: ${target}`)
+  }
+  rmSync(target, { recursive: true, force: true })
+}
 
 for (const { entry, out } of entries) {
   const result = await Bun.build({
