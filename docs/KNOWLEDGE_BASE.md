@@ -37,12 +37,15 @@ Authoritative packaging prose lives in the workspace contract notes (`插件` / 
 
 | Channel | Fields |
 |---------|--------|
-| `process.env` | `KB_ROOT`, `KB_LOCAL` (when `paths.local` set), `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON of `has*`), `KB_STATUS` |
-| Skill `kb-context` | Same MANIFEST fields + `kbLocal` + dual-plane write rules (refs / memories / drafts / suggestions) |
-| Skills from pack | Registered when `configured` **and** `hasSkills` **and** the inPreset/public toggle for that plane |
+| `process.env` | `KB_ROOT`, `KB_LOCAL` (when `paths.local` set), `KB_OPERATOR`, `KB_COUNTRY`, `KB_VERSION`, `KB_CONTENT` (JSON of `has*`), `KB_PATHS` (JSON `{key: absolutePath}` of every `paths.*`), `KB_STATUS` |
+| Skill `kb-context` | Same MANIFEST fields + `kbLocal` + **resolved absolute anchor table for every `paths.*`** + `{paths.local}/identity/*.md` inlined (README excluded; ≤8 KB/file, ≤24 KB total) + dual-plane write rules |
+| Skills from pack | Registered when `configured` **and** `hasSkills` **and** the inPreset/public toggle for that plane. Each pack skill gets the same resolved anchor table appended, so playbooks never need to re-read MANIFEST or compose `regions/<c>/<o>/…` |
+| KB read tools | When `configured` + KB toggles: `netx__kbSearch` / `netx__kbRead`, jailed (realpath-checked) to `kbRoot` |
 | Local FS tools | When `configured` + `paths.local` + same KB toggles: `netx__kbWriteRef` / `WriteMemory` / `WriteDraft` / `WriteSuggestion` / `UpdateLocal` / `DeleteLocal` / `ListLocal` — jail under `refs\|memories\|drafts\|suggestions`. HQ pack is read-only; evolve site product knowledge with `kbWriteRef` (per-`host_name` PROFILE) and capture experience with `kbWriteMemory` as it appears. |
 
-RPC (channel `/netxops`): `kb.status` (published snapshot), `kb.reload` (re-resolve live `kbRoot` + republish), `kb.resolve` with `{ path }` (preview unsaved paths).
+RPC (channel `/netxops`): `kb.status` (published snapshot), `kb.reload` (re-resolve live `kbRoot` + **force** republish — remounts skills/tools even when MANIFEST is unchanged, so edited `SKILL.md`, new `local_skills/` or `identity/` files are picked up), `kb.resolve` with `{ path }` (preview unsaved paths).
+
+MANIFEST may carry a UTF-8 BOM (PowerShell 5.1 `Out-File`/`Set-Content -Encoding UTF8`); it is stripped before parsing. A `local_skills/` bundle whose `name` duplicates a pack skill is skipped with a warning (pack wins) instead of aborting the whole pack registration.
 
 ## Pack skill registration
 

@@ -240,7 +240,8 @@ export function parseManifest(raw: string): {
 } {
   let data: unknown
   try {
-    data = JSON.parse(raw)
+    // PowerShell 5.1 `Out-File/Set-Content -Encoding UTF8` writes a BOM; JSON.parse rejects it.
+    data = JSON.parse(raw.replace(/^\uFEFF/, ''))
   } catch (error) {
     throw new Error(
       `MANIFEST is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
@@ -334,4 +335,37 @@ export function resolveKbRoot(kbRoot: string, maxDepth = 3): KbSnapshot {
   } catch (error) {
     return errorSnapshot(error instanceof Error ? error.message : String(error))
   }
+}
+
+export interface KbResolvedPath {
+  key: string
+  relative: string
+  absolute: string
+  exists: boolean
+}
+
+/**
+ * MANIFEST `paths.*` resolved against realRoot (stable key order).
+ * Pack skills must read these anchors instead of composing `regions/<c>/<o>/…`.
+ */
+export function resolveKbPaths(snapshot: KbSnapshot): KbResolvedPath[] {
+  if (snapshot.status !== 'configured') return []
+  const paths: Record<string, string | undefined> = { skills: '_skills', ...snapshot.paths }
+  return Object.entries(paths)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim() !== '')
+    .map(([key, rel]) => {
+      const absolute = resolve(snapshot.realRoot, rel)
+      return { key, relative: rel, absolute, exists: existsSync(absolute) }
+    })
+}
+
+/** Markdown anchor table shared by `kb-context` and every registered pack skill. */
+export function renderKbPathTable(snapshot: KbSnapshot): string {
+  const rows = resolveKbPaths(snapshot)
+  if (rows.length === 0) return '(MANIFEST has no paths — legacy package; ask HQ for a repack)'
+  return [
+    '| paths.* | Absolute path |',
+    '| --- | --- |',
+    ...rows.map(row => `| ${row.key} | \`${row.absolute}\`${row.exists ? '' : ' (missing)'} |`),
+  ].join('\n')
 }

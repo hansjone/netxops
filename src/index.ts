@@ -1001,7 +1001,7 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
     if (endpoint === 'kb.reload') {
       const current = source()
       const kb = resolveKbRoot(current.kbRoot ?? '')
-      publishKbContext(kb)
+      publishKbContext(kb, { force: true })
       applyKbEnv(kb)
       if (kb.status === 'configured') {
         ctx.logger.info(

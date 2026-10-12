@@ -49,10 +49,12 @@ Execution: HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.
 
 ## knowledge base → `groupKb*` (not ops/topology)
 
-Registered when KB is configured, MANIFEST has `paths.local`, and the KB in-preset / public toggle is on. Host-side FS writes (bypass workspace sandbox). Jail: `{kbLocal}/refs|memories|drafts|suggestions`.
+Registered when KB is configured and the KB in-preset / public toggle is on. Read tools are jailed to `kbRoot`; write tools additionally need MANIFEST `paths.local` and are jailed to `{kbLocal}/refs|memories|drafts|suggestions`. Host-side FS (bypass workspace sandbox).
 
 | Tool | Role |
 |------|------|
+| `kbSearch` | Keyword (space-separated, case-insensitive) or regex search over the whole package or `scope` = MANIFEST paths key(s) / relative dir. Files ranked by distinct terms matched; ≤4 hit lines each. Stat-validated in-memory cache. |
+| `kbRead` | Read one text file (offset/limit line paging) or list a directory. `path` = kbRoot-relative, absolute inside kbRoot, or a paths key (`neIndex`, `cmdLib`, `rca`, …). |
 | `kbWriteRef` | Site product KB under `refs/{inventory\|devices\|topology\|business\|commands\|handbooks}/`. `devices` requires `device=host_name`; primary profile slug=`PROFILE`. |
 | `kbWriteMemory` | Diary under `memories/{日常笔记\|排障复盘\|AI思维链}/` — write as soon as reusable experience appears. |
 | `kbWriteDraft` | New `DRAFT-…` under `drafts/` (+ `status: draft`) |

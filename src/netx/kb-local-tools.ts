@@ -1,6 +1,6 @@
 /**
- * Host-side tools for writing under MANIFEST `paths.local`
- * (memories / drafts / suggestions / refs). Bypasses workspace sandbox.
+ * Host-side KB tools. Read/search the whole package when configured; write under MANIFEST
+ * `paths.local` (memories / drafts / suggestions / refs). Bypasses workspace sandbox.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -15,7 +15,8 @@ import {
   listLocalFiles,
   updateLocalFile,
 } from './kb-local-ops.ts'
-import { kbLocalToolsEnabled, resolveKbLocalRoot, type RefArea } from './kb-local-path.ts'
+import { resolveKbLocalRoot, type RefArea } from './kb-local-path.ts'
+import { readKbFile, searchKb } from './kb-read-ops.ts'
 import { getKbContext } from './kb-runtime.ts'
 import { toLosslessJson } from './json-safe.ts'
 import { getToolMountId, getToolMountStatus, publishToolMountStatus, removeToolMountStatus } from './tool-mount-status.ts'
@@ -66,22 +67,8 @@ function tool(
   })
 }
 
-/**
- * Register KB local create/update/delete/list tools when snapshot has paths.local.
- * @returns disposer (no-op when disabled).
- */
-export function registerKbLocalTools(
-  ctx: Context,
-  snapshot: KbSnapshot = getKbContext(),
-  options: { plane?: 'host' | 'preset'; source?: string } = {},
-): () => void {
-  if (!kbLocalToolsEnabled(snapshot)) return () => {}
-
-  const localRoot = resolveKbLocalRoot(snapshot)!
-  const toolsApi = (ctx as { tools?: { register: (t: unknown) => () => void } }).tools
-  if (!toolsApi || typeof toolsApi.register !== 'function') return () => {}
-
-  const entries = [
+function writeTools(localRoot: string) {
+  return [
     tool(
       'netx__kbWriteMemory',
       `Create (or overwrite) one diary-style memory markdown under ${localRoot}/memories/. `
@@ -206,7 +193,7 @@ export function registerKbLocalTools(
     tool(
       'netx__kbListLocal',
       `List recent .md files under ${localRoot} memories|drafts|suggestions|refs (newest first). `
-        + 'Read contents via absolute paths from the listing.',
+        + 'Read contents with netx__kbRead using the listed paths.',
       {
         root: {
           type: 'string' as const,
@@ -221,6 +208,65 @@ export function registerKbLocalTools(
       }),
     ),
   ]
+}
+
+function readTools(snapshot: KbSnapshot) {
+  return [
+    tool(
+      'netx__kbSearch',
+      `Search the operator knowledge base at ${snapshot.realRoot} (read-only HQ pack + _local). `
+        + 'Plain mode: space-separated keywords (NE host_name, alarm, protocol, symptom…), case-insensitive; '
+        + 'files ranked by how many distinct terms match (filename hits weigh more), up to 4 hit lines each. '
+        + 'Then open the best hits with netx__kbRead.',
+      {
+        query: reqStr('Keywords (space-separated) or a regex when regex=true'),
+        scope: str('MANIFEST paths key(s) — e.g. rca, theory, theoryVendor, packet, commonPatterns, local, neIndex — or a relative dir; comma-separate several; default all'),
+        regex: bool('Treat query as one case-insensitive JS regex'),
+        limit: num('Max files 1–100 (default 20)'),
+      },
+      (args) => searchKb(liveSnapshot(), {
+        query: String(args.query ?? ''),
+        scope: args.scope != null ? String(args.scope) : undefined,
+        regex: args.regex === true,
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+      }),
+    ),
+    tool(
+      'netx__kbRead',
+      `Read one file (or list one directory) inside the knowledge base at ${snapshot.realRoot}. `
+        + 'path: relative to kbRoot, absolute inside it, or a MANIFEST paths key (rca, neIndex, cmdLib, patternMap, …). '
+        + 'Long files: page with offset/limit (1-based lines; default 400).',
+      {
+        path: reqStr('KB-relative path, absolute path inside kbRoot, or a paths.* key'),
+        offset: num('First line (1-based, default 1)'),
+        limit: num('Max lines 1–2000 (default 400)'),
+      },
+      (args) => readKbFile(liveSnapshot(), {
+        path: String(args.path ?? ''),
+        offset: typeof args.offset === 'number' ? args.offset : undefined,
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+      }),
+    ),
+  ]
+}
+
+/**
+ * Register KB tools: read/search whenever configured, plus local create/update/delete/list
+ * when snapshot has paths.local.
+ * @returns disposer (no-op when disabled).
+ */
+export function registerKbLocalTools(
+  ctx: Context,
+  snapshot: KbSnapshot = getKbContext(),
+  options: { plane?: 'host' | 'preset'; source?: string } = {},
+): () => void {
+  if (snapshot.status !== 'configured') return () => {}
+
+  const localRoot = resolveKbLocalRoot(snapshot)
+  const toolsApi = (ctx as { tools?: { register: (t: unknown) => () => void } }).tools
+  if (!toolsApi || typeof toolsApi.register !== 'function') return () => {}
+
+  const entries = [...readTools(snapshot), ...(localRoot ? writeTools(localRoot) : [])]
 
   const disposers: Array<() => void> = []
   const source = options.source ?? 'netxops-kb-local'
@@ -236,9 +282,10 @@ export function registerKbLocalTools(
     throw error
   }
   ctx.logger.info(
-    'netxops: kb local tools registered count=%s localRoot=%s',
+    'netxops: kb tools registered count=%s kbRoot=%s localRoot=%s',
     disposers.length,
-    localRoot,
+    snapshot.realRoot,
+    localRoot ?? '(none — read-only)',
   )
   return () => {
     for (const dispose of disposers) dispose()

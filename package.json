@@ -1,6 +1,6 @@
 {
   "name": "dsh-netxops",
-  "version": "0.1.70",
+  "version": "0.1.71",
   "description": "Network operations, topology and monitoring for DeepSeek Harness.",
   "license": "MIT",
   "type": "module",

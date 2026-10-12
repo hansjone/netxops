@@ -147,10 +147,11 @@ test('knowledge-base tools contribute to the mount inventory and disappear on di
   const mount = fakeContext()
   const snapshot = { status: 'configured', realRoot: process.env.DSH_HOME, paths: { local: '_local' } }
   const dispose = registerKbLocalTools(mount.ctx, snapshot, { plane: 'preset', source: 'kb-test' })
-  assert.equal(mount.tools.size, 7)
+  // 2 read (kbSearch / kbRead) + 7 local write/list tools.
+  assert.equal(mount.tools.size, 9)
   const statuses = getToolMountStatuses()
-  assert.ok(statuses.some(row => row.source === 'kb-test' && row.count === 7 && row.groups.includes('kb')))
-  assert.equal(asToolsMountView({ mounts: statuses }).count, 7)
+  assert.ok(statuses.some(row => row.source === 'kb-test' && row.count === 9 && row.groups.includes('kb')))
+  assert.equal(asToolsMountView({ mounts: statuses }).count, 9)
   dispose()
   assert.equal(mount.tools.size, 0)
   assert.equal(getToolMountStatuses().some(row => row.source === 'kb-test'), false)

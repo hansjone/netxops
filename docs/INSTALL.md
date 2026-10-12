@@ -22,7 +22,7 @@ dsh web
 使用已经下载的发布包，例如：
 
 ```powershell
-dsh plugin --profile web add "D:\Downloads\dsh-netxops-0.1.70.tgz"
+dsh plugin --profile web add "D:\Downloads\dsh-netxops-0.1.71.tgz"
 dsh web
 ```
 

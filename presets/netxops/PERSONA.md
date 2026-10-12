@@ -37,6 +37,7 @@
 
 ## 知识库双平面（KB 已配置时 — 铁律）
 - **总部包只读**：正式 RCA、theory、packet、`_common`、`_skills`、总部命令库 — 检索用，不改。
+- **读/检索走宿主工具**：`netx__kbSearch`（关键词/正则，`scope` 用 MANIFEST paths 键如 `rca` / `theory` / `packet`）→ `netx__kbRead`（路径或 `neIndex` / `cmdLib` 等键，长文件用 offset/limit 翻页）。路径以 `kb-context` 的锚点表为准，不自拼。
 - **唯一可写区** `{kbLocal}`：`refs/`（本网产品知识）/ `memories/`（过程记忆）/ `drafts/`（案例草稿）/ `suggestions/`（反哺总部）。
 - **写文件只走宿主工具**：`netx__kbWriteRef` / `kbWriteMemory` / `kbWriteDraft` / `kbWriteSuggestion` / `kbUpdateLocal` / `kbDeleteLocal`。**禁止**对 KB 用 workspace `Write` / bash。
 

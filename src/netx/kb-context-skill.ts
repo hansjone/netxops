@@ -3,11 +3,51 @@
  * Tools/scripts still use `process.env.KB_*` from `applyKbEnv`.
  */
 
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import type { KbSnapshot } from './kb-manifest.ts'
+import { renderKbPathTable, type KbSnapshot } from './kb-manifest.ts'
 import { resolveKbLocalRoot } from './kb-local-path.ts'
 
 const SKILL_NAME = 'kb-context'
+/** Per-file / total caps for inlined `_local/identity/*.md` (system-prompt-grade site rules). */
+const IDENTITY_FILE_MAX = 8_000
+const IDENTITY_TOTAL_MAX = 24_000
+
+/**
+ * Site identity files (`{paths.local}/identity/*.md`, README excluded), inlined so the
+ * operator's own boundaries reach the model without an extra read.
+ */
+export function readKbIdentity(snapshot: KbSnapshot): Array<{ name: string; text: string }> {
+  const localRoot = resolveKbLocalRoot(snapshot)
+  if (!localRoot) return []
+  const dir = join(localRoot, 'identity')
+  let names: string[]
+  try {
+    names = readdirSync(dir).filter(name => /\.md$/i.test(name) && !/^readme\.md$/i.test(name)).sort()
+  } catch {
+    return []
+  }
+  const out: Array<{ name: string; text: string }> = []
+  let budget = IDENTITY_TOTAL_MAX
+  for (const name of names) {
+    if (budget <= 0) break
+    const full = join(dir, name)
+    let text: string
+    try {
+      if (!statSync(full).isFile()) continue
+      text = readFileSync(full, 'utf8').replace(/^\uFEFF/, '').trim()
+    } catch {
+      continue
+    }
+    if (!text) continue
+    const cap = Math.min(IDENTITY_FILE_MAX, budget)
+    if (text.length > cap) text = `${text.slice(0, cap)}\n\n…(truncated — read \`${full}\` for the rest)`
+    budget -= text.length
+    out.push({ name, text })
+  }
+  return out
+}
 
 function skillBody(snapshot: KbSnapshot): { description: string; content: string } {
   if (snapshot.status === 'configured') {
@@ -19,6 +59,14 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
     const localRow = localRoot
       ? `| kbLocal | \`${localRoot}\` |`
       : '| kbLocal | (MANIFEST paths.local missing) |'
+    const identity = readKbIdentity(snapshot)
+    const identityBlock = identity.length > 0
+      ? [
+          '',
+          '### Site identity (`identity/`, authoritative — follow over generic advice)',
+          ...identity.flatMap(({ name, text }) => ['', `#### ${name}`, '', text]),
+        ]
+      : []
     const localGuide = localRoot
       ? [
           '',
@@ -46,7 +94,7 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
         ]
     return {
       description:
-        'Operator knowledge-base context for this Host (HQ pack + local evolution under paths.local).',
+        `Load FIRST before any kb-* skill or KB file access: resolved absolute paths (rca / theory / packet / neIndex / cmdLib / local …) for operator ${snapshot.operatorName} (${snapshot.country}) KB v${snapshot.version}, site identity rules, and KB write rules.`,
       content: [
         '## Knowledge base (configured)',
         '',
@@ -62,13 +110,22 @@ function skillBody(snapshot: KbSnapshot): { description: string; content: string
         `| kbCountry | ${snapshot.country} |`,
         `| kbVersion | ${snapshot.version} |`,
         `| kbContent (on) | ${flags} |`,
+        '',
+        '### Path anchors (resolved from MANIFEST `paths.*` — use verbatim, never compose `regions/<country>/<operator>/…`)',
+        '',
+        renderKbPathTable(snapshot),
+        ...identityBlock,
         ...localGuide,
         '',
-        'Environment mirrors: KB_ROOT, KB_LOCAL, KB_OPERATOR, KB_COUNTRY, KB_VERSION, KB_CONTENT, KB_STATUS.',
+        '### Reading the HQ pack',
+        '- `netx__kbSearch` — keyword/regex search across rca / theory / packet / common / local (returns file + line hits).',
+        '- `netx__kbRead` — read one KB file (path relative to kbRoot or absolute inside it; optional line window).',
+        '- Start from the indexes: `neIndex` (NE → cases), `patternMap`, `classification`, then open the cited RCA.',
         '',
-        'Business playbooks (kb-troubleshoot, kb-retrieve, …) register from',
-        `${snapshot.realRoot}/_skills/ (or MANIFEST paths.skills) when hasSkills is true,`,
-        'plus paths.localSkills when present — use those skills for KB triage;',
+        'Environment mirrors: KB_ROOT, KB_LOCAL, KB_OPERATOR, KB_COUNTRY, KB_VERSION, KB_CONTENT, KB_PATHS (JSON of the anchors above), KB_STATUS.',
+        '',
+        'Business playbooks (kb-troubleshoot, kb-retrieve, …) register from paths.skills',
+        'when hasSkills is true, plus paths.localSkills when present — use those skills for KB triage;',
         'keep netx-ops for live netx evidence only.',
       ].join('\n'),
     }

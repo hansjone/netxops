@@ -9,7 +9,7 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import type { KbSnapshot } from './kb-manifest.ts'
+import { renderKbPathTable, type KbSnapshot } from './kb-manifest.ts'
 import { loadSkillBundle } from './group-skills.ts'
 
 export type KbSkillPlane = 'preset' | 'public'
@@ -36,6 +36,26 @@ export function resolveKbSkillsRoot(snapshot: KbSnapshot): string {
 }
 
 /**
+ * Appended to every pack skill: the playbooks say "read MANIFEST paths, never compose",
+ * so hand them the resolved anchors instead of costing a MANIFEST read per task.
+ */
+export function kbPackSkillFooter(snapshot: KbSnapshot): string {
+  return [
+    '',
+    '',
+    `## Injected KB anchors (netxops · ${snapshot.operatorName} / ${snapshot.country} v${snapshot.version})`,
+    '',
+    `kbStatus=configured · kbRoot=\`${snapshot.realRoot}\``,
+    '',
+    renderKbPathTable(snapshot),
+    '',
+    'These are already resolved from `MANIFEST.json` `paths.*`; use them verbatim.',
+    'Read/search the pack with `netx__kbRead` / `netx__kbSearch` when present; write only via `netx__kbWrite*`.',
+    '',
+  ].join('\n')
+}
+
+/**
  * Absolute local-skills root from MANIFEST `paths.localSkills`, or null when absent.
  */
 export function resolveKbLocalSkillsRoot(snapshot: KbSnapshot): string | null {
@@ -49,7 +69,14 @@ async function registerSkillsUnderRoot(
   skillsApi: { register: SkillsRegister },
   root: string,
   provider: string,
-  options: { logMissing: boolean; label: string; signal?: AbortSignal },
+  options: {
+    logMissing: boolean
+    label: string
+    signal?: AbortSignal
+    footer: string
+    /** Names already registered by an earlier root (pack before local). */
+    seen: Set<string>
+  },
 ): Promise<Array<() => void>> {
   let entries: string[]
   try {
@@ -91,15 +118,35 @@ async function registerSkillsUnderRoot(
         continue
       }
       if (options.signal?.aborted) break
-      disposers.push(skillsApi.register({
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-        path: skill.path,
-        resourceBase: { kind: 'directory', path: skill.directory },
-        provider,
-        source: 'custom',
-      }))
+      if (options.seen.has(skill.name)) {
+        ctx.logger.warn(
+          'netxops: kb %s skill %s duplicates an already registered pack skill — skip %s',
+          options.label,
+          skill.name,
+          full,
+        )
+        continue
+      }
+      try {
+        disposers.push(skillsApi.register({
+          name: skill.name,
+          description: skill.description,
+          content: `${skill.content.trimEnd()}${options.footer}`,
+          path: skill.path,
+          resourceBase: { kind: 'directory', path: skill.directory },
+          provider,
+          source: 'custom',
+        }))
+        options.seen.add(skill.name)
+      } catch (error) {
+        // One rejected bundle must not take the rest of the pack down with it.
+        ctx.logger.warn(
+          'netxops: kb %s skill %s register failed: %s',
+          options.label,
+          skill.name,
+          error instanceof Error ? error.message : String(error),
+        )
+      }
     }
   } catch (error) {
     for (const dispose of disposers.splice(0)) dispose()
@@ -137,11 +184,15 @@ export async function registerKbPackSkills(
 
   const skillsRoot = resolveKbSkillsRoot(snapshot)
   const localRoot = resolveKbLocalSkillsRoot(snapshot)
+  const footer = kbPackSkillFooter(snapshot)
+  const seen = new Set<string>()
   try {
     disposers.push(...await registerSkillsUnderRoot(ctx, skillsApi, skillsRoot, provider, {
       logMissing: true,
       label: 'pack',
       signal: options.signal,
+      footer,
+      seen,
     }))
 
     if (localRoot) {
@@ -149,6 +200,8 @@ export async function registerKbPackSkills(
         logMissing: false,
         label: 'local',
         signal: options.signal,
+        footer,
+        seen,
       }))
     }
   } catch (error) {

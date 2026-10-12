@@ -7,7 +7,7 @@
  */
 
 import type { KbSnapshot } from './kb-manifest.ts'
-import { unconfiguredKbSnapshot } from './kb-manifest.ts'
+import { resolveKbPaths, unconfiguredKbSnapshot } from './kb-manifest.ts'
 import { resolveKbLocalRoot } from './kb-local-path.ts'
 
 type Listener = () => void
@@ -26,6 +26,7 @@ const ENV_KEYS = [
   'KB_COUNTRY',
   'KB_VERSION',
   'KB_CONTENT',
+  'KB_PATHS',
   'KB_STATUS',
 ] as const
 
@@ -52,10 +53,12 @@ export function getKbContext(): KbSnapshot {
 /**
  * Publish the latest KB snapshot for UI / skill remounts.
  * @param next - resolved snapshot from `resolveKbRoot`.
+ * @param options.force - notify even when MANIFEST is unchanged (manual reload picks up
+ *   edited SKILL.md / new local_skills / identity files on disk).
  */
-export function publishKbContext(next: KbSnapshot): void {
+export function publishKbContext(next: KbSnapshot, options: { force?: boolean } = {}): void {
   const state = store()
-  if (JSON.stringify(state.snapshot) === JSON.stringify(next)) return
+  if (!options.force && JSON.stringify(state.snapshot) === JSON.stringify(next)) return
   state.snapshot = {
     ...next,
     content: { ...next.content },
@@ -94,6 +97,9 @@ export function applyKbEnv(snapshot: KbSnapshot): void {
   process.env.KB_COUNTRY = snapshot.country
   process.env.KB_VERSION = snapshot.version
   process.env.KB_CONTENT = JSON.stringify(snapshot.content)
+  process.env.KB_PATHS = JSON.stringify(
+    Object.fromEntries(resolveKbPaths(snapshot).map(row => [row.key, row.absolute])),
+  )
 }
 
 /** Reset store + env to unconfigured (plugin dispose). */
