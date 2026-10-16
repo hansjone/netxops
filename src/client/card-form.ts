@@ -138,12 +138,14 @@ export class CardForm<T> {
   private saving = false
   private failed = false
   private saveQueue: Promise<void> = Promise.resolve()
+  private readonly scope: SettingsFormScope<T>
 
   constructor(
-    private readonly scope: SettingsFormScope<T>,
+    scope: SettingsFormScope<T>,
     specs: CardFieldSpec[],
     secrets: CardSecretSpec[] = [],
   ) {
+    this.scope = scope
     this.specs = new Map(specs.map(spec => [spec.field, spec]))
     this.secretSpecs = new Map(secrets.map(spec => [spec.field, spec]))
     scope.subscribe(() => { this.publish() })

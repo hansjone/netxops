@@ -200,7 +200,7 @@
       }
     },
     "lib/client.js": {
-      "output": "bec095ff7f28d3eb97152486275c93badc43fe687377c5d0e3267b355add2e2d",
+      "output": "f733e8c22056a7b47695f04bf468e8e3b812d4e376d5f7e7bc2fa681660bffa8",
       "inputs": {
         "package.json": "5132d4dd66628c59e1b495b5a75fc6c29a30c220a6c112059b4c3b5983d3cbb9",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -208,8 +208,8 @@
         "scripts/build-integrity.mjs": "18e9e32c452ef6217d771675fa8b763464a27ac0cf192d5fbe5cb1682380b0d9",
         "src/client/NetxopsCard.tsx": "d4c4e795949496f5f913914c23c338bdbc81ea2b721a55d835815f2eae13f667",
         "src/client/alarm-push-status-view.ts": "9ad84e4a691a6c22de4d85c45047251716929c63cada362205db98428a810a31",
-        "src/client/card-form.ts": "00ec10c453fffae8beac4a35a13299514c120c913100a6e4536e7a00d072b8d9",
-        "src/client/controller.ts": "d3353feda6f6b004dd094b1fc90d743003b55ce5a9d0b46c8fb9c1eb33925cc1",
+        "src/client/card-form.ts": "64d24d9d27f2c948a94f6158288df03ce23335e76dc663236ea8b19187502ffa",
+        "src/client/controller.ts": "666370ea90f5f798f4d8882ad625498230605fd79980bf54ab3cb6aed7bad257",
         "src/client/im-delivery-catalog.ts": "faf18d4a8fdcf30033b6d905f156c6fc953d214f8d734417f3bed783994d6117",
         "src/client/index.ts": "1f73ae8e8c02e13b47c5679869359444485b4621eca20a15c632289f22e5d760",
         "src/client/kb-status-view.ts": "458d1dfd9c0f93e6cdd06780c0ad813de54c3aa952fcdb63758a616ab43ffb10",

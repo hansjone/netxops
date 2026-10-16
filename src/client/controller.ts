@@ -224,11 +224,15 @@ export class NetxopsCardController {
   private catalogInFlight = false
   private exportStatusInFlight = false
   private exportInFlight: Promise<void> | undefined
+  private readonly scope: SettingsFormScope<NetxopsSettings>
+  private readonly ctx: ClientContext
 
   constructor(
-    private readonly scope: SettingsFormScope<NetxopsSettings>,
-    private readonly ctx: ClientContext,
+    scope: SettingsFormScope<NetxopsSettings>,
+    ctx: ClientContext,
   ) {
+    this.scope = scope
+    this.ctx = ctx
     this.form = new CardForm(
       scope,
       [
