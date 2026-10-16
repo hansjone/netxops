@@ -14,6 +14,7 @@ import { refreshMcpCatalog, resetMcpCatalog } from '../src/netx/mcp-store.ts'
 import { publishNetxConnection } from '../src/netx/runtime.ts'
 import {
   hasSkillsCache,
+  listCachedSkills,
   replaceSkillsCache,
   skillsCacheDir,
 } from '../src/netx/skills-cache.ts'
@@ -347,4 +348,20 @@ test('group off → skill not registered', async (t) => {
   registered.length = 0
   await registerGroupSkills(ctx, [], 'test')
   assert.equal(registered.length, 0)
+})
+
+test('listCachedSkills summarizes cached skills per group for the Plugins card', async (t) => {
+  withTempHome(t)
+  replaceSkillsCache(API, [
+    { group: 'ops', skill: 'netx-ops', relPath: 'SKILL.md', text: OPS_SKILL },
+    { group: 'ops', skill: 'netx-ops', relPath: 'reference.md', text: 'ref' },
+    { group: 'bizMonitor', skill: 'netx-biz-monitor', relPath: 'SKILL.md', text: OPS_SKILL },
+  ])
+  const { listedAt, skills } = listCachedSkills(API)
+  assert.ok(listedAt)
+  assert.deepEqual(skills, [
+    { group: 'ops', name: 'netx-ops', files: 2 },
+    { group: 'bizMonitor', name: 'netx-biz-monitor', files: 1 },
+  ])
+  assert.deepEqual(listCachedSkills('').skills, [])
 })

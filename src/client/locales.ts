@@ -72,6 +72,9 @@ export type NetxopsLocaleKey =
   | 'readOnlyOnly'
   | 'toolWriteBadge'
   | 'toolListEmpty'
+  | 'groupSkills'
+  | 'groupSkillsNone'
+  | 'skillFiles'
   | 'sessionsExportCount'
   | 'sessionsExportUnavailable'
   | 'sessionsExportNoPersistence'
@@ -165,6 +168,9 @@ export const en: Record<NetxopsLocaleKey, string> = {
   readOnlyOnly: 'Read-only tools only',
   toolWriteBadge: 'write',
   toolListEmpty: 'No tools yet',
+  groupSkills: 'Skills',
+  groupSkillsNone: 'None pulled from netx',
+  skillFiles: '{count} files',
   sessionsExportCount: '{count} sessions',
   sessionsExportUnavailable: 'Export unavailable',
   sessionsExportNoPersistence: 'Session store unavailable.',
@@ -259,6 +265,9 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   readOnlyOnly: '只允许只读工具',
   toolWriteBadge: '写',
   toolListEmpty: '暂无工具清单',
+  groupSkills: 'Skill',
+  groupSkillsNone: '未从 netx 拉到',
+  skillFiles: '{count} 个文件',
   sessionsExportCount: '{count} 个会话',
   sessionsExportUnavailable: '无法导出',
   sessionsExportNoPersistence: '会话存储不可用。',

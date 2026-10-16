@@ -81,6 +81,7 @@ import {
 } from './netx/model-language.ts'
 import { normalizeApiUrl, type NormalizeApiUrlResult } from './netx/http.ts'
 import { publishNetxConnection, getNetxConnection, watchNetxConnection } from './netx/runtime.ts'
+import { listCachedSkills } from './netx/skills-cache.ts'
 import {
   getSessionsExportStatus,
   NETXOPS_SESSIONS_EXPORT_PATH,
@@ -104,6 +105,26 @@ import {
   refreshMcpCatalog,
   watchMcpCatalog,
 } from './netx/mcp-store.ts'
+
+/** Plugins-card catalog payload: tools from the MCP store + skills from the disk cache. */
+function mcpCatalogPayload(catalog: ReturnType<typeof getMcpCatalogState>) {
+  const cached = listCachedSkills(getNetxConnection()?.apiUrl ?? '')
+  return {
+    phase: catalog.phase,
+    mcpUrl: catalog.mcpUrl,
+    error: catalog.error,
+    listedAt: catalog.listedAt,
+    fromCache: catalog.fromCache,
+    tools: catalog.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      readOnlyHint: tool.readOnlyHint,
+      group: tool.group ?? null,
+    })),
+    skills: cached.skills,
+    skillsListedAt: cached.listedAt,
+  }
+}
 
 // The event is absent from older peer declarations, where it is never emitted.
 declare module '@deepseek-ai/cordis' {
@@ -1064,23 +1085,7 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       }
     }
     if (endpoint === 'tools.catalog') {
-      const catalog = getMcpCatalogState()
-      return {
-        ok: true,
-        value: {
-          phase: catalog.phase,
-          mcpUrl: catalog.mcpUrl,
-          error: catalog.error,
-          listedAt: catalog.listedAt,
-          fromCache: catalog.fromCache,
-          tools: catalog.tools.map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            readOnlyHint: tool.readOnlyHint,
-            group: tool.group ?? null,
-          })),
-        },
-      }
+      return { ok: true, value: mcpCatalogPayload(getMcpCatalogState()) }
     }
     if (endpoint === 'tools.refresh') {
       const connection = getNetxConnection()
@@ -1093,14 +1098,7 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       })
       return {
         ok: catalog.phase === 'connected',
-        value: {
-          phase: catalog.phase,
-          mcpUrl: catalog.mcpUrl,
-          error: catalog.error,
-          listedAt: catalog.listedAt,
-          fromCache: catalog.fromCache,
-          toolCount: catalog.tools.length,
-        },
+        value: { ...mcpCatalogPayload(catalog), toolCount: catalog.tools.length },
         ...(catalog.error ? { error: catalog.error } : {}),
       }
     }

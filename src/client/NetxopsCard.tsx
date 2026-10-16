@@ -23,7 +23,7 @@ import { ensureStyles } from './styles.ts'
 import { sessionsExportReasonLocaleKey } from './sessions-export-view.ts'
 import { parsePresetIds } from '../netx/capability-groups.ts'
 import { parseDisabledTools } from '../netx/mcp-catalog.ts'
-import type { McpToolRow } from './mcp-catalog-view.ts'
+import type { McpSkillRow, McpToolRow } from './mcp-catalog-view.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 
@@ -368,6 +368,10 @@ function CapabilityGroupBlock(props: {
   writeBadge?: string
   emptyLabel?: string
   onToggleTool?: (name: string, enabled: boolean) => void
+  skills?: McpSkillRow[]
+  skillsLabel?: string
+  skillsNoneLabel?: string
+  skillFilesLabel?: (count: number) => string
 }) {
   return (
     <div className="dsh-nx-groupBlock" role="group" aria-label={props.title}>
@@ -396,6 +400,18 @@ function CapabilityGroupBlock(props: {
         </label>
       </div>
       {props.targets}
+      {props.skills
+        ? (
+          <p className="dsh-nx-hint">
+            {props.skillsLabel ?? 'Skill'}：
+            {props.skills.length === 0
+              ? (props.skillsNoneLabel ?? '')
+              : props.skills
+                .map((skill) => `${skill.name}（${props.skillFilesLabel?.(skill.files) ?? skill.files}）`)
+                .join('、')}
+          </p>
+        )
+        : null}
       {props.tools
         ? (
           <details className="dsh-nx-toolList">
@@ -654,7 +670,12 @@ export function NetxopsCard(props: NetxopsCardProps) {
             bizMonitor: catalogTools.filter((tool) => tool.group === 'bizMonitor'),
           }
           const disabledSet = new Set(parseDisabledTools(state.disabledTools.text))
+          const catalogSkills = state.mcpCatalog?.skills ?? []
+          const skillsOf = (group: McpSkillRow['group']) => catalogSkills.filter((skill) => skill.group === group)
           const toolProps = {
+            skillsLabel: t('groupSkills'),
+            skillsNoneLabel: t('groupSkillsNone'),
+            skillFilesLabel: (count: number) => t('skillFiles').replace('{count}', String(count)),
             disabledTools: disabledSet,
             writeBadge: t('toolWriteBadge'),
             emptyLabel: t('toolListEmpty'),
@@ -666,6 +687,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 title={t('groupOps')}
                 toolCount={byGroup.ops.length}
                 tools={byGroup.ops}
+                skills={skillsOf('ops')}
                 targets={targets('groupOpsPresets', state.groupOpsPresets)}
                 inPresetLabel={t('groupInPreset')}
                 publicLabel={t('groupPublic')}
@@ -684,6 +706,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 title={t('groupTopology')}
                 toolCount={byGroup.topology.length}
                 tools={byGroup.topology}
+                skills={skillsOf('topology')}
                 targets={targets('groupTopologyPresets', state.groupTopologyPresets)}
                 inPresetLabel={t('groupInPreset')}
                 publicLabel={t('groupPublic')}
@@ -702,6 +725,7 @@ export function NetxopsCard(props: NetxopsCardProps) {
                 title={t('groupBizMonitor')}
                 toolCount={byGroup.bizMonitor.length}
                 tools={byGroup.bizMonitor}
+                skills={skillsOf('bizMonitor')}
                 targets={targets('groupBizMonitorPresets', state.groupBizMonitorPresets)}
                 inPresetLabel={t('groupInPreset')}
                 publicLabel={t('groupPublic')}

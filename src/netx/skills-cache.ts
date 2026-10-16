@@ -9,12 +9,15 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
+  CAPABILITY_GROUP_IDS,
   SKILL_DIR_BY_GROUP,
   type NetxCapabilityGroupId,
 } from './capability-groups.ts'
@@ -104,4 +107,48 @@ export function hasSkillsCache(apiUrl: string): boolean {
   } catch {
     return false
   }
+}
+
+/** One cached skill as shown on the Plugins card. */
+export interface CachedSkillSummary {
+  group: NetxCapabilityGroupId
+  name: string
+  files: number
+}
+
+function countFiles(dir: string): number {
+  let n = 0
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    n += statSync(full).isDirectory() ? countFiles(full) : 1
+  }
+  return n
+}
+
+/** Skills currently in the cache for `apiUrl` (what the plugin will mount). */
+export function listCachedSkills(apiUrl: string): { listedAt: string | null; skills: CachedSkillSummary[] } {
+  const root = skillsCacheDir(apiUrl)
+  const skills: CachedSkillSummary[] = []
+  let listedAt: string | null = null
+  if (!apiUrl.trim() || !existsSync(root)) return { listedAt, skills }
+  try {
+    const meta = JSON.parse(readFileSync(join(root, '.meta.json'), 'utf8')) as { listedAt?: unknown }
+    if (typeof meta.listedAt === 'string') listedAt = meta.listedAt
+  } catch {
+    // no meta yet
+  }
+  for (const group of CAPABILITY_GROUP_IDS) {
+    const groupDir = join(root, SKILL_DIR_BY_GROUP[group])
+    if (!existsSync(groupDir)) continue
+    try {
+      for (const name of readdirSync(groupDir).sort()) {
+        const dir = join(groupDir, name)
+        if (!statSync(dir).isDirectory() || !existsSync(join(dir, 'SKILL.md'))) continue
+        skills.push({ group, name, files: countFiles(dir) })
+      }
+    } catch {
+      // unreadable group dir → skip
+    }
+  }
+  return { listedAt, skills }
 }

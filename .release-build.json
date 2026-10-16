@@ -29,7 +29,7 @@
         "src/netx/mcp-store.ts": "002a5d432d4532ea0ed07f00801eea9ca8cb84d6ebcb347311967e13007fde32",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
@@ -62,7 +62,7 @@
         "src/netx/mcp-store.ts": "002a5d432d4532ea0ed07f00801eea9ca8cb84d6ebcb347311967e13007fde32",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
@@ -95,7 +95,7 @@
         "src/netx/mcp-store.ts": "002a5d432d4532ea0ed07f00801eea9ca8cb84d6ebcb347311967e13007fde32",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
@@ -128,7 +128,7 @@
         "src/netx/mcp-store.ts": "002a5d432d4532ea0ed07f00801eea9ca8cb84d6ebcb347311967e13007fde32",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
@@ -161,7 +161,7 @@
         "src/netx/mcp-store.ts": "002a5d432d4532ea0ed07f00801eea9ca8cb84d6ebcb347311967e13007fde32",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
@@ -194,27 +194,27 @@
         "src/netx/mcp-store.ts": "002a5d432d4532ea0ed07f00801eea9ca8cb84d6ebcb347311967e13007fde32",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/client.js": {
-      "output": "16f3328f3d747ebcfc02accbc09419868db10618569fab7493e3875ada9d6b45",
+      "output": "76d73a9e8354e55c27d60c90d17206b7d9eb096829a64cbfc15ab1152c7db49b",
       "inputs": {
         "package.json": "5132d4dd66628c59e1b495b5a75fc6c29a30c220a6c112059b4c3b5983d3cbb9",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
         "scripts/build-client.mjs": "bbb37a7d5024772f35824a4a3b5b9bc75fc670da391151e35a3811a677e23fd1",
         "scripts/build-integrity.mjs": "18e9e32c452ef6217d771675fa8b763464a27ac0cf192d5fbe5cb1682380b0d9",
-        "src/client/NetxopsCard.tsx": "ab8c18fdfd5550b89c8d3b0df46e0448abc27b824a6cd644e9e364fdaceafd46",
+        "src/client/NetxopsCard.tsx": "51d85f150fd13fc5377de29a4e80b992e860514e0700884218f9f9c7bdcd4cc1",
         "src/client/alarm-push-status-view.ts": "9ad84e4a691a6c22de4d85c45047251716929c63cada362205db98428a810a31",
         "src/client/card-form.ts": "00ec10c453fffae8beac4a35a13299514c120c913100a6e4536e7a00d072b8d9",
         "src/client/controller.ts": "d3353feda6f6b004dd094b1fc90d743003b55ce5a9d0b46c8fb9c1eb33925cc1",
         "src/client/im-delivery-catalog.ts": "faf18d4a8fdcf30033b6d905f156c6fc953d214f8d734417f3bed783994d6117",
         "src/client/index.ts": "1f73ae8e8c02e13b47c5679869359444485b4621eca20a15c632289f22e5d760",
         "src/client/kb-status-view.ts": "458d1dfd9c0f93e6cdd06780c0ad813de54c3aa952fcdb63758a616ab43ffb10",
-        "src/client/locales.ts": "5acc66e429bfd9e91c628e6d825582d9fa2f4bebcc6d114384ca5628f5deb61f",
-        "src/client/mcp-catalog-view.ts": "68a79f1de44760c1e08edad53e1df47eb82124924b9bb680bb430db3c7edb89a",
+        "src/client/locales.ts": "b9aa9cac558119c3a81e773dc3b49378f0c37fb2220696a484a92bf19aabb5d6",
+        "src/client/mcp-catalog-view.ts": "3066ba1fd56b19e099e1f58ba9699a4d17de9f5733e27a4f4da0c4f58809a545",
         "src/client/sessions-export-view.ts": "3397b081318c23d9d816596566e19101df7234390a698a07481c7c1a019a66fd",
         "src/client/settings-form.ts": "0318749c9afd049982a60eee7b2ca4a0a2cdcd4f574f9c87616f2ccbe39779eb",
         "src/client/snapshot-store.ts": "25fdcae95490a9d7f1f520ec90981cefb4fdd576b340717e9087f1ca82c6563d",
@@ -231,14 +231,14 @@
       }
     },
     "lib/index.js": {
-      "output": "b3712d7ccff953a8fa1ae0b0339ab3b247d65ce21d4690817d15c168d2876275",
+      "output": "515aafc5a26d8680cedbe970751b5f565e098c8f691014fb0f9a1fe9edd6f82f",
       "inputs": {
         "package.json": "5132d4dd66628c59e1b495b5a75fc6c29a30c220a6c112059b4c3b5983d3cbb9",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
         "scripts/build-host.mjs": "1210c12b05a31f4ed64439fe5f08750cb75605b30327210cd97584b64aadf6a8",
         "scripts/build-integrity.mjs": "18e9e32c452ef6217d771675fa8b763464a27ac0cf192d5fbe5cb1682380b0d9",
         "src/agent-preset-install.ts": "1f397bb8e1c9a3f13cb7e4c442c3d13c42fce94fbc4eb1d90b85a0485bda48bc",
-        "src/index.ts": "d5f7417240c56ec24bf9b456be26749da7130a60d84659f7dd1941965682c086",
+        "src/index.ts": "f583927e67045d83362930d8c416d540c1d8b08b18b2ad78e2a3d72ea03df559",
         "src/netx/alarm-dispatch.ts": "9f476f1c620e40d3e2017554ec2fa8a1848f75d7e77e7c9ee5ee0464e970ba62",
         "src/netx/alarm-im.ts": "a75b37e379500cbb90f1f4b81d448d45a97fd9e744e507608910f510480cffaf",
         "src/netx/alarm-push-status.ts": "21f0efa33ea6f21e3ede35b4accbc6c0c4c78fea23631f1c5b80e6e9aef8b82f",
@@ -271,7 +271,7 @@
         "src/netx/preset-publication.ts": "22e357cb58bf72cb0d269246f9e3e083269feb1706a9c4f152eb042330c9e967",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/session-export.ts": "8e6e9a3094045901563366fac3d6dc74d9bfd78bbff853358d6500955d3dcff6",
-        "src/netx/skills-cache.ts": "3b5c01d3f2b914ca1275b7eb7b29a85738f05295250667c66c27a00650300409",
+        "src/netx/skills-cache.ts": "10957061256cec6b381c5604745d905146abe5da1b418055414166879bb90094",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
         "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139",
         "src/session-export-shared.ts": "e30d884ec22a0ea2e016c1479f62a8bc8d7ddcce5369a36647d411d07a8620d5"

@@ -15,6 +15,12 @@ export interface McpToolRow {
   group: 'ops' | 'topology' | 'bizMonitor' | null
 }
 
+export interface McpSkillRow {
+  group: 'ops' | 'topology' | 'bizMonitor'
+  name: string
+  files: number
+}
+
 export interface McpCatalogView {
   phase: string
   mcpUrl: string
@@ -22,6 +28,9 @@ export interface McpCatalogView {
   listedAt: string | null
   fromCache: boolean
   tools: McpToolRow[]
+  /** Skills in the local cache (pulled from netx `/mcp` resources). */
+  skills: McpSkillRow[]
+  skillsListedAt: string | null
 }
 
 const EMPTY: McpCatalogView = {
@@ -31,6 +40,8 @@ const EMPTY: McpCatalogView = {
   listedAt: null,
   fromCache: false,
   tools: [],
+  skills: [],
+  skillsListedAt: null,
 }
 
 export function asMcpCatalogView(value: unknown): McpCatalogView {
@@ -54,6 +65,17 @@ export function asMcpCatalogView(value: unknown): McpCatalogView {
       })
     }
   }
+  const skills: McpSkillRow[] = []
+  if (Array.isArray(row.skills)) {
+    for (const raw of row.skills) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const s = raw as Record<string, unknown>
+      const group = s.group === 'ops' || s.group === 'topology' || s.group === 'bizMonitor' ? s.group : null
+      const name = typeof s.name === 'string' ? s.name : ''
+      if (!group || !name) continue
+      skills.push({ group, name, files: typeof s.files === 'number' ? s.files : 0 })
+    }
+  }
   return {
     phase: typeof row.phase === 'string' ? row.phase : 'idle',
     mcpUrl: typeof row.mcpUrl === 'string' ? row.mcpUrl : '',
@@ -61,6 +83,8 @@ export function asMcpCatalogView(value: unknown): McpCatalogView {
     listedAt: typeof row.listedAt === 'string' ? row.listedAt : null,
     fromCache: row.fromCache === true,
     tools,
+    skills,
+    skillsListedAt: typeof row.skillsListedAt === 'string' ? row.skillsListedAt : null,
   }
 }
 
