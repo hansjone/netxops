@@ -1,10 +1,10 @@
 # Public release checklist
 
-The public package ships precompiled JS, preset overlays, skills, metadata and user documentation. It has no install/prepare/prepack build hook and no third-party runtime dependencies. Optional peer packages are supplied by Harness. Publish a tested tarball rather than asking users to build or link the repository.
+The public package ships precompiled JS, preset overlays, metadata and user documentation. Group skills come from netx `/mcp` at runtime (not bundled). It has no install/prepare/prepack build hook and no third-party runtime dependencies. Optional peer packages are supplied by Harness. Publish a tested tarball rather than asking users to build or link the repository.
 
 ## Prepare the source
 
-Use Node.js 22, pnpm 11.7 and Bun >=1.3.13. Update `package.json.version`, synchronize canonical skills if changed, then run:
+Use Node.js 22, pnpm 11.7 and Bun >=1.3.13. Update `package.json.version`, then run:
 
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
@@ -29,7 +29,7 @@ bun test test tests
 
 Use `web` when testing the Web runtime. Full tests include the current official volatile Schema implementation, real Cordis scopes, publication changes, UI settings transport, preset preservation and fresh commented profile patches.
 
-`test:release` creates the actual npm tarball and installs it offline into a temporary profile with spaces and Chinese characters. Lifecycle scripts are allowed in this test, proving normal installation needs no build. It verifies all exports, client registration, bundled skills and metadata, and excludes source, tests, local config and developer scripts. When Harness is installed locally, it also activates that installed copy using actual Host peers and verifies tool/skill mounting and clean unload. The fixture never edits the user's profile or credentials and never calls a Netx production API.
+`test:release` creates the actual npm tarball and installs it offline into a temporary profile with spaces and Chinese characters. Lifecycle scripts are allowed in this test, proving normal installation needs no build. It verifies all exports, client registration and metadata, and excludes source, tests, local config and developer scripts. When Harness is installed locally, it also activates that installed copy using actual Host peers and verifies tool mounting (plus skills from a seeded MCP skills cache) and clean unload. The fixture never edits the user's profile or credentials and never calls a Netx production API.
 
 CI runs package checks, builds and offline installation on Windows, macOS and Linux. CI without Harness checks package installation and client registration; Host activation is covered by the local integration suite. Wait for the platform jobs to pass before publishing.
 

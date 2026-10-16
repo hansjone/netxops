@@ -10,9 +10,11 @@
 import type { NetxCapabilityGroupId } from './capability-groups.ts'
 import { CAPABILITY_GROUP_IDS } from './capability-groups.ts'
 import type { NetxMcpToolDescriptor } from './mcp-types.ts'
+import type { CachedSkillFile } from './skills-cache.ts'
 
 const PROTOCOL_VERSION = '2025-03-26'
 const CLIENT_INFO = { name: 'dsh-netxops', version: '0.1.71' }
+const SKILLS_URI_PREFIX = 'netx://skills/'
 
 export interface McpRemoteOptions {
   /** Absolute MCP endpoint, e.g. `http://127.0.0.1:8890/mcp`. */
@@ -74,8 +76,46 @@ function parseTool(raw: unknown): NetxMcpToolDescriptor | null {
   const netx = meta.netx && typeof meta.netx === 'object' && !Array.isArray(meta.netx)
     ? meta.netx as Record<string, unknown>
     : {}
+  // Plugin mounts skills itself — never register getNetxSkill (group=meta).
+  if (netx.group === 'meta') return null
   const group = isGroupId(netx.group) ? netx.group : undefined
   return { name, description, inputSchema, readOnlyHint, group }
+}
+
+function readMetaNetx(row: Record<string, unknown>): Record<string, unknown> {
+  const meta = (row._meta ?? row.meta)
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return {}
+  const netx = (meta as Record<string, unknown>).netx
+  if (!netx || typeof netx !== 'object' || Array.isArray(netx)) return {}
+  return netx as Record<string, unknown>
+}
+
+function parseSkillResource(
+  resource: unknown,
+  text: string,
+): CachedSkillFile | null {
+  if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return null
+  const row = resource as Record<string, unknown>
+  const uri = typeof row.uri === 'string' ? row.uri.trim() : ''
+  const netx = readMetaNetx(row)
+  const group = isGroupId(netx.group) ? netx.group : undefined
+  const skill = typeof netx.skill === 'string' ? netx.skill.trim() : ''
+  if (!group || !skill) return null
+
+  let relPath = typeof row.name === 'string' ? row.name.trim().replace(/\\/g, '/') : ''
+  if (!relPath && uri.startsWith(SKILLS_URI_PREFIX)) {
+    const rest = uri.slice(SKILLS_URI_PREFIX.length)
+    const parts = rest.split('/')
+    // <groupDir>/<skill>/<rel...>
+    if (parts.length >= 3) relPath = parts.slice(2).join('/')
+  }
+  if (!relPath || relPath.includes('..')) return null
+  return { group, skill, relPath, text }
+}
+
+function resourcesCapability(capabilities: unknown): boolean {
+  if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) return false
+  return 'resources' in (capabilities as Record<string, unknown>)
 }
 
 /**
@@ -197,25 +237,79 @@ async function postRpc(
   return asRpcResult(parseMcpResponseBody(responseText))
 }
 
+export interface McpCatalogFetchResult {
+  tools: NetxMcpToolDescriptor[]
+  /**
+   * Set when resources were listed and read successfully (may be empty).
+   * Omitted when the server has no resources capability or the pull failed —
+   * callers should treat that as “no skills” while still keeping tools.
+   */
+  skills?: CachedSkillFile[]
+  skillsError?: string
+}
+
+/**
+ * initialize → notifications/initialized → tools/list
+ * (+ resources/list + resources/read when the server advertises resources).
+ */
+export async function fetchMcpCatalog(options: McpRemoteOptions): Promise<McpCatalogFetchResult> {
+  if (!options.mcpUrl) throw new McpRemoteError('mcp url is empty')
+  const init = await postRpc(options, 'initialize', {
+    protocolVersion: PROTOCOL_VERSION,
+    capabilities: {},
+    clientInfo: CLIENT_INFO,
+  }) as { capabilities?: unknown }
+  await postRpc(options, 'notifications/initialized', {}, true)
+  const toolsResult = await postRpc(options, 'tools/list', {}) as { tools?: unknown }
+  const toolsRaw = Array.isArray(toolsResult?.tools) ? toolsResult.tools : []
+  const tools: NetxMcpToolDescriptor[] = []
+  for (const item of toolsRaw) {
+    const parsed = parseTool(item)
+    if (parsed) tools.push(parsed)
+  }
+
+  if (!resourcesCapability(init?.capabilities)) {
+    // No resources capability → the server publishes no skills (not an error).
+    return { tools, skills: [] }
+  }
+
+  try {
+    const listed = await postRpc(options, 'resources/list', {}) as { resources?: unknown }
+    const resources = Array.isArray(listed?.resources) ? listed.resources : []
+    const skills: CachedSkillFile[] = []
+    for (const resource of resources) {
+      if (!resource || typeof resource !== 'object' || Array.isArray(resource)) continue
+      const uri = typeof (resource as { uri?: unknown }).uri === 'string'
+        ? (resource as { uri: string }).uri.trim()
+        : ''
+      if (!uri.startsWith(SKILLS_URI_PREFIX)) continue
+      const read = await postRpc(options, 'resources/read', { uri }) as { contents?: unknown }
+      const contents = Array.isArray(read?.contents) ? read.contents : []
+      let text = ''
+      for (const block of contents) {
+        if (!block || typeof block !== 'object' || Array.isArray(block)) continue
+        const row = block as { text?: unknown }
+        if (typeof row.text === 'string') {
+          text = row.text
+          break
+        }
+      }
+      const parsed = parseSkillResource(resource, text)
+      if (parsed) skills.push(parsed)
+    }
+    return { tools, skills }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { tools, skillsError: message }
+  }
+}
+
 /**
  * initialize → notifications/initialized → tools/list.
  */
 export async function listMcpTools(options: McpRemoteOptions): Promise<NetxMcpToolDescriptor[]> {
-  if (!options.mcpUrl) throw new McpRemoteError('mcp url is empty')
-  await postRpc(options, 'initialize', {
-    protocolVersion: PROTOCOL_VERSION,
-    capabilities: {},
-    clientInfo: CLIENT_INFO,
-  })
-  await postRpc(options, 'notifications/initialized', {}, true)
-  const result = await postRpc(options, 'tools/list', {}) as { tools?: unknown }
-  const tools = Array.isArray(result?.tools) ? result.tools : []
-  const out: NetxMcpToolDescriptor[] = []
-  for (const item of tools) {
-    const parsed = parseTool(item)
-    if (parsed) out.push(parsed)
-  }
-  return out
+  const { tools } = await fetchMcpCatalog(options)
+  return tools
 }
 
 /**

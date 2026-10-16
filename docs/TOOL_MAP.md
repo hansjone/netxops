@@ -2,7 +2,7 @@
 
 Tools are discovered from netx **`/mcp`** (`tools/list`) and registered into DSH as `netx__<stem>`.
 
-**One group ↔ one skill.** Group membership comes from `_meta.netx.group` on each MCP tool — there is no hardcoded catalog in the plugin.
+**One group ↔ one skill.** Group membership comes from `_meta.netx.group` on each MCP tool — there is no hardcoded catalog in the plugin. Skill markdown is pulled from MCP `resources` (`netx://skills/...`) into `$DSH_HOME/netxops-mcp-skills/` when the tool catalog refreshes.
 
 | Group | Skill | Default in Ops preset |
 |-------|-------|------------------------|
@@ -24,4 +24,4 @@ Authorization, CLI show/display guards, and RBAC stay on the netx `/mcp` server.
 
 ## Offline
 
-When `/mcp` is unreachable, the Plugins card shows the last cached tools/list and a disconnected hint. Registration uses that cache so toggles still work until connect recovers.
+When `/mcp` is unreachable, the Plugins card shows the last cached tools/list and a disconnected hint. Registration uses that in-memory tool cache so toggles still work until connect recovers. Skill files stay on disk from the last successful resources pull and are still registered after a plugin restart.

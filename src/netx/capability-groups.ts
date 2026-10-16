@@ -54,7 +54,7 @@ export const DEFAULT_CAPABILITY_GROUPS: NetxCapabilityGroups = Object.freeze({
  * `_meta.netx.group`. See `mcp-catalog.ts` / `filterCatalogTools`.
  */
 
-/** Skill directory name under skills root / `presets/netxops/skills/<group>/`. */
+/** Skill directory name under the MCP skills cache (`netxops-mcp-skills/<key>/<group>/`). */
 export const SKILL_DIR_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, string>> = Object.freeze({
   ops: 'ops',
   topology: 'topology',

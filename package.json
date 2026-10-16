@@ -36,7 +36,6 @@
     "lib/client.js",
     "presets/netxops/PERSONA.md",
     "presets/netxops/preset.yml",
-    "presets/netxops/skills/",
     "cordis.patch.yml",
     "cordis.bundle.patch.yml",
     "docs/",

@@ -41,9 +41,9 @@ bun run release:pack
 
 Development requires Node.js 22, pnpm 11.7 and Bun 1.3.13 or later. Building and package installation tests use only public development dependencies. Full Harness integration tests and type checking additionally need a local Harness runtime; see [maintainer instructions](docs/RELEASING.md).
 
-Release checks detect stale or missing bundles, undeclared runtime dependencies, invalid metadata and missing skills. Tests install the actual npm tarball offline in an isolated profile. CI repeats the package checks on Windows, macOS and Linux.
+Release checks detect stale or missing bundles, undeclared runtime dependencies and invalid metadata. Tests install the actual npm tarball offline in an isolated profile. CI repeats the package checks on Windows, macOS and Linux.
 
-Skills are maintained in the sibling `netx/skills` repository and copied into this package before release. Published installations use the bundled skill files; a source checkout can use the sibling repository or an explicit `NETX_SKILLS_ROOT`.
+Group skills (ops / topology / biz-monitor) are published by netx over `/mcp` `resources` and cached under `$DSH_HOME/netxops-mcp-skills/`. This package does not ship skill files. Operator-subset KB pack skills remain local (see [Knowledge base](docs/KNOWLEDGE_BASE.md)).
 
 Implementation and UI validation details: [Chinese review](docs/PUBLICATION-REVIEW.zh.md).
 

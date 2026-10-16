@@ -5,6 +5,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import http from 'node:http'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import {
   filterCatalogTools,
@@ -15,6 +18,17 @@ import {
 import { listMcpTools, callMcpTool, mcpEndpointUrl } from '../src/netx/mcp-remote.ts'
 import { refreshMcpCatalog, getMcpCatalogState, resetMcpCatalog } from '../src/netx/mcp-store.ts'
 import { DEFAULT_CAPABILITY_GROUPS } from '../src/netx/capability-groups.ts'
+
+function withTempDshHome(t) {
+  const previous = process.env.DSH_HOME
+  const home = mkdtempSync(join(tmpdir(), 'netxops-mcp-catalog-'))
+  process.env.DSH_HOME = home
+  t.after(() => {
+    rmSync(home, { recursive: true, force: true })
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
+  })
+}
 
 const SAMPLE = Object.freeze([
   {
@@ -196,7 +210,29 @@ test('listMcpTools + callMcpTool against mock Streamable HTTP server', async () 
   }
 })
 
-test('refreshMcpCatalog keeps cache on disconnect', async () => {
+test('listMcpTools drops group=meta tools (getNetxSkill)', async () => {
+  const withMeta = [
+    ...SAMPLE,
+    {
+      name: 'getNetxSkill',
+      description: 'read skill',
+      inputSchema: { type: 'object', properties: {} },
+      readOnlyHint: true,
+      group: 'meta',
+    },
+  ]
+  const mock = await startMockMcp(withMeta)
+  try {
+    const tools = await listMcpTools({ mcpUrl: mock.url, token: 'secret' })
+    assert.equal(tools.length, SAMPLE.length)
+    assert.equal(tools.some((t) => t.name === 'getNetxSkill'), false)
+  } finally {
+    mock.server.close()
+  }
+})
+
+test('refreshMcpCatalog keeps cache on disconnect', async (t) => {
+  withTempDshHome(t)
   resetMcpCatalog()
   const mock = await startMockMcp(SAMPLE)
   try {

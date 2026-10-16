@@ -41,11 +41,11 @@ test('the npm tarball installs offline and supplies every exported artifact and 
   for (const path of Object.values(pkg.exports).filter(path => !path.includes('*'))) assert.ok(names.has(path.slice(2)), `Missing packed export ${path}`)
   for (const path of ['icon.svg', 'locale/en.json', 'locale/zh.json', pkg.dsh.bundle.patch.slice(2),
     'presets/netxops/PERSONA.md', 'presets/netxops/preset.yml',
-    'presets/netxops/skills/ops/netx-ops/SKILL.md',
-    'presets/netxops/skills/topology/netx-topology/SKILL.md',
-    'presets/netxops/skills/biz-monitor/netx-biz-monitor/SKILL.md',
   ]) assert.ok(names.has(path), `Missing packed resource ${path}`)
-  for (const path of names) assert.doesNotMatch(path, /^(?:src|test|tests|examples|scripts|node_modules)\/|\.env|\.npmrc/, `Private/developer file included: ${path}`)
+  for (const path of names) {
+    assert.doesNotMatch(path, /^presets\/netxops\/skills\//, `Bundled group skill must not ship: ${path}`)
+    assert.doesNotMatch(path, /^(?:src|test|tests|examples|scripts|node_modules)\/|\.env|\.npmrc/, `Private/developer file included: ${path}`)
+  }
   const profile = join(directory, '全新安装 profile with spaces')
   mkdirSync(profile)
   writeFileSync(join(profile, 'package.json'), JSON.stringify({ name: 'isolated-netxops-profile', private: true }))
@@ -78,42 +78,46 @@ test('the npm tarball installs offline and supplies every exported artifact and 
       } catch { /* Try a complete Host generation, never mix peers. */ }
     }
     if (!peers) { console.log('No installed Harness runtime: offline installation verified; Host activation requires a local Harness.'); return }
-    // A neighboring package must never override the skills shipped to users.
-    const trap = join(profile, 'node_modules', 'netx', 'skills', 'ops', 'netx-ops')
-    mkdirSync(trap, { recursive: true })
-    writeFileSync(join(trap, 'SKILL.md'), '---\nname: unexpected-neighbor\ndescription: Must not load\n---\nwrong package')
     const loader = join(directory, 'host-loader.mjs')
     writeFileSync(loader, `let peers; export function initialize(data) { peers = data }
       export async function resolve(name, ctx, next) { return peers[name] ? { url: peers[name], shortCircuit: true } : next(name, ctx) }`)
     const smoke = join(directory, 'activate-installed.mjs')
-    writeFileSync(smoke, `import assert from 'node:assert/strict'; import { register } from 'node:module';
+    writeFileSync(smoke, `import assert from 'node:assert/strict'; import { createHash } from 'node:crypto';
+      import { mkdirSync, writeFileSync } from 'node:fs'; import { join } from 'node:path';
+      import { register } from 'node:module';
       register(${JSON.stringify(pathToFileURL(loader).href)}, { data: ${JSON.stringify(peers)} });
       const { Context, Service } = await import('@deepseek-ai/cordis');
       const host = await import(${JSON.stringify(pathToFileURL(join(installed, 'lib/index.js')).href)});
       const root = new Context(), tools = new Map(), skills = new Map(), owners = [];
       class Tools extends Service { constructor(ctx) { super(ctx, 'tools') } register(entry) { assert.ok(!tools.has(entry.name)); tools.set(entry.name, entry); return () => tools.delete(entry.name) } }
       class Skills extends Service { constructor(ctx) { super(ctx, 'skills') } register(entry) { assert.ok(!skills.has(entry.name)); skills.set(entry.name, entry); return () => skills.delete(entry.name) } }
-      // Seed a cached /mcp catalog so host registration does not need a live netx.
+      // Seed a cached /mcp catalog + on-disk skills cache (no live netx).
       const STORE = Symbol.for('dsh-netxops.mcp-catalog-store');
       const ops = ${JSON.stringify([...OPS_TOOL_NAMES_INLINE])};
+      const apiUrl = 'http://127.0.0.1:8890';
       globalThis[STORE] = { generation: 1, listeners: new Set(), state: {
-        phase: 'connected', mcpUrl: 'http://127.0.0.1:8890/mcp', error: '', listedAt: new Date().toISOString(), fromCache: false,
+        phase: 'connected', mcpUrl: apiUrl + '/mcp', error: '', listedAt: new Date().toISOString(), fromCache: false,
         tools: ops.map(name => ({ name, description: name, inputSchema: { type: 'object', properties: {} },
           readOnlyHint: name !== 'execManagedNe', group: 'ops' })),
       } };
+      const dshHome = process.env.DSH_HOME;
+      const key = createHash('sha256').update(apiUrl).digest('hex').slice(0, 16);
+      const skillDir = join(dshHome, 'netxops-mcp-skills', key, 'ops', 'netx-ops');
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(join(skillDir, 'SKILL.md'), '---\\nname: netx-ops\\ndescription: Ops playbook\\n---\\nOps body\\n');
       owners.push(await root.plugin(Tools), await root.plugin(Skills));
       const owner = await root.plugin(host, { installAgentPreset: false, alarmPushEnabled: false, groupOpsPublic: true }); owners.push(owner);
       assert.equal(owner.state, 2); assert.equal(tools.size, 15);
       await new Promise(resolve => setTimeout(resolve, 80));
-      assert.ok(skills.has('netx-ops')); assert.equal(skills.has('unexpected-neighbor'), false);
-      assert.ok(skills.get('netx-ops').path.startsWith(${JSON.stringify(installed)}));
+      assert.ok(skills.has('netx-ops'));
+      assert.ok(skills.get('netx-ops').path.startsWith(dshHome));
       for (const path of ${JSON.stringify(Object.values(pkg.exports).filter(path => path.endsWith('.js') && path !== './lib/client.js'))}) {
         const api = await import(new URL(path, ${JSON.stringify(pathToFileURL(join(installed, 'package.json')).href)})); assert.equal(typeof api.apply, 'function');
       }
       for (const owner of owners.reverse()) await owner.dispose();
       await new Promise(resolve => setTimeout(resolve, 40)); assert.equal(tools.size, 0); assert.equal(skills.size, 0);
-      console.log('Installed Host active: 15 tools, bundled ops skill, clean unload.');`)
-    run([smoke], profile, { DSH_HOME: join(directory, 'isolated-dsh-home'), NETX_SKILLS_ROOT: '' })
+      console.log('Installed Host active: 15 tools, cached ops skill, clean unload.');`)
+    run([smoke], profile, { DSH_HOME: join(directory, 'isolated-dsh-home') })
   }
 })
 

@@ -1,17 +1,18 @@
 /**
- * Register Ops playbook skills for enabled capability groups from disk.
+ * Register Ops playbook skills for enabled capability groups from the
+ * on-disk MCP skills cache (`skills-cache.ts`).
  */
 
-import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   CAPABILITY_GROUP_IDS,
   SKILL_DIR_BY_GROUP,
   type NetxCapabilityGroupId,
 } from './capability-groups.ts'
+import { getNetxConnection } from './runtime.ts'
+import { skillsCacheDir } from './skills-cache.ts'
 
 interface ParsedSkill {
   name: string
@@ -22,39 +23,6 @@ interface ParsedSkill {
 }
 
 export type { ParsedSkill }
-
-/**
- * Package `presets/netxops/skills` root, or a shared netx skills checkout.
- *
- * Resolution order:
- * 1. `NETX_SKILLS_ROOT` (canonical `netx/skills`)
- * 2. Sibling `../netx/skills` when developing next to the netx repo
- * 3. Bundled `presets/netxops/skills` inside this package
- */
-export function opsSkillsRoot(): string {
-  const envRoot = process.env.NETX_SKILLS_ROOT?.trim()
-  if (envRoot && existsSync(envRoot)) return envRoot
-
-  const here = dirname(fileURLToPath(import.meta.url))
-  const checkout = [join(here, '..', '.git'), join(here, '..', '..', '.git')].some(existsSync)
-  const siblingCandidates = [
-    // src/netx → ../../../netx/skills ; lib → ../../netx/skills
-    join(here, '..', '..', '..', 'netx', 'skills'),
-    join(here, '..', '..', 'netx', 'skills'),
-  ]
-  for (const candidate of checkout ? siblingCandidates : []) {
-    if (existsSync(candidate)) return candidate
-  }
-
-  const packaged = [
-    join(here, '..', 'presets', 'netxops', 'skills'),
-    join(here, '..', '..', 'presets', 'netxops', 'skills'),
-  ]
-  for (const candidate of packaged) {
-    if (existsSync(candidate)) return candidate
-  }
-  return packaged[0]
-}
 
 function parseFrontmatter(raw: string): { data: Record<string, unknown>; body: string } | undefined {
   // Windows CRLF (and mixed) checkouts break `$`-anchored YAML lines: a trailing
@@ -200,6 +168,12 @@ export interface RegisterGroupSkillsOptions {
    */
   disabledByGroup?: DisabledToolsByGroup
   lang?: string
+  /**
+   * Cache root containing `ops` / `topology` / `biz-monitor`.
+   * Tests inject this; production resolves `$DSH_HOME/netxops-mcp-skills/<key>`
+   * from the live connection apiUrl.
+   */
+  skillsRoot?: string
 }
 
 function disabledFootnote(names: readonly string[], lang?: string): string {
@@ -209,6 +183,15 @@ function disabledFootnote(names: readonly string[], lang?: string): string {
   return en
     ? `\n\n## Disabled tools\nThe following tools are disabled: ${list}. Do not call them.\n`
     : `\n\n## 已禁用工具\n以下工具已禁用：${list}，不要调用。\n`
+}
+
+function resolveSkillsRoot(options: RegisterGroupSkillsOptions): string {
+  if (typeof options.skillsRoot === 'string' && options.skillsRoot.trim()) {
+    return options.skillsRoot.trim()
+  }
+  const connection = getNetxConnection()
+  if (!connection?.apiUrl?.trim()) return ''
+  return skillsCacheDir(connection.apiUrl)
 }
 
 /**
@@ -243,10 +226,16 @@ export async function registerGroupSkills(
     return () => {}
   }
 
-  const root = opsSkillsRoot()
+  const root = resolveSkillsRoot(options)
   const disposers: Array<() => void> = []
   const enabled = new Set(groupIds)
   const log = (ctx as { logger?: { warn: (msg: string, ...args: unknown[]) => void } }).logger
+  if (!root) {
+    if (enabled.size > 0) {
+      log?.warn?.('%s: no MCP skills cache (missing apiUrl)', providerLabel)
+    }
+    return () => {}
+  }
   try {
     for (const groupId of CAPABILITY_GROUP_IDS) {
       if (!enabled.has(groupId)) continue

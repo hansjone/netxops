@@ -6,7 +6,7 @@
 #   1. replaces `persona` with presets/netxops/PERSONA.md
 #   2. ensures the `netxops-tools` row below is present
 #   3. aligns workflow engine package to what the host can resolve
-#   4. copies presets/netxops/skills/
+# Group skills are pulled from netx `/mcp` resources into `$DSH_HOME/netxops-mcp-skills/`.
 # Desktop also syncs a declarative `@deepseek-ai/dsh-agent-preset` row into
 # the profile patch. DSH has no preset inheritance.
 

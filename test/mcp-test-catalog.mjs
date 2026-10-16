@@ -3,6 +3,7 @@
  */
 
 import { publishNetxConnection } from '../src/netx/runtime.ts'
+import { replaceSkillsCache } from '../src/netx/skills-cache.ts'
 
 const STORE_KEY = Symbol.for('dsh-netxops.mcp-catalog-store')
 
@@ -86,13 +87,41 @@ export function fullCatalog() {
   ]
 }
 
+const DEFAULT_API = 'http://127.0.0.1:8890'
+
+const MINIMAL_SKILLS = Object.freeze([
+  {
+    group: 'ops',
+    skill: 'netx-ops',
+    relPath: 'SKILL.md',
+    text: '---\nname: netx-ops\ndescription: Ops playbook\n---\nOps body\n',
+  },
+  {
+    group: 'topology',
+    skill: 'netx-topology',
+    relPath: 'SKILL.md',
+    text: '---\nname: netx-topology\ndescription: Topology playbook\n---\nTopology body\n',
+  },
+  {
+    group: 'bizMonitor',
+    skill: 'netx-biz-monitor',
+    relPath: 'SKILL.md',
+    text: '---\nname: netx-biz-monitor\ndescription: Biz monitor playbook\n---\nBiz body\n',
+  },
+])
+
+/** Write a minimal MCP skills cache for `apiUrl` (default test netx). */
+export function seedSkillsCache(apiUrl = DEFAULT_API) {
+  return replaceSkillsCache(apiUrl, MINIMAL_SKILLS)
+}
+
 /** Install a frozen catalog into the shared Symbol.for store (no network). */
 export function seedMcpCatalog(tools = fullCatalog()) {
   const root = globalThis
   const store = {
     state: {
       phase: 'connected',
-      mcpUrl: 'http://127.0.0.1:8890/mcp',
+      mcpUrl: `${DEFAULT_API}/mcp`,
       tools: Object.freeze([...tools]),
       error: '',
       listedAt: new Date().toISOString(),
@@ -102,6 +131,7 @@ export function seedMcpCatalog(tools = fullCatalog()) {
     generation: 1,
   }
   root[STORE_KEY] = store
+  seedSkillsCache(DEFAULT_API)
   return store.state
 }
 

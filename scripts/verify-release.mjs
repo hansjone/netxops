@@ -70,23 +70,15 @@ export function verifyRelease(directory = root) {
   })
   assert.equal(typeof clientExports.apply, 'function')
   assert.deepEqual(Array.from(clientExports.inject), ['slots', 'locale'])
-  for (const group of ['ops/netx-ops', 'topology/netx-topology', 'biz-monitor/netx-biz-monitor']) {
-    const skill = read(`presets/netxops/skills/${group}/SKILL.md`).replace(/\r\n/g, '\n')
-    const frontmatter = /^---\n([\s\S]*?)\n---/.exec(skill)
-    assert.ok(frontmatter, `Missing skill frontmatter: ${group}`)
-    const parsed = load(frontmatter[1])
-    assert.equal(typeof parsed.name, 'string')
-    assert.equal(typeof parsed.description, 'string')
-    assert.ok(skill.slice(frontmatter[0].length).trim())
-  }
   for (const path of ['presets/netxops/PERSONA.md', 'presets/netxops/preset.yml']) assert.ok(read(path).trim())
+  assert.equal(existsSync(resolve(directory, 'presets/netxops/skills')), false, 'Group skills must not be bundled')
   return { version: pkg.version, outputs }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   try {
     const result = verifyRelease()
-    console.log(`Release ${result.version}: ${result.outputs.length} JS artifacts, bundle and skills verified.`)
+    console.log(`Release ${result.version}: ${result.outputs.length} JS artifacts and bundle verified.`)
   } catch (error) {
     console.error(error.message)
     process.exitCode = 1

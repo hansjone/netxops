@@ -2,10 +2,12 @@
  * Process-local MCP catalog cache shared by host + preset tool mounts.
  *
  * Uses Symbol.for on globalThis so host / agent-tools bundles share one store.
+ * Skill files are mirrored under `$DSH_HOME/netxops-mcp-skills/<key>/`.
  */
 
-import { listMcpTools, mcpEndpointUrl, McpRemoteError } from './mcp-remote.ts'
+import { fetchMcpCatalog, mcpEndpointUrl, McpRemoteError } from './mcp-remote.ts'
 import type { NetxMcpCatalogState, NetxMcpToolDescriptor } from './mcp-types.ts'
+import { replaceSkillsCache } from './skills-cache.ts'
 
 type Listener = () => void
 
@@ -77,8 +79,10 @@ export interface RefreshMcpCatalogInput {
 }
 
 /**
- * Pull tools/list. On failure keep the previous tool list (fromCache) and
- * surface the error for the Plugins card — never throw to the Host apply path.
+ * Pull tools/list (+ skill resources). On failure keep the previous tool list
+ * (fromCache) and leave the on-disk skill cache untouched. When tools succeed:
+ * a server without resources → clear that address's skill cache; a failed
+ * resources call → keep the last good cache.
  */
 export async function refreshMcpCatalog(input: RefreshMcpCatalogInput): Promise<NetxMcpCatalogState> {
   const mcpUrl = mcpEndpointUrl(input.apiUrl)
@@ -109,7 +113,7 @@ export async function refreshMcpCatalog(input: RefreshMcpCatalogInput): Promise<
   })
 
   try {
-    const tools = await listMcpTools({
+    const fetched = await fetchMcpCatalog({
       mcpUrl,
       token: input.token,
       lang: input.lang,
@@ -118,10 +122,19 @@ export async function refreshMcpCatalog(input: RefreshMcpCatalogInput): Promise<
       fetchImpl: input.fetchImpl,
     })
     if (gen !== store().generation) return store().state
+
+    if (fetched.skills !== undefined) {
+      // Includes "no resources capability" (empty list) → wipe stale files.
+      replaceSkillsCache(input.apiUrl, fetched.skills)
+    } else {
+      // Transient resources failure: keep the last good skill cache.
+      console.warn('netxops: mcp skills pull failed, keeping cache — %s', fetched.skillsError)
+    }
+
     const next: NetxMcpCatalogState = {
       phase: 'connected',
       mcpUrl,
-      tools: Object.freeze([...tools]),
+      tools: Object.freeze([...fetched.tools]),
       error: '',
       listedAt: new Date().toISOString(),
       fromCache: false,
@@ -135,6 +148,7 @@ export async function refreshMcpCatalog(input: RefreshMcpCatalogInput): Promise<
       : error instanceof Error
         ? error.message
         : String(error)
+    // Offline: keep prior tools in memory and leave disk skill cache as-is.
     const next: NetxMcpCatalogState = {
       phase: previous.tools.length > 0 ? 'offline' : 'error',
       mcpUrl,
