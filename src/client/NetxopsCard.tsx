@@ -23,6 +23,7 @@ import { ensureStyles } from './styles.ts'
 import { sessionsExportReasonLocaleKey } from './sessions-export-view.ts'
 import { parsePresetIds } from '../netx/capability-groups.ts'
 import { parseDisabledTools } from '../netx/mcp-catalog.ts'
+import { isInsecureRemoteApiUrl } from '../netx/http.ts'
 import type { McpSkillRow, McpToolRow } from './mcp-catalog-view.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
@@ -559,6 +560,9 @@ export function NetxopsCard(props: NetxopsCardProps) {
           onEdit={(text) => { props.edit('apiUrl', text) }}
           onReset={() => { props.resetField('apiUrl') }}
         />
+        {isInsecureRemoteApiUrl(state.apiUrl.text)
+          ? <p className="dsh-nx-invalid">{t('apiUrlInsecure')}</p>
+          : null}
         <div className="dsh-nx-fieldGrid">
           <SelectField
             id="netxops-lang"

@@ -24,6 +24,7 @@ export type NetxopsLocaleKey =
   | 'sectionExport'
   | 'apiUrl'
   | 'apiUrlHint'
+  | 'apiUrlInsecure'
   | 'apiUrlInvalid'
   | 'lang'
   | 'thinkingLanguage'
@@ -120,6 +121,7 @@ export const en: Record<NetxopsLocaleKey, string> = {
   sectionExport: 'Session export',
   apiUrl: 'API URL',
   apiUrlHint: 'http://127.0.0.1:8890',
+  apiUrlInsecure: 'Plain HTTP to a remote host: the token and the skills sent to the model are not encrypted. Use https://.',
   apiUrlInvalid: 'Enter an HTTP or HTTPS URL without credentials.',
   lang: 'API / alarm language',
   thinkingLanguage: 'Thinking language',
@@ -217,6 +219,7 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   sectionExport: '会话导出',
   apiUrl: 'API 地址',
   apiUrlHint: 'http://127.0.0.1:8890',
+  apiUrlInsecure: '连接的是远程主机且用的是明文 HTTP：token 和发给模型的 skill 都不加密，请改用 https://。',
   apiUrlInvalid: '请输入不含账号密码的 HTTP 或 HTTPS 地址。',
   lang: 'API / 告警语言',
   thinkingLanguage: '思考语言',

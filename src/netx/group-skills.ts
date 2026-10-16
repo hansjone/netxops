@@ -12,7 +12,8 @@ import {
   type NetxCapabilityGroupId,
 } from './capability-groups.ts'
 import { getNetxConnection } from './runtime.ts'
-import { skillsCacheDir } from './skills-cache.ts'
+import { cachedUnavailableTools, usableSkillsCacheDir } from './skills-cache.ts'
+import { publicToolName } from './mcp-types.ts'
 
 interface ParsedSkill {
   name: string
@@ -181,8 +182,8 @@ function disabledFootnote(names: readonly string[], lang?: string): string {
   const list = names.join(', ')
   const en = (lang ?? '').trim().toLowerCase().startsWith('en')
   return en
-    ? `\n\n## Disabled tools\nThe following tools are disabled: ${list}. Do not call them.\n`
-    : `\n\n## 已禁用工具\n以下工具已禁用：${list}，不要调用。\n`
+    ? `\n\n## Unavailable tools\nThe following tools are disabled or not granted to this token: ${list}. Do not call them; skip steps that need them.\n`
+    : `\n\n## 不可用工具\n以下工具已禁用或当前 token 无权使用：${list}，不要调用，涉及它们的步骤请跳过。\n`
 }
 
 function resolveSkillsRoot(options: RegisterGroupSkillsOptions): string {
@@ -191,7 +192,7 @@ function resolveSkillsRoot(options: RegisterGroupSkillsOptions): string {
   }
   const connection = getNetxConnection()
   if (!connection?.apiUrl?.trim()) return ''
-  return skillsCacheDir(connection.apiUrl)
+  return usableSkillsCacheDir(connection.apiUrl, connection.token ?? '')
 }
 
 /**
@@ -236,6 +237,7 @@ export async function registerGroupSkills(
     }
     return () => {}
   }
+  const unavailable = cachedUnavailableTools(root)
   try {
     for (const groupId of CAPABILITY_GROUP_IDS) {
       if (!enabled.has(groupId)) continue
@@ -252,7 +254,11 @@ export async function registerGroupSkills(
           join(root, SKILL_DIR_BY_GROUP[groupId]),
         )
       }
-      const footnote = disabledFootnote(options.disabledByGroup?.[groupId] ?? [], options.lang)
+      const offNames = new Set([
+        ...(options.disabledByGroup?.[groupId] ?? []),
+        ...(unavailable[groupId] ?? []).map(publicToolName),
+      ])
+      const footnote = disabledFootnote([...offNames].sort(), options.lang)
       for (const skill of skills) {
         const base = groupId === 'topology'
           ? `${skill.content}\n\n## DeepSeek Harness REST capabilities\nUse only tools present in this session. Dual-unit/orbit/polish recipes require server-side topology tools. Use only tools present in this session.\n`

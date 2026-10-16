@@ -110,7 +110,16 @@ function parseSkillResource(
     if (parts.length >= 3) relPath = parts.slice(2).join('/')
   }
   if (!relPath || relPath.includes('..')) return null
-  return { group, skill, relPath, text }
+  const unavailableTools = Array.isArray(netx.unavailableTools)
+    ? netx.unavailableTools.filter((n): n is string => typeof n === 'string' && n.length > 0)
+    : []
+  return {
+    group,
+    skill,
+    relPath,
+    text,
+    ...(netx.entry === true && unavailableTools.length > 0 ? { unavailableTools } : {}),
+  }
 }
 
 function resourcesCapability(capabilities: unknown): boolean {

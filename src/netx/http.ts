@@ -32,3 +32,19 @@ export function normalizeApiUrl(raw: string): NormalizeApiUrlResult {
   const search = parsed.search && parsed.search !== '?' ? parsed.search : ''
   return { ok: true, url: `${parsed.origin}${path}${search}` }
 }
+
+/**
+ * True for plain `http://` to a non-loopback host: the token and the skills
+ * injected into the model's prompt would travel unencrypted.
+ */
+export function isInsecureRemoteApiUrl(raw: string): boolean {
+  let url: URL
+  try {
+    url = new URL(raw.trim())
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'http:') return false
+  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return !(host === 'localhost' || host.endsWith('.localhost') || host === '::1' || /^127\./.test(host))
+}

@@ -108,7 +108,8 @@ import {
 
 /** Plugins-card catalog payload: tools from the MCP store + skills from the disk cache. */
 function mcpCatalogPayload(catalog: ReturnType<typeof getMcpCatalogState>) {
-  const cached = listCachedSkills(getNetxConnection()?.apiUrl ?? '')
+  const connection = getNetxConnection()
+  const cached = listCachedSkills(connection?.apiUrl ?? '', connection?.token ?? '')
   return {
     phase: catalog.phase,
     mcpUrl: catalog.mcpUrl,

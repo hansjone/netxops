@@ -125,7 +125,7 @@ export async function refreshMcpCatalog(input: RefreshMcpCatalogInput): Promise<
 
     if (fetched.skills !== undefined) {
       // Includes "no resources capability" (empty list) → wipe stale files.
-      replaceSkillsCache(input.apiUrl, fetched.skills)
+      replaceSkillsCache(input.apiUrl, fetched.skills, { token: input.token })
     } else {
       // Transient resources failure: keep the last good skill cache.
       console.warn('netxops: mcp skills pull failed, keeping cache — %s', fetched.skillsError)

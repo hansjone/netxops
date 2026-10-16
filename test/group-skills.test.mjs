@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import http from 'node:http'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,6 +14,7 @@ import { refreshMcpCatalog, resetMcpCatalog } from '../src/netx/mcp-store.ts'
 import { publishNetxConnection } from '../src/netx/runtime.ts'
 import {
   hasSkillsCache,
+  usableSkillsCacheDir,
   listCachedSkills,
   replaceSkillsCache,
   skillsCacheDir,
@@ -48,6 +49,7 @@ function skillResources(files) {
         group: f.group,
         skill: f.skill,
         entry: f.relPath === 'SKILL.md',
+        ...(f.unavailableTools ? { unavailableTools: f.unavailableTools } : {}),
       },
     },
     text: f.text,
@@ -364,4 +366,56 @@ test('listCachedSkills summarizes cached skills per group for the Plugins card',
     { group: 'bizMonitor', name: 'netx-biz-monitor', files: 1 },
   ])
   assert.deepEqual(listCachedSkills('').skills, [])
+})
+
+test('tools the token cannot call are merged into the skill footnote', async (t) => {
+  withTempHome(t)
+  const resources = skillResources([{
+    group: 'ops', groupDir: 'ops', skill: 'netx-ops', relPath: 'SKILL.md',
+    text: OPS_SKILL, unavailableTools: ['execManagedNe'],
+  }])
+  const mock = await startMockMcp({ resources })
+  t.after(() => mock.server.close())
+  await refreshMcpCatalog({ apiUrl: mock.apiUrl, token: 'secret' })
+  publishNetxConnection({ apiUrl: mock.apiUrl, token: 'secret', lang: 'zh', toolCallTimeoutMs: 5_000 })
+  const { ctx, registered } = fakeSkillsCtx()
+  await registerGroupSkills(ctx, ['ops'], 'test', { disabledByGroup: { ops: ['netx__queryNmsAlarms'] } })
+  assert.match(registered[0].content, /netx__execManagedNe/)
+  assert.match(registered[0].content, /netx__queryNmsAlarms/)
+  assert.match(registered[0].content, /当前 token 无权使用/)
+})
+
+test('cache pulled with another token is not mounted', async (t) => {
+  withTempHome(t)
+  replaceSkillsCache(API, [{ group: 'ops', skill: 'netx-ops', relPath: 'SKILL.md', text: OPS_SKILL }], { token: 'wide' })
+  assert.ok(usableSkillsCacheDir(API, 'wide'))
+  assert.equal(usableSkillsCacheDir(API, 'narrow'), '')
+  assert.deepEqual(listCachedSkills(API, 'narrow').skills, [])
+  publishNetxConnection({ apiUrl: API, token: 'narrow', lang: 'zh', toolCallTimeoutMs: 5_000 })
+  const { ctx, registered } = fakeSkillsCtx()
+  await registerGroupSkills(ctx, ['ops'], 'test')
+  assert.equal(registered.length, 0)
+})
+
+test('refresh prunes caches of other netx addresses unused for 30 days', (t) => {
+  const home = withTempHome(t)
+  const stale = join(home, 'netxops-mcp-skills', 'deadbeefdeadbeef')
+  mkdirSync(stale, { recursive: true })
+  writeFileSync(join(stale, '.meta.json'), JSON.stringify({ listedAt: '2020-01-01T00:00:00.000Z' }))
+  const fresh = join(home, 'netxops-mcp-skills', 'feedfacefeedface')
+  mkdirSync(fresh, { recursive: true })
+  writeFileSync(join(fresh, '.meta.json'), JSON.stringify({ listedAt: new Date().toISOString() }))
+  replaceSkillsCache(API, [], { token: 'secret' })
+  assert.equal(existsSync(stale), false)
+  assert.equal(existsSync(fresh), true)
+})
+
+test('isInsecureRemoteApiUrl flags plain http only for non-loopback hosts', async () => {
+  const { isInsecureRemoteApiUrl } = await import('../src/netx/http.ts')
+  assert.equal(isInsecureRemoteApiUrl('http://127.0.0.1:8890'), false)
+  assert.equal(isInsecureRemoteApiUrl('http://localhost:8890'), false)
+  assert.equal(isInsecureRemoteApiUrl('http://[::1]:8890'), false)
+  assert.equal(isInsecureRemoteApiUrl('https://netx.example.com'), false)
+  assert.equal(isInsecureRemoteApiUrl('http://192.168.1.10:8890'), true)
+  assert.equal(isInsecureRemoteApiUrl('not a url'), false)
 })

@@ -54,7 +54,7 @@ test('registerGroupSkills appends disabled footnote; skips disabled groups', asy
     lang: 'zh',
   })
   assert.ok(registered.length >= 1)
-  assert.match(registered[0].content, /以下工具已禁用：netx__execManagedNe，不要调用/)
+  assert.match(registered[0].content, /以下工具已禁用或当前 token 无权使用：netx__execManagedNe，不要调用/)
   dispose()
 
   registered.length = 0
@@ -71,6 +71,6 @@ test('registerGroupSkills appends disabled footnote; skips disabled groups', asy
     disabledByGroup: { ops: ['netx__execManagedNe'] },
     lang: 'en',
   })
-  assert.match(registered[0].content, /The following tools are disabled: netx__execManagedNe/)
+  assert.match(registered[0].content, /disabled or not granted to this token: netx__execManagedNe/)
   dispose3()
 })
