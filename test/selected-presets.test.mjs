@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { installPresetPublication } from '../src/netx/preset-publication.ts'
 import { publishNetxConnection } from '../src/netx/runtime.ts'
 import { capabilityGroupsFromSettings } from '../src/netx/capability-groups.ts'
+import { OPS_TOOL_NAMES, clearMcpCatalogSeed, seedMcpCatalog } from './mcp-test-catalog.mjs'
 
 const layers = new Map()
 const skillLayers = new Map()
@@ -47,10 +48,12 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 50))
 test('selected publication uses each exact session scope and cleans up on off, switch, and unload', async t => {
   const previous = process.env.DSH_HOME
   process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'netxops-selected-'))
+  seedMcpCatalog()
   const ctx = new Context()
   const owners = []
   t.after(async () => {
     for (const owner of owners.reverse()) await owner.dispose()
+    clearMcpCatalogSeed()
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous
     layers.clear(); skillLayers.clear(); live = []
   })
@@ -78,7 +81,7 @@ test('selected publication uses each exact session scope and cleans up on off, s
   const owner = await ctx.plugin(installPresetPublication)
   owners.push(owner)
   await wait()
-  assert.equal(layers.get(scopes[0].key)?.size, 15)
+  assert.equal(layers.get(scopes[0].key)?.size, OPS_TOOL_NAMES.length)
   assert.equal(skillLayers.get(scopes[0].key)?.has('netx-ops'), true)
   assert.equal(layers.get(scopes[1].key)?.size ?? 0, 0)
   publish({ toolsEnabled: false })
@@ -87,7 +90,7 @@ test('selected publication uses each exact session scope and cleans up on off, s
   assert.equal(skillLayers.get(scopes[0].key)?.size, 0)
   publish()
   await wait()
-  assert.equal(layers.get(scopes[0].key)?.size, 15)
+  assert.equal(layers.get(scopes[0].key)?.size, OPS_TOOL_NAMES.length)
   scopes[0].agent.ctx = scopes[0].agent.ctx.extend({ presetId: 'review' })
   await ctx.serial('agent-preset/selected', 'standard', 'review')
   await wait()
@@ -95,7 +98,7 @@ test('selected publication uses each exact session scope and cleans up on off, s
   scopes[1].agent.ctx = scopes[1].agent.ctx.extend({ presetId: 'standard' })
   await ctx.serial('agent/created', { agent: scopes[1].agent })
   await wait()
-  assert.equal(layers.get(scopes[1].key)?.size, 15)
+  assert.equal(layers.get(scopes[1].key)?.size, OPS_TOOL_NAMES.length)
   await owner.dispose()
   await wait()
   assert.equal(layers.get(scopes[1].key)?.size, 0)

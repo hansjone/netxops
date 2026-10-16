@@ -54,6 +54,8 @@ export const NETXOPS_HOST_CONFIG_DEFAULTS: Readonly<Record<string, string | bool
   kbRoot: '',
   groupKbInPreset: true,
   groupKbPublic: false,
+  disabledTools: '[]',
+  readOnlyOnly: false,
 })
 
 export interface HostBridgeHealResult {

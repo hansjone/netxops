@@ -97,6 +97,13 @@ import {
 import { registerNetxTools } from './netx/tools.ts'
 import { installPresetPublication } from './netx/preset-publication.ts'
 import { readConfigSnapshot, readConfigValue, type ConfigInput } from './netx/config-values.ts'
+import { disabledPublicNames, parseDisabledTools } from './netx/mcp-catalog.ts'
+import {
+  getMcpCatalogState,
+  getMcpCatalogTools,
+  refreshMcpCatalog,
+  watchMcpCatalog,
+} from './netx/mcp-store.ts'
 
 // The event is absent from older peer declarations, where it is never emitted.
 declare module '@deepseek-ai/cordis' {
@@ -214,6 +221,14 @@ export interface Config {
   groupKbInPreset: boolean
   /** Publish subset `_skills/kb-*` to other presets (default off). */
   groupKbPublic: boolean
+  /**
+   * JSON array of server tool names opted out by the operator.
+   * Unlisted tools follow their capability-group switch (new server tools auto-enable with the group).
+   * UX only — not a security boundary; netx `/mcp` enforces authz.
+   */
+  disabledTools: string
+  /** When true, only register tools with annotations.readOnlyHint === true. */
+  readOnlyOnly: boolean
 }
 
 /**
@@ -255,6 +270,8 @@ export const Config: z<Config, ConfigInput<Config>> = z.object({
   kbRoot: vol(z.string().default('')),
   groupKbInPreset: vol(z.boolean().default(true)),
   groupKbPublic: vol(z.boolean().default(false)),
+  disabledTools: vol(z.string().default('[]')),
+  readOnlyOnly: vol(z.boolean().default(false)),
 })
 
 /** Merge settings projection without letting null/undefined wipe profile defaults. */
@@ -538,6 +555,8 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       lang: resolveLang(current.lang),
       toolCallTimeoutMs: resolveToolCallTimeoutMs(current.toolCallTimeoutMs),
       groups: capabilityGroupsFromSettings(current as NetxCapabilityGroupSettingsFields),
+      disabledTools: parseDisabledTools(current.disabledTools),
+      readOnlyOnly: current.readOnlyOnly === true,
       groupKbInPreset: typeof current.groupKbInPreset === 'boolean'
         ? current.groupKbInPreset
         : true,
@@ -639,11 +658,13 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       remountHostTools()
       remountKbLocal()
     })
+    const stopCatalogWatch = watchMcpCatalog(() => { remountHostTools() })
     const stopKbWatch = watchKbContext(() => { remountKbLocal() })
     remountHostTools()
     remountKbLocal()
     ctx.effect(() => () => {
       stopWatch()
+      stopCatalogWatch()
       stopKbWatch()
       disposeToolsMount?.()
       disposeKbLocal?.()
@@ -746,6 +767,28 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       }
       restartAlarmPush(current, snapshot.apiUrl, token)
       const tokenConfigured = token.trim().length > 0
+      // Refresh remote MCP catalog; failures stay on the card and keep last cache.
+      const catalog = await refreshMcpCatalog({
+        apiUrl: snapshot.apiUrl,
+        token,
+        lang: snapshot.lang,
+        timeoutMs: Math.min(snapshot.toolCallTimeoutMs, 45_000),
+      })
+      if (disposed || gen !== generation) return
+      if (catalog.phase === 'connected') {
+        ctx.logger.info(
+          'netxops: mcp catalog ok → %s tools=%s',
+          catalog.mcpUrl,
+          catalog.tools.length,
+        )
+      } else if (catalog.error) {
+        ctx.logger.warn(
+          'netxops: mcp catalog %s → %s (%s)',
+          catalog.phase,
+          catalog.mcpUrl || '(no url)',
+          catalog.error,
+        )
+      }
       if (!tokenConfigured) {
         ctx.logger.warn(
           'netxops: published connection → %s tokenConfigured=false (set credential %s)',
@@ -887,7 +930,22 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       const connection = getNetxConnection()
       if (!connection) return
       const enabled = connection.toolsEnabled === false ? [] : groupsForPlane(connection.groups, 'host')
-      void registerGroupSkills(skillsCtx, enabled, 'netxops-host', skillAbort.signal).then((dispose) => {
+      const disabledByGroup = Object.fromEntries(
+        enabled.map((groupId) => [
+          groupId,
+          disabledPublicNames(
+            getMcpCatalogTools(),
+            [groupId],
+            connection.disabledTools,
+            connection.readOnlyOnly,
+          ),
+        ]),
+      )
+      void registerGroupSkills(skillsCtx, enabled, 'netxops-host', {
+        signal: skillAbort.signal,
+        disabledByGroup,
+        lang: connection.lang,
+      }).then((dispose) => {
         if (gen !== generation) {
           dispose()
           return
@@ -942,6 +1000,7 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       remountKbSkill()
       remountKbPack()
     })
+    const stopCatalogWatch = watchMcpCatalog(() => { remountHostSkills() })
     const stopKbWatch = watchKbContext(() => {
       remountKbSkill()
       remountKbPack()
@@ -955,6 +1014,7 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
       skillAbort.abort()
       packAbort.abort()
       stopWatch()
+      stopCatalogWatch()
       stopKbWatch()
       unregisterSkills?.()
       unregisterKbSkill?.()
@@ -974,11 +1034,20 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
     if (endpoint === 'tools.status') {
       const mount = getToolMountStatus()
       const connection = getNetxConnection()
+      const catalog = getMcpCatalogState()
       return {
         ok: true,
         value: {
           mount: mount ?? null,
           mounts: getToolMountStatuses(),
+          mcp: {
+            phase: catalog.phase,
+            mcpUrl: catalog.mcpUrl,
+            error: catalog.error,
+            listedAt: catalog.listedAt,
+            fromCache: catalog.fromCache,
+            toolCount: catalog.tools.length,
+          },
           connection: connection
             ? {
               apiUrl: connection.apiUrl,
@@ -987,9 +1056,52 @@ export function apply(ctx: Context, config: ConfigInput<Config> = Config({} as C
               hostGroups: connection.toolsEnabled === false ? [] : groupsForPlane(connection.groups, 'host'),
               presetGroups: connection.toolsEnabled === false ? [] : groupsForPlane(connection.groups, 'preset'),
               publicGroups: connection.toolsEnabled === false ? [] : groupsForPlane(connection.groups, 'public'),
+              disabledTools: [...(connection.disabledTools ?? [])],
+              readOnlyOnly: connection.readOnlyOnly === true,
             }
             : null,
         },
+      }
+    }
+    if (endpoint === 'tools.catalog') {
+      const catalog = getMcpCatalogState()
+      return {
+        ok: true,
+        value: {
+          phase: catalog.phase,
+          mcpUrl: catalog.mcpUrl,
+          error: catalog.error,
+          listedAt: catalog.listedAt,
+          fromCache: catalog.fromCache,
+          tools: catalog.tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            readOnlyHint: tool.readOnlyHint,
+            group: tool.group ?? null,
+          })),
+        },
+      }
+    }
+    if (endpoint === 'tools.refresh') {
+      const connection = getNetxConnection()
+      if (!connection) return { ok: false, error: 'connection_unavailable' }
+      const catalog = await refreshMcpCatalog({
+        apiUrl: connection.apiUrl,
+        token: connection.token,
+        lang: connection.lang,
+        timeoutMs: Math.min(connection.toolCallTimeoutMs, 45_000),
+      })
+      return {
+        ok: catalog.phase === 'connected',
+        value: {
+          phase: catalog.phase,
+          mcpUrl: catalog.mcpUrl,
+          error: catalog.error,
+          listedAt: catalog.listedAt,
+          fromCache: catalog.fromCache,
+          toolCount: catalog.tools.length,
+        },
+        ...(catalog.error ? { error: catalog.error } : {}),
       }
     }
     if (endpoint === 'alarm-push.status') {

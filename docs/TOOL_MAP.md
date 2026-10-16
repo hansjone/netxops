@@ -1,6 +1,8 @@
 # Netx Ops tool map
 
-Tools register by capability group. **One group ↔ one skill.**
+Tools are discovered from netx **`/mcp`** (`tools/list`) and registered into DSH as `netx__<stem>`.
+
+**One group ↔ one skill.** Group membership comes from `_meta.netx.group` on each MCP tool — there is no hardcoded catalog in the plugin.
 
 | Group | Skill | Default in Ops preset |
 |-------|-------|------------------------|
@@ -8,57 +10,18 @@ Tools register by capability group. **One group ↔ one skill.**
 | **topology** | `netx-topology` | off |
 | **bizMonitor** | `netx-biz-monitor` | on |
 
-Public flags mount the same group on the host for other presets.
-Forced mounts: `dsh-netxops/tools-ops` | `tools-topology` | `tools-biz-monitor` (legacy aliases: `tools-nms` / `tools-common` → ops).
+## Visibility switches (UX only — not a security boundary)
 
-Model names: `netx__<stem>`. NMS tools use `Nms`; adapter `nmsProvider=zte-ume` still hits `/v1/ume/*`.
+- **Group inPreset / public** — register the whole group (or not).
+- **`disabledTools`** — opt-out list of **server** tool names; unlisted tools follow the group.
+- **`readOnlyOnly`** — drop tools whose `annotations.readOnlyHint` is not `true`.
 
-## ops → `netx-ops`
+Authorization, CLI show/display guards, and RBAC stay on the netx `/mcp` server.
 
-| Tool | Role |
-|------|------|
-| `queryNmsAlarms` … `sqlQueryNms` | Alarm + inventory + SQL |
-| `listManagedNe` / `getManagedNe` / `execManagedNe` / `getNeExecJob` / `listCliTargets` | Managed CLI (login / show / async jobs) |
-| `findTopologyPaths` | Fabric path lookup |
+## Forced mounts
 
-## bizMonitor → `netx-biz-monitor`
+`dsh-netxops/tools-ops` | `tools-topology` | `tools-biz-monitor` (legacy aliases: `tools-nms` / `tools-common` → ops).
 
-Host tools call netx REST directly (**not** netx-mcp). Token needs `biz-monitor:read`.
+## Offline
 
-| Tool | Role |
-|------|------|
-| `listBizMonitors` | Catalog: cutover projects + biz_state tasks (no id required) |
-| `listBizMonitorBatches` | Cutover / collect batch ids (+ optional evaluate runs) |
-| `getBizMonitorContext` | Project + templates + normalize + port map + tasks |
-| `getBizMonitorBoard` | Batch / evaluate progress |
-| `listBizMonitorReds` / `getBizMonitorDiffs` | Reds & diffs with evidence (raw A/B + show cmd) |
-| `getBizCollectBatch` / `getBizCollectCommandRaw` | Collect audit + full CLI raw |
-
-## topology → `netx-topology`
-
-| Tool | Role |
-|------|------|
-| Tree / view / folders / membership / neighbors | Canvas CRUD |
-| Fabric query / classify / edges | Inventory + adjacency |
-| `layoutTopologyView` | move_nodes / catalog / … |
-| `suggestSinkHubs` / `analyzeTopologyViewLayout` / `sinkTopologyDualUnits` | Dual-unit / QA (may stub → MCP layout engine) |
-
-Canonical skill bodies: sibling **`netx/skills/`**. DSH loads them at runtime (`NETX_SKILLS_ROOT` or `../netx/skills`) or from `presets/netxops/skills` after sync.
-
-Execution: HTTP `apiUrl` + Bearer `NETX_API_TOKEN`.
-
-## knowledge base → `groupKb*` (not ops/topology)
-
-Registered when KB is configured and the KB in-preset / public toggle is on. Read tools are jailed to `kbRoot`; write tools additionally need MANIFEST `paths.local` and are jailed to `{kbLocal}/refs|memories|drafts|suggestions`. Host-side FS (bypass workspace sandbox).
-
-| Tool | Role |
-|------|------|
-| `kbSearch` | Keyword (space-separated, case-insensitive) or regex search over the whole package or `scope` = MANIFEST paths key(s) / relative dir. Files ranked by distinct terms matched; ≤4 hit lines each. Stat-validated in-memory cache. |
-| `kbRead` | Read one text file (offset/limit line paging) or list a directory. `path` = kbRoot-relative, absolute inside kbRoot, or a paths key (`neIndex`, `cmdLib`, `rca`, …). |
-| `kbWriteRef` | Site product KB under `refs/{inventory\|devices\|topology\|business\|commands\|handbooks}/`. `devices` requires `device=host_name`; primary profile slug=`PROFILE`. |
-| `kbWriteMemory` | Diary under `memories/{日常笔记\|排障复盘\|AI思维链}/` — write as soon as reusable experience appears. |
-| `kbWriteDraft` | New `DRAFT-…` under `drafts/` (+ `status: draft`) |
-| `kbWriteSuggestion` | New file under `suggestions/{theory\|improvement}/` |
-| `kbUpdateLocal` | Replace body of an existing jailed file |
-| `kbDeleteLocal` | Delete one jailed file |
-| `kbListLocal` | List recent `.md` under writable trees (`root` may be `refs`) |
+When `/mcp` is unreachable, the Plugins card shows the last cached tools/list and a disconnected hint. Registration uses that cache so toggles still work until connect recovers.

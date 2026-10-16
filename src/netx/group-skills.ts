@@ -189,8 +189,31 @@ async function loadGroupSkills(
   return { skills, skipped }
 }
 
+/** Per-group model-facing tool names (`netx__*`) that are off while the group skill still mounts. */
+export type DisabledToolsByGroup = Partial<Record<NetxCapabilityGroupId, readonly string[]>>
+
+export interface RegisterGroupSkillsOptions {
+  signal?: AbortSignal
+  /**
+   * When a group is enabled but some tools are filtered out (disabledTools /
+   * readOnlyOnly), append a short "do not call" footnote listing public names.
+   */
+  disabledByGroup?: DisabledToolsByGroup
+  lang?: string
+}
+
+function disabledFootnote(names: readonly string[], lang?: string): string {
+  if (names.length === 0) return ''
+  const list = names.join(', ')
+  const en = (lang ?? '').trim().toLowerCase().startsWith('en')
+  return en
+    ? `\n\n## Disabled tools\nThe following tools are disabled: ${list}. Do not call them.\n`
+    : `\n\n## 已禁用工具\n以下工具已禁用：${list}，不要调用。\n`
+}
+
 /**
  * Register playbook skills for the given capability groups into `ctx.skills`.
+ * Groups that are off are skipped entirely (no skill injection).
  * @param ctx - context with a skills registry (preset or host layer).
  * @param groupIds - enabled groups for this plane.
  * @param providerLabel - `provider` stamp on each registration.
@@ -200,8 +223,13 @@ export async function registerGroupSkills(
   ctx: Context,
   groupIds: readonly NetxCapabilityGroupId[],
   providerLabel: string,
-  signal?: AbortSignal,
+  signalOrOptions?: AbortSignal | RegisterGroupSkillsOptions,
 ): Promise<() => void> {
+  const options: RegisterGroupSkillsOptions = signalOrOptions instanceof AbortSignal
+    || signalOrOptions === undefined
+    ? { signal: signalOrOptions }
+    : signalOrOptions
+  const signal = options.signal
   const skillsApi = (ctx as { skills?: { register: (skill: {
     name: string
     description: string
@@ -235,13 +263,15 @@ export async function registerGroupSkills(
           join(root, SKILL_DIR_BY_GROUP[groupId]),
         )
       }
+      const footnote = disabledFootnote(options.disabledByGroup?.[groupId] ?? [], options.lang)
       for (const skill of skills) {
+        const base = groupId === 'topology'
+          ? `${skill.content}\n\n## DeepSeek Harness REST capabilities\nUse only tools present in this session. Dual-unit/orbit/polish recipes require server-side topology tools. Use only tools present in this session.\n`
+          : skill.content
         disposers.push(skillsApi.register({
           name: skill.name,
           description: skill.description,
-          content: groupId === 'topology'
-            ? `${skill.content}\n\n## DeepSeek Harness REST capabilities\nUse only tools present in this session. Native layout supports catalog and move_nodes/sink_nodes. Dual-unit/orbit/polish recipes require a separately installed netx-topology MCP. Native analyzeTopologyViewLayout reports basic graph statistics; suggestSinkHubs uses degree ranking. Native sinkTopologyDualUnits is unavailable.\n`
-            : skill.content,
+          content: `${base}${footnote}`,
           path: skill.path,
           resourceBase: { kind: 'directory', path: skill.directory },
           provider: providerLabel,

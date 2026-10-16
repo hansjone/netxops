@@ -13,6 +13,12 @@ import { npmRuntime } from '../scripts/npm-cli.mjs'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const { node, npm } = npmRuntime()
+/** Inlined into the activate smoke so the packed Host can register without netx. */
+const OPS_TOOL_NAMES_INLINE = [
+  'queryNmsAlarms', 'aggregateNmsAlarms', 'runNmsDiagnostics', 'queryNmsNeInventory', 'getNmsNe',
+  'queryNmsAlarmsRaw', 'aggregateNmsAlarmsRaw', 'listNmsAlarmFields', 'sqlQueryNms',
+  'listManagedNe', 'getManagedNe', 'execManagedNe', 'getNeExecJob', 'listCliTargets', 'findTopologyPaths',
+]
 const run = (args, cwd, env = {}) => {
   const result = spawnSync(node, args, { cwd, env: { ...process.env, ...env }, encoding: 'utf8', windowsHide: true, timeout: 120_000 })
   assert.equal(result.status, 0, `${args[0]} failed: ${result.error ?? ''}\n${result.stderr}\n${result.stdout}`)
@@ -87,6 +93,14 @@ test('the npm tarball installs offline and supplies every exported artifact and 
       const root = new Context(), tools = new Map(), skills = new Map(), owners = [];
       class Tools extends Service { constructor(ctx) { super(ctx, 'tools') } register(entry) { assert.ok(!tools.has(entry.name)); tools.set(entry.name, entry); return () => tools.delete(entry.name) } }
       class Skills extends Service { constructor(ctx) { super(ctx, 'skills') } register(entry) { assert.ok(!skills.has(entry.name)); skills.set(entry.name, entry); return () => skills.delete(entry.name) } }
+      // Seed a cached /mcp catalog so host registration does not need a live netx.
+      const STORE = Symbol.for('dsh-netxops.mcp-catalog-store');
+      const ops = ${JSON.stringify([...OPS_TOOL_NAMES_INLINE])};
+      globalThis[STORE] = { generation: 1, listeners: new Set(), state: {
+        phase: 'connected', mcpUrl: 'http://127.0.0.1:8890/mcp', error: '', listedAt: new Date().toISOString(), fromCache: false,
+        tools: ops.map(name => ({ name, description: name, inputSchema: { type: 'object', properties: {} },
+          readOnlyHint: name !== 'execManagedNe', group: 'ops' })),
+      } };
       owners.push(await root.plugin(Tools), await root.plugin(Skills));
       const owner = await root.plugin(host, { installAgentPreset: false, alarmPushEnabled: false, groupOpsPublic: true }); owners.push(owner);
       assert.equal(owner.state, 2); assert.equal(tools.size, 15);

@@ -21,7 +21,9 @@ import { kbStatusTone, type KbSnapshot } from './kb-status-view.ts'
 import { toolsMountTone, type ToolsMountView } from './tools-status-view.ts'
 import { ensureStyles } from './styles.ts'
 import { sessionsExportReasonLocaleKey } from './sessions-export-view.ts'
-import { parsePresetIds, TOOLS_BY_GROUP } from '../netx/capability-groups.ts'
+import { parsePresetIds } from '../netx/capability-groups.ts'
+import { parseDisabledTools } from '../netx/mcp-catalog.ts'
+import type { McpToolRow } from './mcp-catalog-view.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 
@@ -85,8 +87,11 @@ function toolsBadgeLabel(
 ): string {
   if (!view) return t('toolsStatusUnknown')
   if (!view.toolsEnabled) return t('toolsDisabled')
-  if (view.error) {
+  if (view.error || view.mcpPhase === 'error') {
     return t('toolsStatusError')
+  }
+  if (view.mcpPhase === 'offline' || view.mcpFromCache) {
+    return t('mcpDisconnected')
   }
   if (view.count > 0) {
     return fillTemplate(t('toolsStatusMounted'), {
@@ -358,6 +363,11 @@ function CapabilityGroupBlock(props: {
   onEditInPreset: (checked: boolean) => void
   onEditPublic: (checked: boolean) => void
   targets?: ReactNode
+  tools?: McpToolRow[]
+  disabledTools?: ReadonlySet<string>
+  writeBadge?: string
+  emptyLabel?: string
+  onToggleTool?: (name: string, enabled: boolean) => void
 }) {
   return (
     <div className="dsh-nx-groupBlock" role="group" aria-label={props.title}>
@@ -386,6 +396,43 @@ function CapabilityGroupBlock(props: {
         </label>
       </div>
       {props.targets}
+      {props.tools
+        ? (
+          <details className="dsh-nx-toolList">
+            <summary>{props.toolCount ?? props.tools.length}</summary>
+            {props.tools.length === 0
+              ? <p className="dsh-nx-hint">{props.emptyLabel ?? ''}</p>
+              : (
+                <div className="dsh-nx-toolRows">
+                  {props.tools.map((tool) => {
+                    const enabled = !(props.disabledTools?.has(tool.name) ?? false)
+                    const desc = tool.description.trim()
+                    const short = desc.length > 72 ? `${desc.slice(0, 72)}…` : desc
+                    return (
+                      <label key={tool.name} className="dsh-nx-checkRow dsh-nx-toolRow">
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          disabled={props.disabled}
+                          onChange={(event) => { props.onToggleTool?.(tool.name, event.target.checked) }}
+                        />
+                        <span className="dsh-nx-toolMeta">
+                          <span className="dsh-nx-toolName">
+                            {tool.name}
+                            {tool.readOnlyHint !== true
+                              ? <span className="dsh-nx-badgeMuted">{props.writeBadge ?? ''}</span>
+                              : null}
+                          </span>
+                          {short ? <span className="dsh-nx-hint">{short}</span> : null}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+          </details>
+        )
+        : null}
     </div>
   )
 }
@@ -567,62 +614,111 @@ export function NetxopsCard(props: NetxopsCardProps) {
       <div className="dsh-nx-settings-card">
         <div className="dsh-nx-card-head">
           <h3>{t('sectionCapabilities')}</h3>
-          <StatusBadge tone={toolsMountTone(state.toolsStatus)} label={toolsBadgeLabel(t, state.toolsStatus)} />
+          <span className="dsh-nx-badges">
+            <StatusBadge tone={toolsMountTone(state.toolsStatus)} label={toolsBadgeLabel(t, state.toolsStatus)} />
+            <button
+              type="button"
+              className="dsh-nx-btn"
+              disabled={disabled || state.mcpRefreshBusy}
+              onClick={() => { props.refreshMcpCatalog() }}
+            >
+              {state.mcpRefreshBusy ? t('mcpRefreshing') : t('mcpRefresh')}
+            </button>
+          </span>
         </div>
         <ToggleField id="netxops-tools-enabled" label={t('toolsEnabled')}
           checked={state.toolsEnabled.text === 'true'} disabled={disabled}
           overridden={state.toolsEnabled.overridden} resetLabel={t('reset')}
           onToggle={checked => { props.edit('toolsEnabled', String(checked)) }}
           onReset={() => { props.resetField('toolsEnabled') }}
-          error={state.toolsStatus?.error ? <p className="dsh-nx-invalid" role="status">{state.toolsStatus.error}</p> : null} />
-        <CapabilityGroupBlock
-          title={t('groupOps')}
-          toolCount={TOOLS_BY_GROUP.ops.length}
-          targets={targets('groupOpsPresets', state.groupOpsPresets)}
-          inPresetLabel={t('groupInPreset')}
-          publicLabel={t('groupPublic')}
-          inPreset={state.groupOpsInPreset}
-          published={state.groupOpsPublic}
-          disabled={publicationDisabled}
-          onEditInPreset={(checked) => {
-            props.edit('groupOpsInPreset', checked ? 'true' : 'false')
-          }}
-          onEditPublic={(checked) => {
-            props.edit('groupOpsPublic', checked ? 'true' : 'false')
-          }}
-        />
-        <CapabilityGroupBlock
-          title={t('groupTopology')}
-          toolCount={TOOLS_BY_GROUP.topology.length}
-          targets={targets('groupTopologyPresets', state.groupTopologyPresets)}
-          inPresetLabel={t('groupInPreset')}
-          publicLabel={t('groupPublic')}
-          inPreset={state.groupTopologyInPreset}
-          published={state.groupTopologyPublic}
-          disabled={publicationDisabled}
-          onEditInPreset={(checked) => {
-            props.edit('groupTopologyInPreset', checked ? 'true' : 'false')
-          }}
-          onEditPublic={(checked) => {
-            props.edit('groupTopologyPublic', checked ? 'true' : 'false')
-          }}
-        />
-        <CapabilityGroupBlock
-          title={t('groupBizMonitor')}
-          toolCount={TOOLS_BY_GROUP.bizMonitor.length}
-          targets={targets('groupBizMonitorPresets', state.groupBizMonitorPresets)}
-          inPresetLabel={t('groupInPreset')}
-          publicLabel={t('groupPublic')}
-          inPreset={state.groupBizMonitorInPreset}
-          published={state.groupBizMonitorPublic}
-          disabled={publicationDisabled}
-          onEditInPreset={(checked) => {
-            props.edit('groupBizMonitorInPreset', checked ? 'true' : 'false')
-          }}
-          onEditPublic={(checked) => {
-            props.edit('groupBizMonitorPublic', checked ? 'true' : 'false')
-          }}
-        />
+          error={(state.toolsStatus?.error || state.toolsStatus?.mcpError || state.mcpCatalog?.error)
+            ? (
+              <p className="dsh-nx-invalid" role="status">
+                {state.toolsStatus?.error || state.toolsStatus?.mcpError || state.mcpCatalog?.error}
+                {(state.toolsStatus?.mcpFromCache || state.mcpCatalog?.fromCache)
+                  ? ` · ${t('mcpDisconnected')}`
+                  : ''}
+              </p>
+            )
+            : null} />
+        <ToggleField id="netxops-readonly-only" label={t('readOnlyOnly')}
+          checked={state.readOnlyOnly.text === 'true'} disabled={publicationDisabled}
+          overridden={state.readOnlyOnly.overridden} resetLabel={t('reset')}
+          onToggle={checked => { props.edit('readOnlyOnly', String(checked)) }}
+          onReset={() => { props.resetField('readOnlyOnly') }} />
+        {(() => {
+          const catalogTools = state.mcpCatalog?.tools ?? []
+          const byGroup = {
+            ops: catalogTools.filter((tool) => tool.group === 'ops'),
+            topology: catalogTools.filter((tool) => tool.group === 'topology'),
+            bizMonitor: catalogTools.filter((tool) => tool.group === 'bizMonitor'),
+          }
+          const disabledSet = new Set(parseDisabledTools(state.disabledTools.text))
+          const toolProps = {
+            disabledTools: disabledSet,
+            writeBadge: t('toolWriteBadge'),
+            emptyLabel: t('toolListEmpty'),
+            onToggleTool: (name: string, enabled: boolean) => { props.setToolEnabled(name, enabled) },
+          }
+          return (
+            <>
+              <CapabilityGroupBlock
+                title={t('groupOps')}
+                toolCount={byGroup.ops.length}
+                tools={byGroup.ops}
+                targets={targets('groupOpsPresets', state.groupOpsPresets)}
+                inPresetLabel={t('groupInPreset')}
+                publicLabel={t('groupPublic')}
+                inPreset={state.groupOpsInPreset}
+                published={state.groupOpsPublic}
+                disabled={publicationDisabled}
+                onEditInPreset={(checked) => {
+                  props.edit('groupOpsInPreset', checked ? 'true' : 'false')
+                }}
+                onEditPublic={(checked) => {
+                  props.edit('groupOpsPublic', checked ? 'true' : 'false')
+                }}
+                {...toolProps}
+              />
+              <CapabilityGroupBlock
+                title={t('groupTopology')}
+                toolCount={byGroup.topology.length}
+                tools={byGroup.topology}
+                targets={targets('groupTopologyPresets', state.groupTopologyPresets)}
+                inPresetLabel={t('groupInPreset')}
+                publicLabel={t('groupPublic')}
+                inPreset={state.groupTopologyInPreset}
+                published={state.groupTopologyPublic}
+                disabled={publicationDisabled}
+                onEditInPreset={(checked) => {
+                  props.edit('groupTopologyInPreset', checked ? 'true' : 'false')
+                }}
+                onEditPublic={(checked) => {
+                  props.edit('groupTopologyPublic', checked ? 'true' : 'false')
+                }}
+                {...toolProps}
+              />
+              <CapabilityGroupBlock
+                title={t('groupBizMonitor')}
+                toolCount={byGroup.bizMonitor.length}
+                tools={byGroup.bizMonitor}
+                targets={targets('groupBizMonitorPresets', state.groupBizMonitorPresets)}
+                inPresetLabel={t('groupInPreset')}
+                publicLabel={t('groupPublic')}
+                inPreset={state.groupBizMonitorInPreset}
+                published={state.groupBizMonitorPublic}
+                disabled={publicationDisabled}
+                onEditInPreset={(checked) => {
+                  props.edit('groupBizMonitorInPreset', checked ? 'true' : 'false')
+                }}
+                onEditPublic={(checked) => {
+                  props.edit('groupBizMonitorPublic', checked ? 'true' : 'false')
+                }}
+                {...toolProps}
+              />
+            </>
+          )
+        })()}
         {state.toolsStatus && state.toolsStatus.mounts.length > 0 ? (
           <details className="dsh-nx-diagnostics"><summary>{t('mountDetails')}</summary>
             <p className="dsh-nx-hint">{t('mountStatusHint')}</p>

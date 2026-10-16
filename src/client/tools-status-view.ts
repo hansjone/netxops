@@ -19,6 +19,9 @@ export interface ToolsMountView {
   error?: string
   tokenConfigured: boolean | null
   apiUrl: string
+  mcpPhase: string
+  mcpError: string
+  mcpFromCache: boolean
 }
 
 const EMPTY: ToolsMountView = {
@@ -30,6 +33,9 @@ const EMPTY: ToolsMountView = {
   plane: '',
   tokenConfigured: null,
   apiUrl: '',
+  mcpPhase: 'idle',
+  mcpError: '',
+  mcpFromCache: false,
 }
 
 /** Normalize host `tools.status` RPC value. */
@@ -83,7 +89,19 @@ export function asToolsMountView(value: unknown): ToolsMountView {
   }
   const toolsEnabled = !(connection && typeof connection === 'object'
     && (connection as Record<string, unknown>).toolsEnabled === false)
-  return { count, version, groups, plane, error, tokenConfigured, apiUrl, mounts, toolsEnabled }
+  let mcpPhase = 'idle'
+  let mcpError = ''
+  let mcpFromCache = false
+  if (row.mcp !== null && typeof row.mcp === 'object' && !Array.isArray(row.mcp)) {
+    const mcp = row.mcp as Record<string, unknown>
+    mcpPhase = typeof mcp.phase === 'string' ? mcp.phase : 'idle'
+    mcpError = typeof mcp.error === 'string' ? mcp.error : ''
+    mcpFromCache = mcp.fromCache === true
+  }
+  return {
+    count, version, groups, plane, error, tokenConfigured, apiUrl, mounts, toolsEnabled,
+    mcpPhase, mcpError, mcpFromCache,
+  }
 }
 
 /** Fetch Host tool mount snapshot. */
@@ -101,7 +119,8 @@ export async function fetchToolsStatus(
 /** Badge tone for the tools mount line. */
 export function toolsMountTone(view: ToolsMountView | null): 'ok' | 'warn' | 'err' | 'neutral' {
   if (!view) return 'neutral'
-  if (view.error) return 'err'
+  if (view.error || view.mcpPhase === 'error') return 'err'
+  if (view.mcpPhase === 'offline' || view.mcpFromCache) return 'warn'
   if (!view.toolsEnabled) return 'neutral'
   if (view.count > 0) return 'ok'
   return 'warn'

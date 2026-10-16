@@ -50,55 +50,9 @@ export const DEFAULT_CAPABILITY_GROUPS: NetxCapabilityGroups = Object.freeze({
 })
 
 /**
- * Model-facing tool names (`netx__*`) owned by each group.
- * NMS tools use generic `Nms` names; HTTP still hits the configured NMS provider adapter.
+ * Tool membership is no longer hardcoded here — it comes from netx `/mcp`
+ * `_meta.netx.group`. See `mcp-catalog.ts` / `filterCatalogTools`.
  */
-export const TOOLS_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, readonly string[]>> = Object.freeze({
-  ops: Object.freeze([
-    'netx__queryNmsAlarms',
-    'netx__aggregateNmsAlarms',
-    'netx__runNmsDiagnostics',
-    'netx__queryNmsNeInventory',
-    'netx__getNmsNe',
-    'netx__queryNmsAlarmsRaw',
-    'netx__aggregateNmsAlarmsRaw',
-    'netx__listNmsAlarmFields',
-    'netx__sqlQueryNms',
-    'netx__listManagedNe',
-    'netx__getManagedNe',
-    'netx__execManagedNe',
-    'netx__getNeExecJob',
-    'netx__listCliTargets',
-    'netx__findTopologyPaths',
-  ]),
-  topology: Object.freeze([
-    'netx__getTopologyTree',
-    'netx__getTopologyView',
-    'netx__createTopologyFolder',
-    'netx__addTopologyViewNodes',
-    'netx__removeTopologyViewNodes',
-    'netx__copyTopologyViewNodes',
-    'netx__updateTopologyViewPositions',
-    'netx__projectTopologyNeighbors',
-    'netx__queryTopologyFabricNodes',
-    'netx__classifyTopologyFabricNodes',
-    'netx__queryTopologyNeighborhood',
-    'netx__queryTopologyEdges',
-    'netx__layoutTopologyView',
-    'netx__suggestSinkHubs',
-    'netx__analyzeTopologyViewLayout',
-  ]),
-  bizMonitor: Object.freeze([
-    'netx__listBizMonitors',
-    'netx__listBizMonitorBatches',
-    'netx__getBizMonitorContext',
-    'netx__getBizMonitorBoard',
-    'netx__listBizMonitorReds',
-    'netx__getBizMonitorDiffs',
-    'netx__getBizCollectBatch',
-    'netx__getBizCollectCommandRaw',
-  ]),
-})
 
 /** Skill directory name under skills root / `presets/netxops/skills/<group>/`. */
 export const SKILL_DIR_BY_GROUP: Readonly<Record<NetxCapabilityGroupId, string>> = Object.freeze({
@@ -242,17 +196,6 @@ export function groupsForced(
     id === 'nms' || id === 'common' ? 'ops' as const : id
   ))
   return CAPABILITY_GROUP_IDS.filter((id) => normalized.includes(id))
-}
-
-/**
- * Tool name allow-list for the given groups.
- */
-export function toolNamesForGroups(groupIds: readonly NetxCapabilityGroupId[]): Set<string> {
-  const out = new Set<string>()
-  for (const id of groupIds) {
-    for (const name of TOOLS_BY_GROUP[id] ?? []) out.add(name)
-  }
-  return out
 }
 
 /** Parse the persisted preset-id list. Empty is an explicit empty selection. */

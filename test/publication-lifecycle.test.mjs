@@ -11,6 +11,7 @@ import { registerGroupSkills } from '../src/netx/group-skills.ts'
 import { publishNetxConnection } from '../src/netx/runtime.ts'
 import { getToolMountStatuses, publishToolMountStatus, resetToolMountStatus } from '../src/netx/tool-mount-status.ts'
 import { asToolsMountView } from '../src/client/tools-status-view.ts'
+import { OPS_TOOL_NAMES, clearMcpCatalogSeed, seedMcpCatalog } from './mcp-test-catalog.mjs'
 
 const log = { info() {}, warn() {}, error() {} }
 const pause = () => new Promise(resolve => setTimeout(resolve, 40))
@@ -37,7 +38,12 @@ function fakeContext(failAt = -1) {
 function diagnosticHome(t) {
   const previous = process.env.DSH_HOME
   process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'netxops-publication-'))
-  t.after(() => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous })
+  seedMcpCatalog()
+  t.after(() => {
+    clearMcpCatalogSeed()
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
+  })
 }
 
 test('selected presets are isolated and global publication is inherited once', () => {
@@ -67,7 +73,7 @@ test('failed tool registration rolls back every earlier tool', t => {
   const { ctx, tools } = fakeContext(3)
   assert.throws(() => registerNetxTools(ctx, connection(), { plane: 'preset' }), /registration refused/)
   assert.equal(tools.size, 0)
-  assert.ok(getToolMountStatuses().some(row => row.error === 'registration refused'))
+  assert.ok(getToolMountStatuses().some(row => String(row.error ?? '').includes('registration refused')))
   resetToolMountStatus()
 })
 
@@ -87,7 +93,7 @@ test('turning off a mounted group revokes tools, KB context and pending skill lo
   publishNetxConnection(connection({ groupBizMonitorInPreset: false }))
   const mount = fakeContext()
   applyGroupToolsPlugin(mount.ctx, { name: 'lifecycle', mode: 'settings' })
-  assert.equal(mount.tools.size, 15)
+  assert.equal(mount.tools.size, OPS_TOOL_NAMES.length)
   assert.equal(mount.skills.has('kb-context'), true)
   publishNetxConnection(connection({ toolsEnabled: false }))
   await pause()
@@ -95,7 +101,7 @@ test('turning off a mounted group revokes tools, KB context and pending skill lo
   assert.equal(mount.skills.size, 0)
   publishNetxConnection(connection({ groupBizMonitorInPreset: false }))
   await pause()
-  assert.equal(mount.tools.size, 15)
+  assert.equal(mount.tools.size, OPS_TOOL_NAMES.length)
   assert.equal(mount.skills.has('netx-ops'), true)
   mount.dispose()
   await pause()
@@ -123,9 +129,9 @@ test('mount inventory survives cross-bundle publishes and reports all scopes', a
   entry.apply(mount.ctx)
   const statuses = getToolMountStatuses()
   assert.ok(statuses.some(row => row.id === 'host-test'))
-  assert.ok(statuses.some(row => row.count === 15))
+  assert.ok(statuses.some(row => row.count === OPS_TOOL_NAMES.length))
   const view = asToolsMountView({ mounts: statuses, connection: { toolsEnabled: true } })
-  assert.equal(view.count, 15)
+  assert.equal(view.count, OPS_TOOL_NAMES.length)
   mount.dispose()
   assert.equal(getToolMountStatuses().some(row => row.count > 0), false)
   resetToolMountStatus()

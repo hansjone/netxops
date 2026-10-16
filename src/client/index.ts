@@ -162,6 +162,8 @@ const MEMORY_DEFAULTS: NetxopsSettings = {
   kbRoot: '',
   groupKbInPreset: true,
   groupKbPublic: false,
+  disabledTools: '[]',
+  readOnlyOnly: false,
 }
 
 export function apply(ctx: ClientContext): void {

@@ -66,6 +66,12 @@ export type NetxopsLocaleKey =
   | 'toolsStatusEmpty'
   | 'toolsStatusError'
   | 'toolsStatusUnknown'
+  | 'mcpDisconnected'
+  | 'mcpRefresh'
+  | 'mcpRefreshing'
+  | 'readOnlyOnly'
+  | 'toolWriteBadge'
+  | 'toolListEmpty'
   | 'sessionsExportCount'
   | 'sessionsExportUnavailable'
   | 'sessionsExportNoPersistence'
@@ -153,6 +159,12 @@ export const en: Record<NetxopsLocaleKey, string> = {
   toolsStatusEmpty: 'No active tools',
   toolsStatusError: 'Publication failed',
   toolsStatusUnknown: 'Status unavailable',
+  mcpDisconnected: 'Disconnected',
+  mcpRefresh: 'Refresh',
+  mcpRefreshing: 'Refreshing…',
+  readOnlyOnly: 'Read-only tools only',
+  toolWriteBadge: 'write',
+  toolListEmpty: 'No tools yet',
   sessionsExportCount: '{count} sessions',
   sessionsExportUnavailable: 'Export unavailable',
   sessionsExportNoPersistence: 'Session store unavailable.',
@@ -241,6 +253,12 @@ export const zh: Record<NetxopsLocaleKey, string> = {
   toolsStatusEmpty: '暂无活跃工具',
   toolsStatusError: '发布异常',
   toolsStatusUnknown: '状态不可用',
+  mcpDisconnected: '未连接',
+  mcpRefresh: '刷新',
+  mcpRefreshing: '刷新中…',
+  readOnlyOnly: '只允许只读工具',
+  toolWriteBadge: '写',
+  toolListEmpty: '暂无工具清单',
   sessionsExportCount: '{count} 个会话',
   sessionsExportUnavailable: '无法导出',
   sessionsExportNoPersistence: '会话存储不可用。',

@@ -48,6 +48,12 @@ const CSS = `
 .dsh-nx-groupBlock+.dsh-nx-groupBlock{border-top:1px solid var(--dsw-alias-border-l1,#eef0f3)}
 .dsh-nx-groupTitle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary,#1f2329)}
 .dsh-nx-groupChecks{display:flex;flex-wrap:wrap;gap:8px 24px}
+.dsh-nx-toolList{margin:0}
+.dsh-nx-toolList>summary{font-size:12px;color:var(--dsw-alias-label-secondary,#646a73)}
+.dsh-nx-toolRows{display:flex;flex-direction:column;gap:6px;padding:8px 0 0}
+.dsh-nx-toolRow{align-items:flex-start}
+.dsh-nx-toolMeta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dsh-nx-toolName{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;overflow-wrap:anywhere}
 .dsh-nx-targets{margin-top:0}
 .dsh-nx-diagnostics{padding-top:12px;border-top:1px solid var(--dsw-alias-border-l1,#eef0f3)}
 .dsh-nx-diagnostics[open] summary{margin-bottom:8px}

@@ -1,5 +1,8 @@
 /**
  * Shared agent-plane mount: tools + skills for one or more capability groups.
+ *
+ * Tools come from the cached netx `/mcp` catalog. Plugin switches only control
+ * model visibility — not security.
  */
 
 import { readFileSync } from 'node:fs'
@@ -12,7 +15,9 @@ import {
   kbEnabledForPlane,
   type NetxCapabilityGroupId,
 } from './capability-groups.ts'
-import { registerGroupSkills } from './group-skills.ts'
+import { disabledPublicNames } from './mcp-catalog.ts'
+import { getMcpCatalogTools, watchMcpCatalog } from './mcp-store.ts'
+import { registerGroupSkills, type DisabledToolsByGroup } from './group-skills.ts'
 import { registerKbContextSkill } from './kb-context-skill.ts'
 import { registerKbLocalTools } from './kb-local-tools.ts'
 import { registerKbPackSkills } from './kb-pack-skills.ts'
@@ -49,6 +54,24 @@ export interface GroupToolsPluginOptions {
   presetId?: string
 }
 
+function disabledByGroupFor(
+  groupIds: readonly NetxCapabilityGroupId[],
+  connection: ReturnType<typeof requireNetxConnection>,
+): DisabledToolsByGroup {
+  const catalog = getMcpCatalogTools()
+  const out: DisabledToolsByGroup = {}
+  for (const groupId of groupIds) {
+    const names = disabledPublicNames(
+      catalog,
+      [groupId],
+      connection.disabledTools,
+      connection.readOnlyOnly,
+    )
+    if (names.length > 0) out[groupId] = names
+  }
+  return out
+}
+
 /**
  * Apply a group-scoped tools/skills plugin on the calling (usually preset) context.
  */
@@ -75,19 +98,20 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
     const connection = requireNetxConnection()
     const enabled = resolveGroups()
     try {
-      // Always call register (incl. empty) so revoke publishes count=0 and matches host.
       unregisterTools = registerNetxTools(ctx, connection, {
         plane: 'preset',
         forceGroups: enabled,
         source: options.name,
+        presetId: presetId(),
       })
       ctx.logger.info(
-        '%s: groups=[%s] → %s tokenConfigured=%s live=%s',
+        '%s: groups=[%s] → %s tokenConfigured=%s live=%s catalog=%s',
         options.name,
         enabled.join(',') || '(none)',
         connection.apiUrl,
         connection.token.trim().length > 0,
         getNetxConnection() !== undefined,
+        getMcpCatalogTools().length,
       )
     } catch (error) {
       publishToolMountStatus({
@@ -113,17 +137,17 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
     unregisterKbLocal = registerKbLocalTools(ctx, getKbContext(), { plane: 'preset', source: `${options.name}:kb-local` })
   }
 
-  // Subscribe BEFORE the first remount. Host publish is async (credentials
-  // resolve); if it lands between remount and watch, tools stay empty forever.
   const stopToolWatch = watchNetxConnection(() => {
     remountTools()
     remountKbLocal()
+  })
+  const stopCatalogWatch = watchMcpCatalog(() => {
+    remountTools()
   })
   const stopKbToolWatch = watchKbContext(() => { remountKbLocal() })
   remountTools()
   remountKbLocal()
 
-  // Backup poll: covers publish that raced before watch, and slow credentials.
   let pollTicks = 0
   const pollTimer = setInterval(() => {
     pollTicks += 1
@@ -133,7 +157,7 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       clearInterval(pollTimer)
       return
     }
-    if (pollTicks >= 40) clearInterval(pollTimer) // ~20s
+    if (pollTicks >= 40) clearInterval(pollTimer)
   }, 500)
 
   ctx.inject(['skills'], (skillsCtx) => {
@@ -148,8 +172,13 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       skillAbort = new AbortController()
       unregisterSkills?.()
       unregisterSkills = undefined
+      const connection = requireNetxConnection()
       const enabled = resolveGroups()
-      void registerGroupSkills(skillsCtx, enabled, options.name, skillAbort.signal).then((dispose) => {
+      void registerGroupSkills(skillsCtx, enabled, options.name, {
+        signal: skillAbort.signal,
+        disabledByGroup: disabledByGroupFor(enabled, connection),
+        lang: connection.lang,
+      }).then((dispose) => {
         if (gen !== skillGeneration) {
           dispose()
           return
@@ -194,6 +223,7 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       remountKbSkill()
       remountKbPack()
     })
+    const stopSkillCatalogWatch = watchMcpCatalog(() => { remountSkills() })
     const stopKbWatch = watchKbContext(() => {
       remountKbSkill()
       remountKbPack()
@@ -207,6 +237,7 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
       skillAbort.abort()
       packAbort.abort()
       stopSkillWatch()
+      stopSkillCatalogWatch()
       stopKbWatch()
       unregisterSkills?.()
       unregisterSkills = undefined
@@ -220,6 +251,7 @@ export function applyGroupToolsPlugin(ctx: Context, options: GroupToolsPluginOpt
   ctx.effect(() => () => {
     clearInterval(pollTimer)
     stopToolWatch()
+    stopCatalogWatch()
     stopKbToolWatch()
     unregisterTools?.()
     unregisterTools = undefined

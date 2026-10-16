@@ -64,6 +64,8 @@ export function provisionalNetxConnection(): NetxToolConnection {
       : 'zh'),
     toolCallTimeoutMs: 120_000,
     groups: DEFAULT_CAPABILITY_GROUPS,
+    disabledTools: [],
+    readOnlyOnly: false,
     groupKbInPreset: true,
     groupKbPublic: false,
   }

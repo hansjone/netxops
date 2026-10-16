@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SettingsFormScope, SettingsFormSnapshot } from './settings-form.ts'
 import type { SnapshotStore } from './snapshot-store.ts'
 import {
-  CardForm, apiUrlField, textField, presetIdsField, booleanFieldPersistFalse,
+  CardForm, apiUrlField, textField, presetIdsField, booleanFieldPersistFalse, booleanField,
   type CardActions, type CardFieldState, type CardShell,
 } from './card-form.ts'
 import {
@@ -19,6 +19,12 @@ import {
   fetchToolsStatus,
   type ToolsMountView,
 } from './tools-status-view.ts'
+import {
+  fetchMcpCatalog,
+  refreshMcpCatalogRemote,
+  type McpCatalogView,
+} from './mcp-catalog-view.ts'
+import { parseDisabledTools, serializeDisabledTools } from '../netx/mcp-catalog.ts'
 import {
   fetchKbStatus,
   reloadKbStatus,
@@ -81,6 +87,10 @@ export interface NetxopsSettings {
   groupKbInPreset?: boolean
   /** Publish `_skills/kb-*` to other presets. */
   groupKbPublic?: boolean
+  /** JSON array of server tool names opted out. */
+  disabledTools?: string
+  /** Only register readOnlyHint tools. */
+  readOnlyOnly?: boolean
 }
 
 interface CredentialState {
@@ -126,6 +136,11 @@ export interface NetxopsCardState extends CardShell {
   alarmPushStatus: AlarmPushStatus | null
   /** Host `netx__*` tool mount snapshot; null when RPC unavailable. */
   toolsStatus: ToolsMountView | null
+  /** Cached `/mcp` tools/list for the per-tool switches. */
+  mcpCatalog: McpCatalogView | null
+  mcpRefreshBusy: boolean
+  disabledTools: CardFieldState
+  readOnlyOnly: CardFieldState
   /** Latest KB snapshot (saved root, or live preview while editing). */
   kbStatus: KbSnapshot | null
   /** Soft-injected `remote.directoryPicker` is available. */
@@ -157,6 +172,10 @@ export interface NetxopsCardFace extends CardActions {
   exportAllSessions: () => void
   /** Open the Host directory picker and write the chosen path into kbRoot. */
   browseKbRoot: () => void
+  /** Re-pull tools/list from netx `/mcp`. */
+  refreshMcpCatalog: () => void
+  /** Toggle one server tool in disabledTools (checked = enabled). */
+  setToolEnabled: (serverName: string, enabled: boolean) => void
 }
 
 type DirectoryPickerRemote = {
@@ -181,6 +200,9 @@ export class NetxopsCardController {
   private alarmPushStatus: AlarmPushStatus | null = null
   private toolsStatus: ToolsMountView | null = null
   private toolsStatusInFlight = false
+  private mcpCatalog: McpCatalogView | null = null
+  private mcpCatalogInFlight = false
+  private mcpRefreshBusy = false
   private presetCatalog: NetxopsCardState['presetCatalog'] = []
   private presetCatalogError = false
   private presetCatalogInFlight = false
@@ -235,6 +257,8 @@ export class NetxopsCardController {
         booleanFieldPersistFalse('alarmPushEnabled'),
         booleanFieldPersistFalse('alarmDeliverDsh'),
         booleanFieldPersistFalse('alarmDeliverIm'),
+        booleanField('readOnlyOnly'),
+        textField('disabledTools'),
         textField('imTargets'),
         textField('imBotId'),
         textField('imTargetId'),
@@ -279,6 +303,10 @@ export class NetxopsCardController {
         this.toolsStatus = null
         changed = true
       }
+      if (this.mcpCatalog !== null) {
+        this.mcpCatalog = null
+        changed = true
+      }
       this.presetCatalog = []
       this.presetCatalogError = true
       changed = true
@@ -301,6 +329,7 @@ export class NetxopsCardController {
     this.startStatusPoll()
     void this.refreshAlarmPushStatus()
     void this.refreshToolsStatus()
+    void this.refreshMcpCatalogStatus()
     void this.refreshPresetCatalog()
     void this.reloadKbFromHost()
     void this.refreshKbPreview()
@@ -325,6 +354,7 @@ export class NetxopsCardController {
     this.pollTimer = setInterval(() => {
       void this.refreshAlarmPushStatus()
       void this.refreshToolsStatus()
+      void this.refreshMcpCatalogStatus()
       void this.refreshPresetCatalog()
       void this.refreshKbStatus()
       void this.refreshImDeliveryCatalog()
@@ -387,6 +417,51 @@ export class NetxopsCardController {
     } finally {
       this.toolsStatusInFlight = false
     }
+  }
+
+  private async refreshMcpCatalogStatus(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.mcpCatalogInFlight) return
+    this.mcpCatalogInFlight = true
+    try {
+      const next = await fetchMcpCatalog(call)
+      const prev = this.mcpCatalog
+      if (prev && JSON.stringify(prev) === JSON.stringify(next)) return
+      this.mcpCatalog = next
+      this.store.set(this.projection())
+    } catch {
+      // Keep last catalog.
+    } finally {
+      this.mcpCatalogInFlight = false
+    }
+  }
+
+  private async runMcpRefresh(): Promise<void> {
+    const call = this.rpcCall
+    if (call === undefined || this.mcpRefreshBusy) return
+    this.mcpRefreshBusy = true
+    this.store.set(this.projection())
+    try {
+      const next = await refreshMcpCatalogRemote(call)
+      this.mcpCatalog = next
+      await this.refreshToolsStatus()
+    } catch {
+      // leave previous catalog
+    } finally {
+      this.mcpRefreshBusy = false
+      this.store.set(this.projection())
+    }
+  }
+
+  private setToolEnabled(serverName: string, enabled: boolean): void {
+    const name = serverName.trim()
+    if (!name) return
+    const current = new Set(parseDisabledTools(this.form.field('disabledTools').text))
+    if (enabled) current.delete(name)
+    else current.add(name)
+    const next = serializeDisabledTools([...current])
+    this.form.actions().edit('disabledTools', next)
+    void this.form.save(['disabledTools'])
   }
 
   private async refreshPresetCatalog(): Promise<void> {
@@ -721,6 +796,10 @@ export class NetxopsCardController {
       apiTokenRemoteReady: this.credential.remoteReady,
       alarmPushStatus: this.alarmPushStatus,
       toolsStatus: this.toolsStatus,
+      mcpCatalog: this.mcpCatalog,
+      mcpRefreshBusy: this.mcpRefreshBusy,
+      disabledTools: this.form.field('disabledTools'),
+      readOnlyOnly: this.form.field('readOnlyOnly'),
       kbStatus: this.kbPreview ?? this.kbStatus,
       kbDirectoryPickerReady: this.kbDirectoryPicker !== undefined || this.rpcCall !== undefined,
       kbUiError: this.kbUiError,
@@ -794,6 +873,8 @@ export class NetxopsCardController {
       'groupBizMonitorPublic',
       'groupKbInPreset',
       'groupKbPublic',
+      'disabledTools',
+      'readOnlyOnly',
     ])
     return {
       hooks: { netxopsCard: this.store },
@@ -816,6 +897,8 @@ export class NetxopsCardController {
       },
       exportAllSessions: () => { this.exportAllSessions() },
       browseKbRoot: () => { this.browseKbRoot() },
+      refreshMcpCatalog: () => { void this.runMcpRefresh() },
+      setToolEnabled: (serverName, enabled) => { this.setToolEnabled(serverName, enabled) },
     }
   }
 
