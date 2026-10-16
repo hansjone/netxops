@@ -2,7 +2,7 @@
   "format": 1,
   "builds": {
     "lib/agent-tools-biz-monitor.js": {
-      "output": "2b382bb050cd2bdbba42c018359fcd81fd56f7caa77ab5fcea7dded47841eeb5",
+      "output": "35b27ce03d1f8fe8b8bf919d1649d0506fd957dbcb1d7856c3991a2781559f11",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -25,15 +25,16 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641"
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/agent-tools-common.js": {
-      "output": "3e51e500080dfad4c0a2ea6060afb1b7fe4e6a349d13030aed7ad37db49eedfa",
+      "output": "529aa5d79d0c40030920a8b8053797f43812bf6d8fa4cb6df7ea7e62a46e4777",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -56,15 +57,16 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641"
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/agent-tools-nms.js": {
-      "output": "895e3fdf1ab1a9fc9a0fd0d79f2d51b22f164a1a6ea1e0897f975b4b3103d647",
+      "output": "75b7a381afdae9932b5d2ec9d4ca6fc63aa0e6da1c6ff1466c57759e6a932528",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -87,15 +89,16 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641"
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/agent-tools-ops.js": {
-      "output": "4ece4e983ee4c50a0591a9e601a6cded04f55ebe1c849b4b2eb9d458854e0a18",
+      "output": "16151108566b1f3313bfaace216ebb84656704c236b90cb468ba7f559dcd5e96",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -118,15 +121,16 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641"
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/agent-tools-topology.js": {
-      "output": "cec2f877d8fe03b5e537c35ec39a0d66c5885910385f690a8a3bcb96e8ad3954",
+      "output": "2e3b6268a7e11cab0717faaf4d13bc3ee5a195f1aea94960118211f6773dac28",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -149,15 +153,16 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641"
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/agent-tools.js": {
-      "output": "9c51c136d5b5be9de1479abcae7bd4a69a20fe4e1f92562ca6e13e59663669cc",
+      "output": "d14c5187ce4ea92c7a9e2a54949c6381c8ad9aede9a78264eeaca82d6618de6a",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -180,11 +185,12 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641"
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139"
       }
     },
     "lib/client.js": {
@@ -219,7 +225,7 @@
       }
     },
     "lib/index.js": {
-      "output": "778c85d88498127abf5bb490b251b8b6f94b3ec38a8d7ad5c46c13854cc65d1f",
+      "output": "ceb3cb1b0e366d086fdca112904a73d8dbb0c9926064bbe13e8602e86267307d",
       "inputs": {
         "package.json": "1bb1fb8d615f49c69665a3a89b5912fa414a3b93aa3c541ce909ff57f97e100d",
         "pnpm-lock.yaml": "f1209ac70e9c2294e0f300c0aad88b64aeecd6aa19dfc929c5766c7d033615a3",
@@ -251,6 +257,7 @@
         "src/netx/kb-runtime.ts": "ebf2fd36c407439f1a59344af18d9fe7275825925adbe08719595d06161d6d5b",
         "src/netx/mcp-catalog.ts": "b79962da8f74f04595ed89b166b851d83cac41e8338b80b7629da2021a2c281d",
         "src/netx/mcp-remote.ts": "d79925538e6adaccd8dbf8c65a90027d98464d37a57dce00b3e3155c08b02843",
+        "src/netx/mcp-schema.ts": "2bb2eccd001101bd97389578c627931e89fbab4e057dab500e8b7b8bd655366f",
         "src/netx/mcp-store.ts": "eb93e466e16c3bca81bff01407689025711be52d55e79acbdfa4bec64bd0a6f3",
         "src/netx/mcp-types.ts": "4b30d6e8fba328b0e116c43a1a90d2b686ef4b9fc648b521063876426e9c2833",
         "src/netx/model-language.ts": "07df448b407086237c184a71bfc78e7cb27e50d7f8c499995d8b368b14780c9e",
@@ -259,7 +266,7 @@
         "src/netx/runtime.ts": "238555c92c3972ee9de8ec062b14d6a86961ec4c64609565ba1164b1a460d386",
         "src/netx/session-export.ts": "8e6e9a3094045901563366fac3d6dc74d9bfd78bbff853358d6500955d3dcff6",
         "src/netx/tool-mount-status.ts": "783981774d717ca5e7bf7c0ec7273b40787ef12a6b40749c74543b30fa390faf",
-        "src/netx/tools.ts": "0dfc3fdada56ab04ce40fecbe6f229aabae4ff6132d60809a8fb8daade948641",
+        "src/netx/tools.ts": "88c925aba50a7d6b3fc800986789955fd77c7aca8387c399b1ef58edbf7b9139",
         "src/session-export-shared.ts": "e30d884ec22a0ea2e016c1479f62a8bc8d7ddcce5369a36647d411d07a8620d5"
       }
     }

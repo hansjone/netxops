@@ -14,6 +14,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { NetxCapabilityGroupId, NetxCapabilityGroups } from './capability-groups.ts'
 import { resolveEnabledTools } from './mcp-catalog.ts'
 import { callMcpTool, mcpContentText, mcpEndpointUrl } from './mcp-remote.ts'
+import { parametersFromInputSchema } from './mcp-schema.ts'
 import { getMcpCatalogTools } from './mcp-store.ts'
 import { publicToolName, type NetxMcpToolDescriptor } from './mcp-types.ts'
 import { getNetxConnection } from './runtime.ts'
@@ -71,24 +72,6 @@ function renderMcpResult(_args: unknown, value: unknown) {
 const mcpOut = {
   schema: { type: 'object' as const, additionalProperties: true as const },
   render: renderMcpResult,
-}
-
-/**
- * `defineTool` expects a property map (DSH ParameterSchemaSpec), not a full
- * JSON Schema document. MCP `inputSchema` is usually `{ type:'object', properties }`.
- */
-function parametersFromInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
-  if (schema && typeof schema === 'object' && !Array.isArray(schema)) {
-    const props = schema.properties
-    if (props && typeof props === 'object' && !Array.isArray(props)) {
-      return props as Record<string, unknown>
-    }
-    // Already a property map (legacy / odd servers).
-    if (schema.type === undefined && schema.properties === undefined) {
-      return schema
-    }
-  }
-  return {}
 }
 
 function defineRemoteTool(

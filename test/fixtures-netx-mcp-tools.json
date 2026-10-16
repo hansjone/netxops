@@ -1,0 +1,1990 @@
+[
+ {
+  "name": "queryNmsAlarms",
+  "inputSchema": {
+   "properties": {
+    "severity": {
+     "type": "string",
+     "description": "critical/major/minor/warning"
+    },
+    "is_cleared": {
+     "type": "string",
+     "description": "\"False\" = active only; \"True\" = cleared."
+    },
+    "ne_id": {
+     "type": "string",
+     "description": "Filter only; do not show UUID to users"
+    },
+    "host_name": {
+     "type": "string",
+     "description": "Filter by NE host_name"
+    },
+    "keyword": {
+     "type": "string",
+     "description": "Substring on cause/object/event. Examples: LOS, Fiber Break, bandwidth, CRC, BN EMS, dying gasp, License, optical power, BGP Neighbour."
+    },
+    "time_from": {
+     "type": "string",
+     "description": "ISO time; filters last_seen_at >="
+    },
+    "time_to": {
+     "type": "string",
+     "description": "ISO time; filters last_seen_at <="
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 50
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "aggregateNmsAlarms",
+  "inputSchema": {
+   "properties": {
+    "severity": {
+     "type": "string",
+     "description": "Optional perceived_severity filter (critical/major/minor/warning)."
+    },
+    "top_ne": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 5000,
+     "default": 50,
+     "description": "Max NE buckets to return (0 = all; positive limit up to 5000). Ignored when group_by is set."
+    },
+    "exclude_missing_host": {
+     "type": "boolean",
+     "default": true,
+     "description": "Omit (host_name missing) from by_ne / host rankings."
+    },
+    "time_from": {
+     "type": "string",
+     "description": "ISO time; filters last_seen_at >="
+    },
+    "time_to": {
+     "type": "string",
+     "description": "ISO time; filters last_seen_at <="
+    },
+    "group_by": {
+     "type": "string",
+     "enum": [
+      "alarm_alarm_key",
+      "alarm_host_name",
+      "alarm_ne_id",
+      "alarm_object_name",
+      "alarm_event_type",
+      "alarm_native_probable_cause",
+      "alarm_perceived_severity",
+      "alarm_is_cleared",
+      "alarm_time_created",
+      "alarm_root_cause_alarm_indication",
+      "ne_ne_id",
+      "ne_ne_name",
+      "ne_user_label",
+      "ne_ip_address",
+      "ne_ipv6_address",
+      "ne_ne_type",
+      "ne_device_level",
+      "ne_host_name",
+      "ne_location",
+      "ne_hardware_version",
+      "ne_loopback",
+      "ne_consistent_state",
+      "ne_interface_version",
+      "ne_mac",
+      "ne_admin_status",
+      "ne_address_type",
+      "ne_connection_status",
+      "ne_maintain_status",
+      "ne_net_mask",
+      "ne_create_time",
+      "ne_creator",
+      "ne_vendor",
+      "ne_source_type",
+      "ne_exists"
+     ],
+     "description": "Optional. When set, routes to dynamic raw aggregation (same as aggregateNmsAlarmsRaw). Prefer alarm_host_name for NE Top."
+    },
+    "group_by2": {
+     "type": "string",
+     "enum": [
+      "alarm_alarm_key",
+      "alarm_host_name",
+      "alarm_ne_id",
+      "alarm_object_name",
+      "alarm_event_type",
+      "alarm_native_probable_cause",
+      "alarm_perceived_severity",
+      "alarm_is_cleared",
+      "alarm_time_created",
+      "alarm_root_cause_alarm_indication",
+      "ne_ne_id",
+      "ne_ne_name",
+      "ne_user_label",
+      "ne_ip_address",
+      "ne_ipv6_address",
+      "ne_ne_type",
+      "ne_device_level",
+      "ne_host_name",
+      "ne_location",
+      "ne_hardware_version",
+      "ne_loopback",
+      "ne_consistent_state",
+      "ne_interface_version",
+      "ne_mac",
+      "ne_admin_status",
+      "ne_address_type",
+      "ne_connection_status",
+      "ne_maintain_status",
+      "ne_net_mask",
+      "ne_create_time",
+      "ne_creator",
+      "ne_vendor",
+      "ne_source_type",
+      "ne_exists"
+     ],
+     "description": "Optional second group field when group_by is set."
+    },
+    "is_cleared": {
+     "type": "string",
+     "description": "Only used when group_by is set."
+    },
+    "ne_id": {
+     "type": "string",
+     "description": "Only used when group_by is set."
+    },
+    "event_type": {
+     "type": "string",
+     "description": "Only used when group_by is set."
+    },
+    "keyword": {
+     "type": "string",
+     "description": "Only used when group_by is set."
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "default": 200,
+     "description": "Bucket limit when group_by is set (default 200)."
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "runNmsDiagnostics",
+  "inputSchema": {
+   "properties": {},
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "queryNmsNeInventory",
+  "inputSchema": {
+   "properties": {
+    "keyword": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 50
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getNmsNe",
+  "inputSchema": {
+   "properties": {
+    "ne_id": {
+     "type": "string",
+     "description": "NMS UUID, or exact host_name / IP."
+    }
+   },
+   "required": [
+    "ne_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "queryNmsAlarmsRaw",
+  "inputSchema": {
+   "properties": {
+    "severity": {
+     "type": "string"
+    },
+    "is_cleared": {
+     "type": "string"
+    },
+    "ne_id": {
+     "type": "string"
+    },
+    "event_type": {
+     "type": "string"
+    },
+    "keyword": {
+     "type": "string",
+     "description": "Substring filter; see queryNmsAlarms keyword examples."
+    },
+    "time_from": {
+     "type": "string"
+    },
+    "time_to": {
+     "type": "string"
+    },
+    "order_by": {
+     "type": "string",
+     "enum": [
+      "last_seen_at",
+      "time_created",
+      "perceived_severity",
+      "event_type",
+      "ne_id"
+     ]
+    },
+    "order": {
+     "type": "string",
+     "enum": [
+      "asc",
+      "desc"
+     ]
+    },
+    "select_fields": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "field_preset": {
+     "type": "string",
+     "enum": [
+      "brief",
+      "evidence",
+      "ne_debug"
+     ]
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 50
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "aggregateNmsAlarmsRaw",
+  "inputSchema": {
+   "properties": {
+    "group_by": {
+     "type": "string",
+     "enum": [
+      "alarm_alarm_key",
+      "alarm_host_name",
+      "alarm_ne_id",
+      "alarm_object_name",
+      "alarm_event_type",
+      "alarm_native_probable_cause",
+      "alarm_perceived_severity",
+      "alarm_is_cleared",
+      "alarm_time_created",
+      "alarm_root_cause_alarm_indication",
+      "ne_ne_id",
+      "ne_ne_name",
+      "ne_user_label",
+      "ne_ip_address",
+      "ne_ipv6_address",
+      "ne_ne_type",
+      "ne_device_level",
+      "ne_host_name",
+      "ne_location",
+      "ne_hardware_version",
+      "ne_loopback",
+      "ne_consistent_state",
+      "ne_interface_version",
+      "ne_mac",
+      "ne_admin_status",
+      "ne_address_type",
+      "ne_connection_status",
+      "ne_maintain_status",
+      "ne_net_mask",
+      "ne_create_time",
+      "ne_creator",
+      "ne_vendor",
+      "ne_source_type",
+      "ne_exists"
+     ]
+    },
+    "group_by2": {
+     "type": "string",
+     "enum": [
+      "alarm_alarm_key",
+      "alarm_host_name",
+      "alarm_ne_id",
+      "alarm_object_name",
+      "alarm_event_type",
+      "alarm_native_probable_cause",
+      "alarm_perceived_severity",
+      "alarm_is_cleared",
+      "alarm_time_created",
+      "alarm_root_cause_alarm_indication",
+      "ne_ne_id",
+      "ne_ne_name",
+      "ne_user_label",
+      "ne_ip_address",
+      "ne_ipv6_address",
+      "ne_ne_type",
+      "ne_device_level",
+      "ne_host_name",
+      "ne_location",
+      "ne_hardware_version",
+      "ne_loopback",
+      "ne_consistent_state",
+      "ne_interface_version",
+      "ne_mac",
+      "ne_admin_status",
+      "ne_address_type",
+      "ne_connection_status",
+      "ne_maintain_status",
+      "ne_net_mask",
+      "ne_create_time",
+      "ne_creator",
+      "ne_vendor",
+      "ne_source_type",
+      "ne_exists"
+     ]
+    },
+    "severity": {
+     "type": "string"
+    },
+    "is_cleared": {
+     "type": "string"
+    },
+    "ne_id": {
+     "type": "string"
+    },
+    "event_type": {
+     "type": "string"
+    },
+    "keyword": {
+     "type": "string"
+    },
+    "time_from": {
+     "type": "string"
+    },
+    "time_to": {
+     "type": "string"
+    },
+    "exclude_missing_host": {
+     "type": "boolean",
+     "default": true,
+     "description": "Omit missing host buckets when grouping by host/user_label fields."
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "default": 200
+    }
+   },
+   "required": [
+    "group_by"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "listNmsAlarmFields",
+  "inputSchema": {
+   "properties": {},
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "sqlQueryNms",
+  "inputSchema": {
+   "properties": {
+    "sql": {
+     "type": "string"
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "default": 200
+    },
+    "statement_timeout_ms": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 30000,
+     "default": 0
+    }
+   },
+   "required": [
+    "sql"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "listManagedNe",
+  "inputSchema": {
+   "properties": {
+    "keyword": {
+     "type": "string"
+    },
+    "vendor": {
+     "type": "string"
+    },
+    "connect_status": {
+     "type": "string",
+     "enum": [
+      "unknown",
+      "testing",
+      "pass",
+      "fail"
+     ]
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 100,
+     "default": 20
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getManagedNe",
+  "inputSchema": {
+   "properties": {
+    "ne_id": {
+     "type": "string",
+     "description": "Managed NE id (not NMS host_name / not NMS ne_id unless they coincide)."
+    }
+   },
+   "required": [
+    "ne_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "execManagedNe",
+  "inputSchema": {
+   "properties": {
+    "ne_id": {
+     "type": "string"
+    },
+    "nms_ne_id": {
+     "type": "string",
+     "description": "NMS inventory id (preferred)."
+    },
+    "ne_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 20,
+     "description": "Managed NE ids for concurrent batch (shared commands)."
+    },
+    "nms_ne_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 20,
+     "description": "NMS inventory ne_ids for concurrent batch (shared commands)."
+    },
+    "targets": {
+     "type": "array",
+     "maxItems": 20,
+     "items": {
+      "type": "object",
+      "properties": {
+       "ne_id": {
+        "type": "string"
+       },
+       "nms_ne_id": {
+        "type": "string"
+       },
+       "commands": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "minItems": 1,
+        "maxItems": 5
+       }
+      },
+      "additionalProperties": false
+     },
+     "description": "Preferred for mixed-vendor / per-NE command sets: each item is one NE (ne_id OR nms_ne_id) with its own commands[]. Per-target commands override top-level shared commands. Still one concurrent batch — not N single-NE calls."
+    },
+    "commands": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "minItems": 1,
+     "maxItems": 5,
+     "description": "Commands for single NE, or shared commands for ne_ids/nms_ne_ids. Optional fallback for targets that omit per-target commands."
+    },
+    "read_timeout_sec": {
+     "type": "integer",
+     "minimum": 10,
+     "maximum": 120,
+     "default": 60,
+     "description": "Per-command read timeout (default 60; use 90–120 for slow show)."
+    },
+    "concurrency": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 8,
+     "default": 4,
+     "description": "Parallel NEs for batch mode (ignored for single-NE)."
+    },
+    "async": {
+     "type": "boolean",
+     "description": "true=background job_id + getNeExecJob; false=force sync; omit=auto for large batches (~4+ NEs, NETX_NE_EXEC_ASYNC_MIN_NES)."
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getNeExecJob",
+  "inputSchema": {
+   "properties": {
+    "job_id": {
+     "type": "string",
+     "description": "Job id from execManagedNe async response."
+    }
+   },
+   "required": [
+    "job_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "listCliTargets",
+  "inputSchema": {
+   "properties": {
+    "source": {
+     "type": "string",
+     "enum": [
+      "managed",
+      "nms",
+      "all"
+     ],
+     "default": "all",
+     "description": "nms selects the configured NMS inventory; managed selects managed NEs."
+    },
+    "keyword": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 50
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "findTopologyPaths",
+  "inputSchema": {
+   "properties": {
+    "from_nms_ne_id": {
+     "type": "string",
+     "description": "Source NMS ne_id (from alarm ne_id); mutually exclusive with from_managed_ne_id"
+    },
+    "from_managed_ne_id": {
+     "type": "string",
+     "description": "Source managed NE id; mutually exclusive with from_nms_ne_id"
+    },
+    "to_nms_ne_id": {
+     "type": "string",
+     "description": "Target NMS ne_id; mutually exclusive with to_managed_ne_id"
+    },
+    "to_managed_ne_id": {
+     "type": "string",
+     "description": "Target managed NE id; mutually exclusive with to_nms_ne_id"
+    },
+    "max_paths": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 10,
+     "default": 3
+    },
+    "max_hops": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 12,
+     "default": 6
+    },
+    "layer": {
+     "type": "string",
+     "default": "physical"
+    },
+    "detail": {
+     "type": "string",
+     "enum": [
+      "summary",
+      "full"
+     ],
+     "default": "summary",
+     "description": "summary=compact ops fields; full=include attrs/coords."
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getTopologyTree",
+  "inputSchema": {
+   "properties": {
+    "compact": {
+     "type": "boolean",
+     "default": true,
+     "description": "Default true — slim folder/view fields. Pass false for raw API tree."
+    },
+    "max_depth": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "Optional depth limit from root (0 = root only). Omitted = full depth."
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getTopologyView",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string"
+    },
+    "detail": {
+     "type": "string",
+     "enum": [
+      "summary",
+      "full"
+     ],
+     "default": "summary"
+    },
+    "sample": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 200,
+     "default": 20,
+     "description": "Sample node count when detail=summary (use >=node_count for layout study)."
+    }
+   },
+   "required": [
+    "view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "createTopologyFolder",
+  "inputSchema": {
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Root or sub-region display name"
+    },
+    "parent_id": {
+     "type": "string",
+     "description": "Omit for new top-level「根」+根图. Pass 根图/region folder id to create a sub-region under it (not a sibling custom view)."
+    },
+    "locale": {
+     "type": "string",
+     "description": "Optional zh|en — labels auto「根图」vs Root map"
+    },
+    "sort_order": {
+     "type": "integer",
+     "default": 0
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "addTopologyViewNodes",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string"
+    },
+    "max_nodes": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "description": "Optional: PATCH this view's membership.max_nodes before add (use on physical 根图/region when soft cap blocks members)."
+    },
+    "keyword": {
+     "type": "string"
+    },
+    "role": {
+     "type": "string"
+    },
+    "vendor": {
+     "type": "string"
+    },
+    "link_status": {
+     "type": "string",
+     "enum": [
+      "linked",
+      "orphaned",
+      "managed",
+      "ume",
+      "both"
+     ]
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "default": 500
+    },
+    "offset": {
+     "type": "integer",
+     "minimum": 0,
+     "default": 0
+    },
+    "fabric_node_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "layout": {
+     "type": "string",
+     "enum": [
+      "grid",
+      "keep"
+     ],
+     "default": "grid"
+    }
+   },
+   "required": [
+    "view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "removeTopologyViewNodes",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string"
+    },
+    "keyword": {
+     "type": "string"
+    },
+    "role": {
+     "type": "string"
+    },
+    "vendor": {
+     "type": "string"
+    },
+    "link_status": {
+     "type": "string",
+     "enum": [
+      "linked",
+      "orphaned",
+      "managed",
+      "ume",
+      "both"
+     ]
+    },
+    "fabric_node_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "sinkTopologyDualUnits",
+  "inputSchema": {
+   "properties": {
+    "source_view_id": {
+     "type": "string",
+     "description": "Root / source physical view_id to drain."
+    },
+    "sink_view_id": {
+     "type": "string",
+     "description": "Child-region physical view_id receiving batches."
+    },
+    "max_units": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 20,
+     "default": 3,
+     "description": "Max dual_units per batch (default 3)."
+    },
+    "min_nodes": {
+     "type": "integer",
+     "minimum": 2,
+     "maximum": 200,
+     "default": 8
+    },
+    "max_nodes": {
+     "type": "integer",
+     "minimum": 2,
+     "maximum": 400,
+     "default": 300,
+     "description": "Max nodes per dual_unit candidate (CN eyes often 150–300)."
+    },
+    "max_batch_nodes": {
+     "type": "integer",
+     "minimum": 8,
+     "maximum": 800,
+     "default": 400
+    },
+    "layout_batch": {
+     "type": "boolean",
+     "default": true,
+     "description": "Default true: run layout_dual_unit per unit before parking (old staging/block layout). false = copy source coords only."
+    },
+    "unit_gap": {
+     "type": "number",
+     "default": 220,
+     "description": "Gap between laid-out units in a batch strip."
+    },
+    "until_empty": {
+     "type": "boolean",
+     "default": false,
+     "description": "Loop batches until source empty (watch MCP timeout)."
+    },
+    "max_batches": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200,
+     "description": "Safety cap when until_empty (default 50)."
+    },
+    "include_leftovers": {
+     "type": "boolean",
+     "default": true,
+     "description": "When dual_units exhausted, move leftover NE chunks."
+    },
+    "keep_layers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "default": [
+      "core",
+      "agg"
+     ],
+     "description": "Fabric layers that stay on source (not sunk). Default core+agg so root keeps the gravity bar; pass [] to drain everything (legacy)."
+    },
+    "sink_layers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "default": [
+      "access",
+      "other"
+     ],
+     "description": "Only move these layers this phase. Default access+other. Pass [] to allow any non-keep. With by_level=true, auto picks deepest remaining (access→agg→…)."
+    },
+    "by_level": {
+     "type": "boolean",
+     "default": false,
+     "description": "Auto sink deepest remaining non-keep layer each batch (access first, then agg if keep allows)."
+    },
+    "prefer_pure": {
+     "type": "boolean",
+     "default": false,
+     "description": "Legacy: prefer both portals sinkable. Default false so CN/core eyes (portals stay on root) are not deprioritized."
+    },
+    "prefer_core_eye": {
+     "type": "boolean",
+     "default": true,
+     "description": "Alias of prefer_top_eye. Prefer core/agg eyes top→down before access rings."
+    },
+    "prefer_top_eye": {
+     "type": "boolean",
+     "default": true,
+     "description": "Prefer dual_unit portals top→down: core–core, core–agg, agg–agg, then maximize movable coverage."
+    },
+    "dry_run": {
+     "type": "boolean",
+     "default": false
+    },
+    "pad": {
+     "type": "number",
+     "default": 280,
+     "description": "Gap between sink hull and parked batch."
+    },
+    "detect_max_units": {
+     "type": "integer",
+     "minimum": 20,
+     "maximum": 300,
+     "default": 120
+    }
+   },
+   "required": [
+    "source_view_id",
+    "sink_view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "copyTopologyViewNodes",
+  "inputSchema": {
+   "properties": {
+    "source_view_id": {
+     "type": "string",
+     "description": "Canvas to copy FROM."
+    },
+    "target_view_id": {
+     "type": "string",
+     "description": "Canvas to copy TO."
+    },
+    "copy_positions": {
+     "type": "boolean",
+     "default": true,
+     "description": "Copy x/y from source (default true)."
+    },
+    "clear_target": {
+     "type": "boolean",
+     "default": false,
+     "description": "Remove existing target members before copy."
+    },
+    "offset_x": {
+     "type": "number",
+     "default": 0,
+     "description": "Shift copied x by this amount."
+    },
+    "offset_y": {
+     "type": "number",
+     "default": 0
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "description": "Optional cap on how many source nodes to copy."
+    },
+    "dry_run": {
+     "type": "boolean",
+     "default": false
+    }
+   },
+   "required": [
+    "source_view_id",
+    "target_view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "updateTopologyViewPositions",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string"
+    },
+    "layout": {
+     "type": "string",
+     "enum": [
+      "grid",
+      "offset",
+      "stack"
+     ]
+    },
+    "keyword": {
+     "type": "string"
+    },
+    "role": {
+     "type": "string"
+    },
+    "vendor": {
+     "type": "string"
+    },
+    "link_status": {
+     "type": "string",
+     "enum": [
+      "linked",
+      "orphaned",
+      "managed",
+      "ume",
+      "both"
+     ]
+    },
+    "fabric_node_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "origin_x": {
+     "type": "number",
+     "default": 40
+    },
+    "origin_y": {
+     "type": "number",
+     "default": 40
+    },
+    "gap_x": {
+     "type": "number",
+     "default": 180
+    },
+    "gap_y": {
+     "type": "number",
+     "default": 120
+    },
+    "cols": {
+     "type": "integer",
+     "minimum": 0,
+     "default": 0
+    },
+    "dx": {
+     "type": "number",
+     "default": 0
+    },
+    "dy": {
+     "type": "number",
+     "default": 0
+    },
+    "positions": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "fabric_node_id": {
+        "type": "string"
+       },
+       "x": {
+        "type": "number"
+       },
+       "y": {
+        "type": "number"
+       },
+       "label": {
+        "type": "string",
+        "description": "Omit to keep the current label; \"\" clears a rename (follow device name)."
+       },
+       "locked": {
+        "type": "boolean",
+        "description": "Omit to keep the lock. Locked nodes are skipped unless locked=false (unlock + move)."
+       }
+      },
+      "required": [
+       "fabric_node_id"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "required": [
+    "view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "projectTopologyNeighbors",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string"
+    },
+    "seed_fabric_node_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Optional fabric node ids already on the view to expand from"
+    },
+    "managed_ne_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Optional managed NE ids to resolve to on-view fabric seeds"
+    },
+    "region_folder_id": {
+     "type": "string",
+     "description": "If set, only add neighbors with matching fabric.region_folder_id; skipped peers are counted in out_of_region_skipped."
+    },
+    "dry_run": {
+     "type": "boolean",
+     "default": false,
+     "description": "Preview projected graph without saving placements."
+    },
+    "detail": {
+     "type": "string",
+     "enum": [
+      "summary",
+      "full"
+     ],
+     "default": "summary"
+    },
+    "sample": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 100,
+     "default": 20
+    }
+   },
+   "required": [
+    "view_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "queryTopologyFabricNodes",
+  "inputSchema": {
+   "properties": {
+    "mode": {
+     "type": "string",
+     "enum": [
+      "summary",
+      "list",
+      "search"
+     ],
+     "description": "Omit to auto-pick: q→search, else list."
+    },
+    "q": {
+     "type": "string",
+     "description": "Search needle (mode=search); also aliases keyword for list."
+    },
+    "keyword": {
+     "type": "string",
+     "description": "List filter keyword; alias of q for search."
+    },
+    "role": {
+     "type": "string"
+    },
+    "level": {
+     "type": "string",
+     "description": "Exact fabric level e.g. 1.1"
+    },
+    "level_major": {
+     "type": "string",
+     "description": "Major band e.g. 2 → [2.0, 3.0)"
+    },
+    "region_folder_id": {
+     "type": "string",
+     "description": "Filter by topo folder id (UME region / canvas folder)."
+    },
+    "link_status": {
+     "type": "string",
+     "enum": [
+      "linked",
+      "orphaned",
+      "managed",
+      "ume",
+      "both"
+     ]
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 50
+    },
+    "limit": {
+     "type": "integer",
+     "description": "Alias of page_size"
+    },
+    "summary": {
+     "type": "boolean",
+     "default": false,
+     "description": "Shortcut for mode=summary"
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "classifyTopologyFabricNodes",
+  "inputSchema": {
+   "properties": {
+    "action": {
+     "type": "string",
+     "enum": [
+      "match",
+      "tag",
+      "patch",
+      "unmatched",
+      "preview_rules",
+      "apply_rules",
+      "list_rules"
+     ],
+     "description": "Required. Typical: match → tag(dry_run) → tag."
+    },
+    "pattern": {
+     "type": "string",
+     "description": "Regex for match/tag (aliases q)."
+    },
+    "q": {
+     "type": "string",
+     "description": "Alias of pattern."
+    },
+    "match_field": {
+     "type": "string",
+     "enum": [
+      "name",
+      "ip",
+      "name_ip"
+     ],
+     "default": "name"
+    },
+    "sample_limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200,
+     "default": 50
+    },
+    "fabric_node_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Explicit ids for tag (from match)."
+    },
+    "fabric_node_id": {
+     "type": "string",
+     "description": "Single id for patch (alias node_id)."
+    },
+    "node_id": {
+     "type": "string"
+    },
+    "level": {
+     "description": "Layout rank e.g. 0, 1, 1.1, 2.1, 3. null clears."
+    },
+    "role": {
+     "type": "string",
+     "description": "Preset alias → level: external|core|aggregation|access|edge."
+    },
+    "region_folder_id": {
+     "type": "string",
+     "description": "Topo region folder id; empty + clear_region clears."
+    },
+    "clear_region": {
+     "type": "boolean",
+     "default": false,
+     "description": "Clear region_folder_id on tag/patch."
+    },
+    "dry_run": {
+     "type": "boolean",
+     "default": false,
+     "description": "tag only: preview without write."
+    },
+    "kind": {
+     "type": "string",
+     "enum": [
+      "any",
+      "level",
+      "role",
+      "region"
+     ],
+     "default": "any",
+     "description": "unmatched filter (role aliases level)."
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 50
+    },
+    "limit": {
+     "type": "integer",
+     "description": "Alias of page_size"
+    },
+    "skip_manual": {
+     "type": "boolean",
+     "default": true,
+     "description": "apply_rules: skip manually tagged nodes."
+    },
+    "overwrite_manual": {
+     "type": "boolean",
+     "default": false,
+     "description": "apply_rules shortcut: skip_manual=false."
+    },
+    "fill_empty_only": {
+     "type": "boolean",
+     "default": false,
+     "description": "apply_rules: only fill empty role/region."
+    }
+   },
+   "required": [
+    "action"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "queryTopologyNeighborhood",
+  "inputSchema": {
+   "properties": {
+    "node_id": {
+     "type": "string"
+    },
+    "depth": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 3,
+     "default": 1
+    },
+    "layer": {
+     "type": "string",
+     "default": "physical"
+    }
+   },
+   "required": [
+    "node_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "queryTopologyEdges",
+  "inputSchema": {
+   "properties": {
+    "node_id": {
+     "type": "string"
+    },
+    "keyword": {
+     "type": "string"
+    },
+    "layer": {
+     "type": "string",
+     "default": "physical"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "active",
+      "missing",
+      "stale"
+     ]
+    },
+    "source": {
+     "type": "string",
+     "enum": [
+      "lldp",
+      "ume",
+      "manual"
+     ]
+    },
+    "detail": {
+     "type": "string",
+     "enum": [
+      "adjacency",
+      "ports"
+     ],
+     "default": "adjacency",
+     "description": "adjacency (default) = NE pairs; ports = raw port rows in items[]."
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "page_size": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 500,
+     "default": 100
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "suggestSinkHubs",
+  "inputSchema": {
+   "properties": {
+    "source_view_id": {
+     "type": "string",
+     "description": "Root / leftover canvas (required). Alias: view_id."
+    },
+    "view_id": {
+     "type": "string",
+     "description": "Alias of source_view_id."
+    },
+    "sink_view_id": {
+     "type": "string",
+     "description": "Eye sink canvas; ids already there are dropped from batches."
+    },
+    "exclude_portal_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Extra freeze ids (CN portals). Merged with dual_units portals."
+    },
+    "use_source_dual_portals": {
+     "type": "boolean",
+     "default": false,
+     "description": "Exclude portals from source dual_units (default false)."
+    },
+    "use_sink_dual_portals": {
+     "type": "boolean",
+     "default": true,
+     "description": "Exclude portals from sink dual_units when sink_view_id set."
+    },
+    "only_layers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Hub layers to consider (default [agg, core])."
+    },
+    "min_territory": {
+     "type": "integer",
+     "minimum": 0,
+     "default": 1,
+     "description": "Skip hubs with remaining_territory below this."
+    },
+    "min_move_n": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    },
+    "top_n": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 40,
+     "default": 12
+    },
+    "pick": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1,
+     "description": "1-based batch to expose as batch + move_nodes."
+    },
+    "include_hub": {
+     "type": "boolean",
+     "default": true,
+     "description": "Include hub id in fabric_node_ids when still on source."
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "analyzeTopologyViewLayout",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string",
+     "description": "Analyze a single topology view"
+    },
+    "folder_id": {
+     "type": "string",
+     "description": "Sample physical views under this folder (tree walk)"
+    },
+    "detail": {
+     "type": "string",
+     "enum": [
+      "summary",
+      "structure",
+      "hotspots",
+      "blocks",
+      "both"
+     ],
+     "default": "summary",
+     "description": "summary=score only; structure=gravity/hubs/recipe hint (phase 0.5); hotspots|blocks=sight; both=structure+sight (hand-drag)"
+    },
+    "score_profile": {
+     "type": "string",
+     "enum": [
+      "auto",
+      "default",
+      "eye"
+     ],
+     "default": "auto",
+     "description": "Scoring weights. auto→eye for large sparse diagonal canvases; eye softens axis/rings (arc-band dual sinks); default=metro."
+    },
+    "sight_limit": {
+     "type": "integer",
+     "minimum": 5,
+     "maximum": 80,
+     "default": 40,
+     "description": "Max crossings / drag candidates when detail≠summary"
+    },
+    "sight_cell": {
+     "type": "number",
+     "default": 600,
+     "description": "Grid cell size (px) for detail=blocks"
+    },
+    "max_views": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 80,
+     "default": 25
+    },
+    "min_nodes": {
+     "type": "integer",
+     "minimum": 0,
+     "default": 5
+    },
+    "max_nodes": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 2000,
+     "default": 800
+    },
+    "with_meta": {
+     "type": "boolean",
+     "default": false,
+     "description": "Include IP/vendor caption line in overlap boxes"
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "layoutTopologyView",
+  "inputSchema": {
+   "properties": {
+    "view_id": {
+     "type": "string",
+     "description": "Target canvas to layout (and write when mode=apply)"
+    },
+    "action": {
+     "type": "string",
+     "enum": [
+      "layout",
+      "fix_overlaps",
+      "layout_dual_unit",
+      "straighten_channels",
+      "untangle",
+      "polish_crossings",
+      "clear_edge_hits",
+      "compact_bbox",
+      "pull_far_chains",
+      "align_reference",
+      "orbit_sweep",
+      "level_bands",
+      "move_nodes",
+      "job_status",
+      "job_cancel"
+     ],
+     "default": "layout",
+     "description": "layout=full recipe; layout_dual_unit=dual-portal eye; level_bands=horizontal layer bands; move_nodes=migrate fabric_node_ids; orbit_sweep=polar sweep; polish_crossings=one-shot cut crossings; clear_edge_hits=eject edge hits (no crossing rise); pull_far_chains=scale far corridors toward portal mid; compact_bbox=gated farthest-K shrink; align_reference=same-network A/B debug only; fix_overlaps; untangle/straighten_channels; job_status|job_cancel."
+    },
+    "source_view_id": {
+     "type": "string",
+     "description": "For action=layout: optional load graph (default=view_id). For action=move_nodes: required FROM canvas (view_id is TO). For action=align_reference: same-network reference (debug only)."
+    },
+    "recipe": {
+     "type": "string",
+     "enum": [
+      "rings",
+      "corridor",
+      "compact",
+      "unstick"
+     ],
+     "default": "rings",
+     "description": "Only for action=layout. rings=petals/min-rings; corridor/compact/unstick=Tutte corridor variants."
+    },
+    "preset": {
+     "type": "string",
+     "enum": [
+      "loose",
+      "balanced",
+      "dense"
+     ],
+     "default": "balanced"
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "preview",
+      "apply"
+     ],
+     "default": "preview",
+     "description": "preview=no write; apply=PATCH positions"
+    },
+    "tune": {
+     "type": "boolean",
+     "default": false,
+     "description": "Small param sweep for action=layout; zero-overlap first"
+    },
+    "params": {
+     "type": "object",
+     "description": "Overrides. layout: target_nn/target_util/…. job_status|job_cancel: job_id (required). layout_dual_unit: unit_id / portal_a+portal_b; require_zero_cross (default false). untangle: max_rounds/max_degree/protect_rigid/focus_ids[]. polish_crossings: portal_ids[]/source_view_ids[], top_n/max_moves/max_sweeps/straighten/untangle_rounds. clear_edge_hits: top_n/thr/margin/max_moves/portal_ids/max_eject_degree/preserve_axis. compact_bbox|pull_far_chains: portal_ids; pull scales toward portal mid (not outer hub); compact defaults farthest-K. orbit_sweep: node_id/pick/round/until_limit/portal_ids[]/freeze_layers[]/freeze_levels[]/max_degree/max_moves/stall_limit/max_stretch/min_delta/max_jump/angle_step/nn_floor; until_limit defaults protect_rigid=portals + objective=crossing; single-node/round default protect_rigid=off. move_nodes: fabric_node_ids[] (required), copy_positions (default true), park, remove_from_source (default true), pad/offset_x/offset_y.",
+     "properties": {
+      "job_id": {
+       "type": "string",
+       "description": "Required for job_status/job_cancel; returned by background start."
+      },
+      "background": {
+       "type": "boolean",
+       "description": "Run apply computation in a durable subprocess and return job_id immediately."
+      },
+      "sync": {
+       "type": "boolean",
+       "description": "Force inline computation, disabling automatic background execution."
+      }
+     },
+     "additionalProperties": true
+    },
+    "catalog": {
+     "type": "boolean",
+     "default": false,
+     "description": "If true, only return action/recipe/preset catalog"
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "listBizMonitors",
+  "inputSchema": {
+   "properties": {
+    "kind": {
+     "type": "string",
+     "enum": [
+      "all",
+      "projects",
+      "tasks"
+     ],
+     "default": "all"
+    },
+    "purpose": {
+     "type": "string",
+     "description": "任务用途：portrait / cutover_hf；空为全部"
+    },
+    "status": {
+     "type": "string",
+     "description": "本地过滤状态，如 active/paused"
+    },
+    "q": {
+     "type": "string",
+     "description": "名称、设备、备注或 ID 关键词"
+    },
+    "limit": {
+     "type": "integer",
+     "default": 100,
+     "minimum": 1,
+     "maximum": 500
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "listBizMonitorBatches",
+  "inputSchema": {
+   "properties": {
+    "kind": {
+     "type": "string",
+     "enum": [
+      "auto",
+      "all",
+      "cutover",
+      "collect",
+      "runs"
+     ],
+     "default": "auto"
+    },
+    "project_id": {
+     "type": "string",
+     "description": ""
+    },
+    "task_id": {
+     "type": "string",
+     "description": ""
+    },
+    "batch_id": {
+     "type": "string",
+     "description": "割接批次 ID，非采集批次 ID"
+    },
+    "include_runs": {
+     "type": "boolean",
+     "default": false
+    },
+    "status": {
+     "type": "string",
+     "description": ""
+    },
+    "limit": {
+     "type": "integer",
+     "default": 50,
+     "minimum": 1,
+     "maximum": 200
+    },
+    "runs_limit": {
+     "type": "integer",
+     "default": 10,
+     "minimum": 1,
+     "maximum": 50
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getBizMonitorContext",
+  "inputSchema": {
+   "properties": {
+    "project_id": {
+     "type": "string",
+     "description": ""
+    },
+    "task_id": {
+     "type": "string",
+     "description": ""
+    }
+   },
+   "required": [],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getBizMonitorBoard",
+  "inputSchema": {
+   "properties": {
+    "batch_id": {
+     "type": "string",
+     "description": "割接批次 ID"
+    },
+    "run_id": {
+     "type": "string",
+     "description": "可选评估运行 ID"
+    }
+   },
+   "required": [
+    "batch_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "listBizMonitorReds",
+  "inputSchema": {
+   "properties": {
+    "project_id": {
+     "type": "string",
+     "description": ""
+    },
+    "status": {
+     "type": "string",
+     "description": "open / carried / resolved；空为全部"
+    },
+    "limit": {
+     "type": "integer",
+     "default": 200,
+     "minimum": 1,
+     "maximum": 500
+    }
+   },
+   "required": [
+    "project_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getBizMonitorDiffs",
+  "inputSchema": {
+   "properties": {
+    "run_id": {
+     "type": "string",
+     "description": ""
+    },
+    "metric_id": {
+     "type": "string",
+     "description": ""
+    },
+    "sheet_id": {
+     "type": "string",
+     "description": ""
+    },
+    "verdict": {
+     "type": "string",
+     "description": ""
+    },
+    "color": {
+     "type": "string",
+     "description": "如 red"
+    },
+    "q": {
+     "type": "string",
+     "description": "差异关键词，映射 HTTP kw"
+    },
+    "limit": {
+     "type": "integer",
+     "default": 100,
+     "minimum": 1,
+     "maximum": 500
+    },
+    "offset": {
+     "type": "integer",
+     "default": 0,
+     "minimum": 0,
+     "maximum": 9007199254740991
+    }
+   },
+   "required": [
+    "run_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getBizCollectBatch",
+  "inputSchema": {
+   "properties": {
+    "batch_id": {
+     "type": "string",
+     "description": "业务状态采集批次 ID"
+    }
+   },
+   "required": [
+    "batch_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ },
+ {
+  "name": "getBizCollectCommandRaw",
+  "inputSchema": {
+   "properties": {
+    "batch_id": {
+     "type": "string",
+     "description": "采集批次 ID"
+    },
+    "command_id": {
+     "type": "string",
+     "description": "getBizCollectBatch 返回的命令 ID"
+    }
+   },
+   "required": [
+    "batch_id",
+    "command_id"
+   ],
+   "type": "object",
+   "additionalProperties": false
+  }
+ }
+]
